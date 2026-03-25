@@ -1,0 +1,89 @@
+import { describe, expect, it } from 'vitest';
+
+import { computePollResults } from '../src/features/polls/results.js';
+import type { PollWithRelations } from '../src/features/polls/types.js';
+import { buildPollResultDiagram } from '../src/features/polls/visualize.js';
+
+const standardPoll = {
+  id: 'poll_standard_1',
+  guildId: 'guild_1',
+  channelId: 'channel_1',
+  messageId: 'message_1',
+  threadId: null,
+  authorId: 'user_1',
+  question: 'Ship it?',
+  description: null,
+  mode: 'single',
+  singleSelect: true,
+  anonymous: false,
+  passThreshold: 60,
+  passOptionIndex: 0,
+  reminderSentAt: null,
+  closesAt: new Date('2026-03-24T00:00:00.000Z'),
+  closedAt: new Date('2026-03-24T01:00:00.000Z'),
+  createdAt: new Date('2026-03-24T00:00:00.000Z'),
+  updatedAt: new Date('2026-03-24T00:00:00.000Z'),
+  options: [
+    { id: 'option_1', pollId: 'poll_standard_1', label: 'Yes', emoji: '✅', sortOrder: 0, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+    { id: 'option_2', pollId: 'poll_standard_1', label: 'No', emoji: '❌', sortOrder: 1, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+    { id: 'option_3', pollId: 'poll_standard_1', label: 'Abstain', emoji: '➖', sortOrder: 2, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+  ],
+  votes: [
+    { id: 'vote_1', pollId: 'poll_standard_1', optionId: 'option_1', userId: 'user_a', rank: null, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+    { id: 'vote_2', pollId: 'poll_standard_1', optionId: 'option_1', userId: 'user_b', rank: null, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+    { id: 'vote_3', pollId: 'poll_standard_1', optionId: 'option_2', userId: 'user_c', rank: null, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+  ],
+} satisfies PollWithRelations;
+
+const rankedPoll = {
+  id: 'poll_ranked_diagram_1',
+  guildId: 'guild_1',
+  channelId: 'channel_1',
+  messageId: 'message_1',
+  threadId: null,
+  authorId: 'user_1',
+  question: 'Best fruit?',
+  description: 'Rank every option.',
+  mode: 'ranked',
+  singleSelect: false,
+  anonymous: false,
+  passThreshold: null,
+  passOptionIndex: null,
+  reminderSentAt: null,
+  closesAt: new Date('2026-03-24T00:00:00.000Z'),
+  closedAt: new Date('2026-03-24T01:00:00.000Z'),
+  createdAt: new Date('2026-03-24T00:00:00.000Z'),
+  updatedAt: new Date('2026-03-24T00:00:00.000Z'),
+  options: [
+    { id: 'option_1', pollId: 'poll_ranked_diagram_1', label: 'Apple', emoji: '🍎', sortOrder: 0, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+    { id: 'option_2', pollId: 'poll_ranked_diagram_1', label: 'Banana', emoji: '🍌', sortOrder: 1, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+    { id: 'option_3', pollId: 'poll_ranked_diagram_1', label: 'Cherry', emoji: '🍒', sortOrder: 2, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+  ],
+  votes: [
+    { id: 'vote_1', pollId: 'poll_ranked_diagram_1', optionId: 'option_1', userId: 'user_a', rank: 1, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+    { id: 'vote_2', pollId: 'poll_ranked_diagram_1', optionId: 'option_3', userId: 'user_a', rank: 2, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+    { id: 'vote_3', pollId: 'poll_ranked_diagram_1', optionId: 'option_2', userId: 'user_a', rank: 3, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+    { id: 'vote_4', pollId: 'poll_ranked_diagram_1', optionId: 'option_2', userId: 'user_b', rank: 1, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+    { id: 'vote_5', pollId: 'poll_ranked_diagram_1', optionId: 'option_3', userId: 'user_b', rank: 2, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+    { id: 'vote_6', pollId: 'poll_ranked_diagram_1', optionId: 'option_1', userId: 'user_b', rank: 3, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+    { id: 'vote_7', pollId: 'poll_ranked_diagram_1', optionId: 'option_3', userId: 'user_c', rank: 1, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+    { id: 'vote_8', pollId: 'poll_ranked_diagram_1', optionId: 'option_1', userId: 'user_c', rank: 2, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+    { id: 'vote_9', pollId: 'poll_ranked_diagram_1', optionId: 'option_2', userId: 'user_c', rank: 3, createdAt: new Date('2026-03-24T00:00:00.000Z') },
+  ],
+} satisfies PollWithRelations;
+
+describe('buildPollResultDiagram', () => {
+  it('renders a PNG diagram for standard polls', async () => {
+    const diagram = await buildPollResultDiagram(standardPoll, computePollResults(standardPoll));
+    expect(diagram.fileName).toBe('poll-result-poll_standard_1.png');
+    const buffer = diagram.attachment.attachment as Buffer;
+    expect(buffer.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  });
+
+  it('renders a PNG diagram for ranked polls', async () => {
+    const diagram = await buildPollResultDiagram(rankedPoll, computePollResults(rankedPoll));
+    const buffer = diagram.attachment.attachment as Buffer;
+    expect(buffer.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    expect(buffer.length).toBeGreaterThan(1_000);
+  });
+});

@@ -35,6 +35,7 @@ import {
   pollBuilderButtonCustomId,
   pollBuilderModalCustomId,
 } from './render.js';
+import { buildPollResultDiagram } from './visualize.js';
 import {
   clearPollVotes,
   closePollAndRefresh,
@@ -53,6 +54,42 @@ import {
   setPollVotes,
 } from './service.js';
 import { resolveSingleSelectVoteToggle } from './vote-toggle.js';
+import type { PollComputedResults, PollWithRelations } from './types.js';
+
+const buildPollResultsResponse = async (
+  poll: PollWithRelations,
+  results: PollComputedResults,
+): Promise<{
+  embeds: ReturnType<typeof buildPollResultsEmbed>[];
+  files?: AttachmentBuilder[];
+  allowedMentions: {
+    parse: [];
+  };
+}> => {
+  const embed = buildPollResultsEmbed(poll, results);
+
+  try {
+    const diagram = await buildPollResultDiagram(poll, results);
+    embed.setImage(`attachment://${diagram.fileName}`);
+
+    return {
+      embeds: [embed],
+      files: [diagram.attachment],
+      allowedMentions: {
+        parse: [],
+      },
+    };
+  } catch (error) {
+    logger.warn({ err: error, pollId: poll.id }, 'Could not generate poll result diagram');
+
+    return {
+      embeds: [embed],
+      allowedMentions: {
+        parse: [],
+      },
+    };
+  }
+};
 
 const publishPoll = async (
   client: Client,
@@ -210,10 +247,7 @@ export const handlePollResultsCommand = async (
 
   await interaction.reply({
     flags: MessageFlags.Ephemeral,
-    embeds: [buildPollResultsEmbed(snapshot.poll, snapshot.results)],
-    allowedMentions: {
-      parse: [],
-    },
+    ...(await buildPollResultsResponse(snapshot.poll, snapshot.results)),
   });
 };
 
@@ -716,10 +750,7 @@ export const handlePollResultsButton = async (interaction: ButtonInteraction): P
 
   await interaction.reply({
     flags: MessageFlags.Ephemeral,
-    embeds: [buildPollResultsEmbed(snapshot.poll, snapshot.results)],
-    allowedMentions: {
-      parse: [],
-    },
+    ...(await buildPollResultsResponse(snapshot.poll, snapshot.results)),
   });
 };
 
@@ -741,10 +772,7 @@ export const handlePollResultsContext = async (
 
   await interaction.reply({
     flags: MessageFlags.Ephemeral,
-    embeds: [buildPollResultsEmbed(snapshot.poll, snapshot.results)],
-    allowedMentions: {
-      parse: [],
-    },
+    ...(await buildPollResultsResponse(snapshot.poll, snapshot.results)),
   });
 };
 

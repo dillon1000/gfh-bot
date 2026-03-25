@@ -14,6 +14,7 @@ import { buildPollExportCsv } from './export.js';
 import { parsePollLookup } from './query.js';
 import { computePollOutcome, computePollResults } from './results.js';
 import type { PollComputedResults, PollCreationInput, PollMode, PollOutcome, PollWithRelations } from './types.js';
+import { buildPollResultDiagram } from './visualize.js';
 export { resolveSingleSelectVoteToggle } from './vote-toggle.js';
 
 const pollInclude = {
@@ -509,8 +510,19 @@ const sendPollCloseAnnouncement = async (
       text: `Poll ID: ${poll.id}`,
     });
 
+  let files: Array<Awaited<ReturnType<typeof buildPollResultDiagram>>['attachment']> | undefined;
+  try {
+    const results = computePollResults(poll);
+    const diagram = await buildPollResultDiagram(poll, results);
+    embed.setImage(`attachment://${diagram.fileName}`);
+    files = [diagram.attachment];
+  } catch (error) {
+    logger.warn({ err: error, pollId: poll.id }, 'Could not generate poll close diagram');
+  }
+
   await channel.send({
     embeds: [embed],
+    ...(files ? { files } : {}),
     allowedMentions: closedByUserId
       ? {
           parse: [],
