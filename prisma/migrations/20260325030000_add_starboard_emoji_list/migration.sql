@@ -1,0 +1,2 @@
+ALTER TABLE "GuildConfig"
+ADD COLUMN "starboardEmojis" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

@@ -25,7 +25,7 @@ export const handleStarboardCommand = async (
   switch (subcommand) {
     case 'setup': {
       const channel = interaction.options.getChannel('channel', true);
-      const emoji = interaction.options.getString('emoji', true);
+      const emojis = interaction.options.getString('emoji', true);
       const threshold = interaction.options.getInteger('threshold', true);
 
       if (!('isTextBased' in channel) || !channel.isTextBased()) {
@@ -35,7 +35,7 @@ export const handleStarboardCommand = async (
       const config = await setStarboardConfig({
         guildId: interaction.guildId,
         channelId: channel.id,
-        emoji,
+        emojis,
         threshold,
       });
 

@@ -17,7 +17,7 @@ export const starboardCommand = new SlashCommandBuilder()
       .addStringOption((option) =>
         option
           .setName('emoji')
-          .setDescription('Unicode emoji or custom emoji like <:star:123>')
+          .setDescription('One to five unicode/custom emojis, comma separated')
           .setRequired(true),
       )
       .addIntegerOption((option) =>

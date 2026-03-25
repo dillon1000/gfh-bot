@@ -6,6 +6,8 @@ export type NormalizedEmoji = {
   display: string;
 };
 
+const maxConfiguredEmojis = 5;
+
 const customEmojiPattern = /^<a?:(?<name>[a-zA-Z0-9_]+):(?<id>\d+)>$/;
 
 export const normalizeEmojiInput = (value: string): NormalizedEmoji => {
@@ -38,6 +40,71 @@ export const normalizeEmojiInput = (value: string): NormalizedEmoji => {
   };
 };
 
+export const serializeNormalizedEmoji = (emoji: NormalizedEmoji): string =>
+  emoji.id
+    ? `c:${encodeURIComponent(emoji.id)}:${encodeURIComponent(emoji.name)}`
+    : `u::${encodeURIComponent(emoji.name)}`;
+
+export const deserializeStoredEmoji = (value: string): NormalizedEmoji => {
+  if (!value) {
+    throw new Error('Stored emoji cannot be empty.');
+  }
+
+  if (!value.includes(':')) {
+    return normalizeEmojiInput(value);
+  }
+
+  const [kind, rawId = '', rawName = ''] = value.split(':');
+  const id = decodeURIComponent(rawId);
+  const name = decodeURIComponent(rawName);
+
+  if (kind === 'c') {
+    if (!id || !name) {
+      throw new Error('Invalid stored custom emoji.');
+    }
+
+    return {
+      id,
+      name,
+      display: `<:${name}:${id}>`,
+    };
+  }
+
+  if (kind === 'u' && name) {
+    return {
+      id: null,
+      name,
+      display: name,
+    };
+  }
+
+  return normalizeEmojiInput(value);
+};
+
+export const normalizeEmojiListInput = (value: string): NormalizedEmoji[] => {
+  const parts = value
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    throw new Error('Provide at least one emoji.');
+  }
+
+  if (parts.length > maxConfiguredEmojis) {
+    throw new Error(`You can configure at most ${maxConfiguredEmojis} starboard emojis.`);
+  }
+
+  const unique = new Map<string, NormalizedEmoji>();
+
+  for (const part of parts) {
+    const emoji = normalizeEmojiInput(part);
+    unique.set(serializeNormalizedEmoji(emoji), emoji);
+  }
+
+  return [...unique.values()];
+};
+
 export const reactionMatchesEmoji = (
   emoji: Pick<ReactionEmoji, 'id' | 'name'>,
   expected: { id: string | null; name: string | null },
@@ -49,6 +116,11 @@ export const reactionMatchesEmoji = (
   return emoji.name === expected.name;
 };
 
+export const reactionMatchesAnyEmoji = (
+  emoji: Pick<ReactionEmoji, 'id' | 'name'>,
+  expected: Array<{ id: string | null; name: string | null }>,
+): boolean => expected.some((item) => reactionMatchesEmoji(emoji, item));
+
 export const formatStoredEmoji = (emojiId: string | null, emojiName: string | null): string => {
   if (emojiId && emojiName) {
     return `<:${emojiName}:${emojiId}>`;
@@ -56,3 +128,6 @@ export const formatStoredEmoji = (emojiId: string | null, emojiName: string | nu
 
   return emojiName ?? '⭐';
 };
+
+export const formatStoredEmojiList = (values: string[]): string =>
+  values.map((value) => deserializeStoredEmoji(value).display).join(', ');

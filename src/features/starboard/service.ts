@@ -10,7 +10,14 @@ import {
 } from 'discord.js';
 
 import { logger } from '../../app/logger.js';
-import { formatStoredEmoji, normalizeEmojiInput, reactionMatchesEmoji } from '../../lib/emoji.js';
+import {
+  deserializeStoredEmoji,
+  formatStoredEmoji,
+  formatStoredEmojiList,
+  normalizeEmojiListInput,
+  reactionMatchesAnyEmoji,
+  serializeNormalizedEmoji,
+} from '../../lib/emoji.js';
 import { withRedisLock } from '../../lib/locks.js';
 import { prisma } from '../../lib/prisma.js';
 import { redis } from '../../lib/redis.js';
@@ -19,23 +26,36 @@ import { isStarboardPromotionEligible } from './rules.js';
 type ActiveGuildConfig = GuildConfig & {
   starboardEnabled: true;
   starboardChannelId: string;
-  starboardEmojiName: string;
+};
+
+const getConfiguredStarboardEmojis = (config: GuildConfig): string[] => {
+  if (config.starboardEmojis.length > 0) {
+    return config.starboardEmojis;
+  }
+
+  if (config.starboardEmojiName) {
+    return [formatStoredEmoji(config.starboardEmojiId, config.starboardEmojiName)];
+  }
+
+  return [];
 };
 
 const isActiveGuildConfig = (config: GuildConfig | null): config is ActiveGuildConfig =>
   Boolean(
     config?.starboardEnabled &&
       config.starboardChannelId &&
-      config.starboardEmojiName,
+      getConfiguredStarboardEmojis(config).length > 0,
   );
 
 export const setStarboardConfig = async (input: {
   guildId: string;
   channelId: string;
-  emoji: string;
+  emojis: string;
   threshold: number;
 }): Promise<GuildConfig> => {
-  const normalizedEmoji = normalizeEmojiInput(input.emoji);
+  const normalizedEmojis = normalizeEmojiListInput(input.emojis);
+  const storedEmojis = normalizedEmojis.map(serializeNormalizedEmoji);
+  const primaryEmoji = normalizedEmojis[0];
 
   return prisma.guildConfig.upsert({
     where: {
@@ -46,15 +66,17 @@ export const setStarboardConfig = async (input: {
       starboardEnabled: true,
       starboardChannelId: input.channelId,
       starboardThreshold: input.threshold,
-      starboardEmojiId: normalizedEmoji.id,
-      starboardEmojiName: normalizedEmoji.name,
+      starboardEmojis: storedEmojis,
+      starboardEmojiId: primaryEmoji?.id ?? null,
+      starboardEmojiName: primaryEmoji?.name ?? null,
     },
     update: {
       starboardEnabled: true,
       starboardChannelId: input.channelId,
       starboardThreshold: input.threshold,
-      starboardEmojiId: normalizedEmoji.id,
-      starboardEmojiName: normalizedEmoji.name,
+      starboardEmojis: storedEmojis,
+      starboardEmojiId: primaryEmoji?.id ?? null,
+      starboardEmojiName: primaryEmoji?.name ?? null,
     },
   });
 };
@@ -99,13 +121,17 @@ const buildStarboardEmbed = (
       },
       {
         name: 'Reactions',
-        value: `${formatStoredEmoji(config.starboardEmojiId, config.starboardEmojiName)} ${reactionCount}`,
+        value: String(reactionCount),
         inline: true,
       },
       {
         name: 'Channel',
         value: `<#${message.channelId}>`,
         inline: true,
+      },
+      {
+        name: 'Tracked Emojis',
+        value: formatStoredEmojiList(getConfiguredStarboardEmojis(config)),
       },
     )
     .setTimestamp(message.createdAt)
@@ -122,12 +148,38 @@ const buildStarboardEmbed = (
 };
 
 const countEligibleReactions = async (
-  reaction: MessageReaction,
+  message: Message,
+  configuredEmojis: string[],
   messageAuthorId: string | undefined,
 ): Promise<number> => {
-  const users = await reaction.users.fetch();
+  const matchedUsers = new Set<string>();
 
-  return users.filter((user) => !user.bot && user.id !== messageAuthorId).size;
+  for (const reaction of message.reactions.cache.values()) {
+    const isTracked = reactionMatchesAnyEmoji(
+      reaction.emoji,
+      configuredEmojis.map((value) => {
+        const emoji = deserializeStoredEmoji(value);
+        return {
+          id: emoji.id,
+          name: emoji.name,
+        };
+      }),
+    );
+
+    if (!isTracked) {
+      continue;
+    }
+
+    const users = await reaction.users.fetch();
+
+    for (const matchedUser of users.values()) {
+      if (!matchedUser.bot && matchedUser.id !== messageAuthorId) {
+        matchedUsers.add(matchedUser.id);
+      }
+    }
+  }
+
+  return matchedUsers.size;
 };
 
 const getExistingStarboardEntry = async (sourceMessageId: string): Promise<StarboardEntry | null> =>
@@ -169,6 +221,8 @@ const upsertStarboardMessage = async (
 
   const entry = await getExistingStarboardEntry(message.id);
   const embed = buildStarboardEmbed(config, message, reactionCount);
+  const configuredEmojis = getConfiguredStarboardEmojis(config);
+  const primaryEmoji = deserializeStoredEmoji(configuredEmojis[0] ?? '⭐');
 
   if (entry) {
     const boardMessage = await boardChannel.messages.fetch(entry.boardMessageId).catch(() => null);
@@ -180,7 +234,7 @@ const upsertStarboardMessage = async (
       });
     } else {
       await boardMessage.edit({
-        content: `${formatStoredEmoji(config.starboardEmojiId, config.starboardEmojiName)} **${reactionCount}**`,
+        content: `${primaryEmoji.display} **${reactionCount}**`,
         embeds: [embed],
         allowedMentions: {
           parse: [],
@@ -200,7 +254,7 @@ const upsertStarboardMessage = async (
   }
 
   const created = await boardChannel.send({
-    content: `${formatStoredEmoji(config.starboardEmojiId, config.starboardEmojiName)} **${reactionCount}**`,
+    content: `${primaryEmoji.display} **${reactionCount}**`,
     embeds: [embed],
     allowedMentions: {
       parse: [],
@@ -245,15 +299,24 @@ export const syncStarboardForReaction = async (
     return;
   }
 
-  if (!reactionMatchesEmoji(resolvedReaction.emoji, {
-    id: config.starboardEmojiId,
-    name: config.starboardEmojiName,
-  })) {
+  const configuredEmojis = getConfiguredStarboardEmojis(config);
+  const parsedConfiguredEmojis = configuredEmojis.map((value) => {
+    const emoji = deserializeStoredEmoji(value);
+    return {
+      id: emoji.id,
+      name: emoji.name,
+    };
+  });
+
+  if (!reactionMatchesAnyEmoji(
+    resolvedReaction.emoji,
+    parsedConfiguredEmojis,
+  )) {
     return;
   }
 
   await withRedisLock(redis, `lock:starboard:${message.guildId}:${message.id}`, 10_000, async () => {
-    const reactionCount = await countEligibleReactions(resolvedReaction, message.author?.id);
+    const reactionCount = await countEligibleReactions(message, configuredEmojis, message.author?.id);
     const entry = await getExistingStarboardEntry(message.id);
 
     if (!isStarboardPromotionEligible(reactionCount, config.starboardThreshold)) {
@@ -268,14 +331,14 @@ export const syncStarboardForReaction = async (
 };
 
 export const describeStarboardStatus = (config: GuildConfig | null): string => {
-  if (!config?.starboardEnabled || !config.starboardChannelId || !config.starboardEmojiName) {
+  if (!config?.starboardEnabled || !config.starboardChannelId || getConfiguredStarboardEmojis(config).length === 0) {
     return 'Starboard is disabled.';
   }
 
   return [
     'Starboard is enabled.',
     `Channel: <#${config.starboardChannelId}>`,
-    `Emoji: ${formatStoredEmoji(config.starboardEmojiId, config.starboardEmojiName)}`,
+    `Emojis: ${formatStoredEmojiList(getConfiguredStarboardEmojis(config))}`,
     `Threshold: ${config.starboardThreshold}`,
   ].join('\n');
 };

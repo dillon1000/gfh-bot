@@ -52,7 +52,7 @@ docker compose up --build
 - `/poll-builder`
 - `/poll-results query:<message link|message id|poll id>`
 - Message context menu: `Create Poll From Message`
-- `/starboard setup channel:#starboard emoji:<:gold_star:123> threshold:3`
+- `/starboard setup channel:#starboard emoji:"⭐,💎,<:gold_star:123>" threshold:3`
 - `/starboard disable`
 - `/starboard status`
 

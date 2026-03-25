@@ -13,6 +13,7 @@ model GuildConfig {
   starboardEnabled   Boolean          @default(false)
   starboardChannelId String?
   starboardThreshold Int              @default(3)
+  starboardEmojis    String[]         @default([])
   starboardEmojiId   String?
   starboardEmojiName String?
   createdAt          DateTime         @default(now())
