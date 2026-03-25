@@ -1,4 +1,4 @@
-const durationPattern = /^(?<value>\d+)(?<unit>[mhd])$/i;
+const durationTokenPattern = /(?<value>\d+)(?<unit>[mhd])/gi;
 const minute = 60_000;
 const hour = 60 * minute;
 const day = 24 * hour;
@@ -6,22 +6,32 @@ const maxDurationMs = 32 * day;
 const minDurationMs = 5 * minute;
 
 export const parseDurationToMs = (value: string): number => {
-  const trimmed = value.trim();
-  const match = durationPattern.exec(trimmed);
+  const normalized = value.trim().replace(/\s+/g, '').toLowerCase();
 
-  if (!match?.groups) {
-    throw new Error('Duration must use the format 30m, 24h, or 7d.');
+  if (!normalized) {
+    throw new Error('Duration must use the format 30m, 24h, or 1d 12h 15m.');
   }
 
-  const amount = Number(match.groups.value);
-  const unit = match.groups.unit?.toLowerCase();
+  let total = 0;
+  let consumed = '';
+  let match: RegExpExecArray | null;
 
-  if (!unit) {
-    throw new Error('Duration unit is required.');
+  durationTokenPattern.lastIndex = 0;
+  while ((match = durationTokenPattern.exec(normalized)) !== null) {
+    if (!match.groups?.value || !match.groups.unit) {
+      throw new Error('Duration must use the format 30m, 24h, or 1d 12h 15m.');
+    }
+
+    const amount = Number(match.groups.value);
+    const unit = match.groups.unit.toLowerCase();
+    const multiplier = unit === 'm' ? minute : unit === 'h' ? hour : day;
+    total += amount * multiplier;
+    consumed += match[0].toLowerCase();
   }
 
-  const multiplier = unit === 'm' ? minute : unit === 'h' ? hour : day;
-  const total = amount * multiplier;
+  if (!consumed || consumed !== normalized) {
+    throw new Error('Duration must use the format 30m, 24h, or 1d 12h 15m.');
+  }
 
   if (total < minDurationMs) {
     throw new Error('Poll duration must be at least 5 minutes.');

@@ -49,7 +49,7 @@ export const pollCommand = new SlashCommandBuilder()
   .addStringOption((option) =>
     option
       .setName('time')
-      .setDescription('Duration, for example 30m, 24h, or 7d')
+      .setDescription('Duration, for example 30m, 24h, or 1d 12h 15m')
       .setRequired(false),
   )
   .addIntegerOption((option) =>

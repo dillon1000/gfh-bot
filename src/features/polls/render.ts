@@ -377,8 +377,8 @@ export const buildPollBuilderModal = (
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
         .setValue(draft.durationText || '24h')
-        .setPlaceholder('24h')
-        .setMaxLength(8);
+        .setPlaceholder('1d 12h 15m')
+        .setMaxLength(20);
       return new ModalBuilder()
         .setCustomId(pollBuilderModalCustomId(field))
         .setTitle('Edit time')
