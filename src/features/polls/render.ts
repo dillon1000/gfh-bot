@@ -8,6 +8,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
+import type { PollVoteEvent } from '@prisma/client';
 
 import { getPollChoiceToken, renderPollBar } from './present.js';
 import type { PollComputedResults, PollDraft, PollWithRelations } from './types.js';
@@ -15,13 +16,12 @@ import type { PollComputedResults, PollDraft, PollWithRelations } from './types.
 export const pollVoteCustomId = (pollId: string): string => `poll:vote:${pollId}`;
 export const pollChoiceCustomId = (pollId: string, optionId: string): string => `poll:choice:${pollId}:${optionId}`;
 export const pollResultsCustomId = (pollId: string): string => `poll:results:${pollId}`;
-export const pollCloseCustomId = (pollId: string): string => `poll:close:${pollId}`;
 export const pollCloseModalCustomId = (pollId: string): string => `poll:close-modal:${pollId}`;
 export const pollBuilderButtonCustomId = (
-  action: 'question' | 'choices' | 'description' | 'time' | 'threshold' | 'single' | 'anonymous' | 'publish' | 'cancel',
+  action: 'question' | 'choices' | 'description' | 'time' | 'pass-rule' | 'single' | 'anonymous' | 'publish' | 'cancel',
 ): string => `poll-builder:${action}`;
 export const pollBuilderModalCustomId = (
-  field: 'question' | 'choices' | 'description' | 'time' | 'threshold',
+  field: 'question' | 'choices' | 'description' | 'time' | 'pass-rule',
 ): string => `poll-builder:modal:${field}`;
 
 const renderChoiceLine = (
@@ -62,6 +62,19 @@ export const buildFeedbackEmbed = (
     .setDescription(description)
     .setColor(color);
 
+const getPassRuleLabel = (
+  passThreshold: number | null,
+  passOptionIndex: number | null | undefined,
+  choices: Array<{ label: string }>,
+): string => {
+  if (!passThreshold) {
+    return 'Disabled';
+  }
+
+  const measuredChoice = choices[passOptionIndex ?? 0] ?? choices[0];
+  return `${measuredChoice?.label ?? 'Choice 1'} at ${passThreshold}%`;
+};
+
 const chunkButtons = (buttons: ButtonBuilder[]): ActionRowBuilder<ButtonBuilder>[] => {
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
 
@@ -79,24 +92,26 @@ export const buildPollMessage = (
   const embed = new EmbedBuilder()
     .setTitle(poll.question)
     .setColor(poll.closedAt ? 0xef4444 : 0x5eead4)
-    .setDescription(
-      [
-        poll.description,
-        '',
-        `Poll by <@${poll.authorId}>`,
-        `${poll.singleSelect ? 'You can choose one.' : `You can choose up to ${poll.options.length}.`} ${poll.closedAt
-          ? `Closed <t:${Math.floor(poll.closedAt.getTime() / 1000)}:R>.`
-          : `Closes <t:${Math.floor(poll.closesAt.getTime() / 1000)}:R>.`}`,
-        poll.anonymous ? 'Anonymous votes enabled.' : 'Live public totals enabled.',
-        poll.passThreshold ? `Pass threshold: ${poll.passThreshold}% for ${poll.options[0]?.label ?? 'the first option'}.` : null,
-      ]
-        .filter(Boolean)
-        .join('\n'),
+    .setDescription(poll.description || null)
+    .addFields(
+      {
+        name: poll.closedAt ? 'Final Results' : 'Live Results',
+        value: results.choices.map((choice, index) => renderChoiceLine(choice, index)).join('\n\n'),
+      },
+      {
+        name: 'Details',
+        value: [
+          `**Mode** ${poll.singleSelect ? 'Single select' : `Multi select, up to ${poll.options.length}`}`,
+          `**Visibility** ${poll.anonymous ? 'Anonymous identities hidden' : 'Public vote totals'}`,
+          `**Pass Rule** ${getPassRuleLabel(poll.passThreshold, poll.passOptionIndex, poll.options)}`,
+          `**Status** ${poll.closedAt
+            ? `Closed <t:${Math.floor(poll.closedAt.getTime() / 1000)}:R>`
+            : `Closes <t:${Math.floor(poll.closesAt.getTime() / 1000)}:R>`}`,
+          `**Started By** <@${poll.authorId}>`,
+        ].join('\n'),
+        inline: false,
+      },
     )
-    .addFields({
-      name: poll.closedAt ? 'Final Results' : 'Live Results',
-      value: results.choices.map((choice, index) => renderChoiceLine(choice, index)).join('\n\n'),
-    })
     .setFooter({
       text: `Poll ID: ${poll.id} • ${results.totalVoters} voter${results.totalVoters === 1 ? '' : 's'}`,
     });
@@ -106,11 +121,6 @@ export const buildPollMessage = (
       .setCustomId(pollResultsCustomId(poll.id))
       .setLabel('Results')
       .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(pollCloseCustomId(poll.id))
-      .setLabel(poll.closedAt ? 'Closed' : 'Close Poll')
-      .setStyle(ButtonStyle.Danger)
-      .setDisabled(Boolean(poll.closedAt)),
   );
 
   const components = poll.singleSelect
@@ -165,7 +175,7 @@ export const buildPollResultsEmbed = (
       [
         `Status: ${poll.closedAt ? 'Closed' : 'Open'}`,
         `Total voters: ${results.totalVoters}`,
-        poll.passThreshold ? `Pass threshold: ${poll.passThreshold}% for ${poll.options[0]?.label ?? 'the first option'}` : null,
+        `Pass rule: ${getPassRuleLabel(poll.passThreshold, poll.passOptionIndex, poll.options)}`,
         poll.anonymous ? 'Anonymous poll: voter identities are hidden.' : 'Non-anonymous poll: voter identities are shown below.',
       ]
         .filter(Boolean)
@@ -194,16 +204,59 @@ export const buildPollResultsEmbed = (
   return embed;
 };
 
+export const buildPollAuditEmbed = (
+  poll: PollWithRelations,
+  events: PollVoteEvent[],
+): EmbedBuilder => {
+  const optionLabels = new Map(poll.options.map((option) => [option.id, option.label]));
+  const embed = new EmbedBuilder()
+    .setTitle(`Audit: ${poll.question}`)
+    .setColor(0xf59e0b)
+    .setDescription(
+      [
+        `Status: ${poll.closedAt ? 'Closed' : 'Open'}`,
+        `Audit events: ${events.length}`,
+        'Most recent changes are shown below.',
+      ].join('\n'),
+    )
+    .setFooter({
+      text: `Poll ID: ${poll.id}`,
+    });
+
+  for (const event of events.slice(0, 10)) {
+    const previous = event.previousOptionIds.length === 0
+      ? 'No previous vote'
+      : event.previousOptionIds.map((optionId: string) => optionLabels.get(optionId) ?? optionId).join(', ');
+    const next = event.nextOptionIds.length === 0
+      ? 'Vote cleared'
+      : event.nextOptionIds.map((optionId: string) => optionLabels.get(optionId) ?? optionId).join(', ');
+
+    embed.addFields({
+      name: `<@${event.userId}> • <t:${Math.floor(event.createdAt.getTime() / 1000)}:R>`,
+      value: `**From** ${previous}\n**To** ${next}`,
+    });
+  }
+
+  if (events.length > 10) {
+    embed.addFields({
+      name: 'More History',
+      value: `${events.length - 10} older event${events.length - 10 === 1 ? '' : 's'} not shown in this view.`,
+    });
+  }
+
+  return embed;
+};
+
 const getDraftSummary = (draft: PollDraft): string =>
   [
     draft.description || '*No description or source link yet*',
     '',
-    `Question: ${draft.question}`,
-    `Choices: ${draft.choices.map((choice, index) => `${getPollChoiceToken(index)} ${choice}`).join(' • ')}`,
-    `Mode: ${draft.singleSelect ? 'Single select buttons' : 'Multi select menu'}`,
-    `Visibility: ${draft.anonymous ? 'Anonymous' : 'Public counts'}`,
-    `Pass threshold: ${draft.passThreshold ? `${draft.passThreshold}% for ${draft.choices[0] ?? 'the first choice'}` : 'Disabled'}`,
-    `Duration: ${draft.durationText}`,
+    `**Question** ${draft.question}`,
+    `**Choices** ${draft.choices.map((choice, index) => `${getPollChoiceToken(index)} ${choice}`).join(' • ')}`,
+    `**Mode** ${draft.singleSelect ? 'Single select buttons' : 'Multi select menu'}`,
+    `**Visibility** ${draft.anonymous ? 'Anonymous identities hidden' : 'Public vote totals'}`,
+    `**Pass Rule** ${getPassRuleLabel(draft.passThreshold, draft.passOptionIndex, draft.choices.map((label) => ({ label })))}`,
+    `**Duration** ${draft.durationText}`,
   ].join('\n');
 
 export const buildPollBuilderPreview = (
@@ -227,30 +280,30 @@ export const buildPollBuilderPreview = (
   const rowOne = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('question'))
-      .setLabel('Edit Question')
+      .setLabel('Question')
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('choices'))
-      .setLabel('Edit Choices')
+      .setLabel('Choices')
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('description'))
-      .setLabel('Edit Description')
+      .setLabel('Description')
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
-      .setCustomId(pollBuilderButtonCustomId('threshold'))
-      .setLabel('Pass Threshold')
+      .setCustomId(pollBuilderButtonCustomId('time'))
+      .setLabel('Timing')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(pollBuilderButtonCustomId('pass-rule'))
+      .setLabel('Pass Rule')
       .setStyle(ButtonStyle.Secondary),
   );
 
   const rowTwo = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(pollBuilderButtonCustomId('time'))
-      .setLabel('Edit Time')
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('single'))
-      .setLabel(draft.singleSelect ? 'Single Select: On' : 'Single Select: Off')
+      .setLabel(draft.singleSelect ? 'Single: On' : 'Single: Off')
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('anonymous'))
@@ -276,7 +329,7 @@ export const buildPollBuilderPreview = (
 };
 
 export const buildPollBuilderModal = (
-  field: 'question' | 'choices' | 'description' | 'time' | 'threshold',
+  field: 'question' | 'choices' | 'description' | 'time' | 'pass-rule',
   draft: PollDraft,
 ): ModalBuilder => {
   const input = new TextInputBuilder().setCustomId('value');
@@ -314,16 +367,40 @@ export const buildPollBuilderModal = (
         .setValue(draft.durationText || '24h')
         .setPlaceholder('24h')
         .setMaxLength(8);
-      break;
-    case 'threshold':
-      input
+      return new ModalBuilder()
+        .setCustomId(pollBuilderModalCustomId(field))
+        .setTitle('Edit time')
+        .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input));
+    case 'pass-rule': {
+      const thresholdInput = new TextInputBuilder()
+        .setCustomId('threshold')
         .setLabel('Pass Threshold Percent')
         .setStyle(TextInputStyle.Short)
         .setRequired(false)
         .setValue(draft.passThreshold ? String(draft.passThreshold) : '')
         .setPlaceholder('Leave blank to disable')
         .setMaxLength(3);
-      break;
+      const choiceInput = new TextInputBuilder()
+        .setCustomId('pass-choice')
+        .setLabel('Pass Choice Number')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false)
+        .setValue(
+          draft.passThreshold && draft.passOptionIndex !== null
+            ? String(draft.passOptionIndex + 1)
+            : '',
+        )
+        .setPlaceholder(`1-${draft.choices.length}, defaults to 1`)
+        .setMaxLength(2);
+
+      return new ModalBuilder()
+        .setCustomId(pollBuilderModalCustomId(field))
+        .setTitle('Edit pass rule')
+        .addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(thresholdInput),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(choiceInput),
+        );
+    }
   }
 
   return new ModalBuilder()

@@ -22,6 +22,47 @@ export const parsePassThreshold = (value: string): number | null => {
   return threshold;
 };
 
+export const parsePassChoiceIndex = (
+  value: number | string | null | undefined,
+  choiceCount: number,
+): number | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const normalized = typeof value === 'number' ? value : Number(value.trim());
+  if (!Number.isInteger(normalized)) {
+    throw new Error('Pass choice must be a whole number.');
+  }
+
+  if (normalized < 1 || normalized > choiceCount) {
+    throw new Error(`Pass choice must be between 1 and ${choiceCount}.`);
+  }
+
+  return normalized - 1;
+};
+
+export const resolvePassRule = (
+  passThreshold: number | null,
+  passChoiceIndex: number | null,
+): { passThreshold: number | null; passOptionIndex: number | null } => {
+  if (passThreshold === null) {
+    if (passChoiceIndex !== null) {
+      throw new Error('Pass choice requires a pass threshold.');
+    }
+
+    return {
+      passThreshold: null,
+      passOptionIndex: null,
+    };
+  }
+
+  return {
+    passThreshold,
+    passOptionIndex: passChoiceIndex ?? 0,
+  };
+};
+
 export const sanitizeQuestion = (value: string): string => {
   const trimmed = value.trim();
 

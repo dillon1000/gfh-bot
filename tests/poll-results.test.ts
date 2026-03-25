@@ -14,6 +14,7 @@ const poll = {
   singleSelect: false,
   anonymous: false,
   passThreshold: 60,
+  passOptionIndex: 1,
   reminderSentAt: null,
   closesAt: new Date('2026-03-24T00:00:00.000Z'),
   closedAt: null,
@@ -84,14 +85,14 @@ describe('computePollResults', () => {
 });
 
 describe('computePollOutcome', () => {
-  it('marks the poll as passed when the first choice reaches the threshold', () => {
+  it('measures the configured pass option when evaluating the threshold', () => {
     const results = computePollResults(poll);
 
     expect(computePollOutcome(poll, results)).toEqual({
-      status: 'passed',
+      status: 'failed',
       passThreshold: 60,
-      measuredChoiceLabel: 'Yes',
-      measuredPercentage: (2 / 3) * 100,
+      measuredChoiceLabel: 'No',
+      measuredPercentage: (1 / 3) * 100,
     });
   });
 });

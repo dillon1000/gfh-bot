@@ -1,4 +1,4 @@
-import type { Poll, PollOption } from '@prisma/client';
+import type { Poll, PollOption, PollVoteEvent } from '@prisma/client';
 import { EmbedBuilder, type Client } from 'discord.js';
 
 import { env } from '../../app/config.js';
@@ -46,6 +46,7 @@ export const createPollRecord = async (input: PollCreationInput): Promise<PollWi
       singleSelect: input.singleSelect,
       anonymous: input.anonymous,
       passThreshold: input.passThreshold ?? null,
+      passOptionIndex: input.passOptionIndex ?? null,
       closesAt,
       options: {
         create: input.choices.map((choice, index) => ({
@@ -283,6 +284,11 @@ export const setPollVotes = async (
       }
 
       assertPollVoteSelection(poll, selectedOptionIds);
+      const previousOptionIds = poll.votes
+        .filter((vote) => vote.userId === userId)
+        .map((vote) => vote.optionId)
+        .sort();
+      const nextOptionIds = [...selectedOptionIds].sort();
 
       await tx.pollVote.deleteMany({
         where: {
@@ -298,6 +304,17 @@ export const setPollVotes = async (
           userId,
         })),
       });
+
+      if (previousOptionIds.join(',') !== nextOptionIds.join(',')) {
+        await tx.pollVoteEvent.create({
+          data: {
+            pollId,
+            userId,
+            previousOptionIds,
+            nextOptionIds,
+          },
+        });
+      }
 
       return tx.poll.findUniqueOrThrow({
         where: {
@@ -531,6 +548,31 @@ export const getPollResultsSnapshotByQuery = async (
   return {
     poll,
     results: computePollResults(poll),
+  };
+};
+
+export const getPollVoteAuditSnapshotByQuery = async (
+  query: string,
+  guildId?: string,
+): Promise<{ poll: PollWithRelations; events: PollVoteEvent[] } | null> => {
+  const poll = await getPollByQuery(query, guildId);
+
+  if (!poll) {
+    return null;
+  }
+
+  const events = await prisma.pollVoteEvent.findMany({
+    where: {
+      pollId: poll.id,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+
+  return {
+    poll,
+    events,
   };
 };
 

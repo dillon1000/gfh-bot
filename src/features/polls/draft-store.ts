@@ -13,6 +13,7 @@ export const createDefaultDraft = (): PollDraft => ({
   singleSelect: true,
   anonymous: false,
   passThreshold: null,
+  passOptionIndex: null,
   durationText: '24h',
 });
 

@@ -1,5 +1,8 @@
 import type { PollComputedResults, PollOutcome, PollWithRelations } from './types.js';
 
+const getMeasuredChoice = (poll: PollWithRelations) =>
+  poll.options[poll.passOptionIndex ?? 0] ?? poll.options[0] ?? null;
+
 export const computePollResults = (poll: PollWithRelations): PollComputedResults => {
   const totals = new Map<string, number>();
   const voters = new Set<string>();
@@ -33,8 +36,11 @@ export const computePollOutcome = (
   poll: PollWithRelations,
   results: PollComputedResults,
 ): PollOutcome => {
-  const measuredChoiceLabel = poll.options[0]?.label ?? 'First choice';
-  const measuredPercentage = results.choices[0]?.percentage ?? 0;
+  const measuredChoice = getMeasuredChoice(poll);
+  const measuredChoiceLabel = measuredChoice?.label ?? 'Configured choice';
+  const measuredPercentage = measuredChoice
+    ? (results.choices.find((choice) => choice.id === measuredChoice.id)?.percentage ?? 0)
+    : 0;
 
   if (!poll.passThreshold) {
     return {

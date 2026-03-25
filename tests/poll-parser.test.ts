@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseChoicesCsv, parsePassThreshold, parsePollFormInput } from '../src/features/polls/parser.js';
+import { parseChoicesCsv, parsePassChoiceIndex, parsePassThreshold, parsePollFormInput, resolvePassRule } from '../src/features/polls/parser.js';
 
 describe('parseChoicesCsv', () => {
   it('parses comma-separated choices', () => {
@@ -41,5 +41,24 @@ describe('parsePassThreshold', () => {
 
   it('rejects invalid thresholds', () => {
     expect(() => parsePassThreshold('101')).toThrow(/1 to 100/);
+  });
+});
+
+describe('parsePassChoiceIndex', () => {
+  it('returns a zero-based index for a valid choice number', () => {
+    expect(parsePassChoiceIndex('2', 3)).toBe(1);
+  });
+
+  it('rejects choices outside the available range', () => {
+    expect(() => parsePassChoiceIndex('4', 3)).toThrow(/between 1 and 3/);
+  });
+});
+
+describe('resolvePassRule', () => {
+  it('defaults the pass option to the first choice when only a threshold is provided', () => {
+    expect(resolvePassRule(60, null)).toEqual({
+      passThreshold: 60,
+      passOptionIndex: 0,
+    });
   });
 });

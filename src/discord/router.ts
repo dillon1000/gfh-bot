@@ -3,18 +3,21 @@ import { Events, type Client, type Interaction } from 'discord.js';
 import { handleMeowCommand } from '../features/meta/meow.js';
 import { handlePingCommand } from '../features/meta/ping.js';
 import {
+  handlePollAuditCommand,
   handlePollBuilderButton,
   handlePollBuilderCommand,
   handlePollBuilderModal,
   handlePollChoiceButton,
-  handlePollCloseButton,
+  handlePollCloseContext,
   handlePollCloseModal,
   handlePollCommand,
   handlePollExportCommand,
+  handlePollExportContext,
   handlePollFromMessageContext,
   handlePollInteractionError,
   handlePollResultsCommand,
   handlePollResultsButton,
+  handlePollResultsContext,
   handlePollVoteSelect,
 } from '../features/polls/interactions.js';
 import { handleStarboardCommand } from '../features/starboard/commands.js';
@@ -42,6 +45,9 @@ export const registerInteractionRouter = (client: Client): void => {
           case 'poll-export':
             await handlePollExportCommand(interaction);
             return;
+          case 'poll-audit':
+            await handlePollAuditCommand(interaction);
+            return;
           case 'starboard':
             await handleStarboardCommand(interaction);
             return;
@@ -53,6 +59,22 @@ export const registerInteractionRouter = (client: Client): void => {
       if (interaction.isMessageContextMenuCommand()) {
         if (interaction.commandName === 'Create Poll From Message') {
           await handlePollFromMessageContext(interaction);
+          return;
+        }
+
+        if (interaction.commandName === 'View Poll Results') {
+          await handlePollResultsContext(interaction);
+          return;
+        }
+
+        if (interaction.commandName === 'Export Poll CSV') {
+          await handlePollExportContext(interaction);
+          return;
+        }
+
+        if (interaction.commandName === 'Close Poll') {
+          await handlePollCloseContext(interaction);
+          return;
         }
         return;
       }
@@ -73,10 +95,6 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
-        if (interaction.customId.startsWith('poll:close:')) {
-          await handlePollCloseButton(interaction);
-          return;
-        }
       }
 
       if (interaction.isStringSelectMenu() && interaction.customId.startsWith('poll:vote:')) {

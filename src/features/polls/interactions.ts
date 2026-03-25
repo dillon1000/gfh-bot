@@ -16,10 +16,11 @@ import {
 import { logger } from '../../app/logger.js';
 import { redis } from '../../lib/redis.js';
 import { deletePollDraft, getPollDraft, savePollDraft } from './draft-store.js';
-import { parseChoicesCsv, parsePassThreshold, parsePollFormInput } from './parser.js';
+import { parseChoicesCsv, parsePassChoiceIndex, parsePassThreshold, parsePollFormInput, resolvePassRule } from './parser.js';
 import { normalizeQuestionFromMessage } from './present.js';
 import {
   buildPollCloseModal,
+  buildPollAuditEmbed,
   buildPollBuilderModal,
   buildPollBuilderPreview,
   buildFeedbackEmbed,
@@ -33,6 +34,8 @@ import {
   deletePollRecord,
   exportPollToCsv,
   getPollById,
+  getPollByMessageId,
+  getPollVoteAuditSnapshotByQuery,
   getPollResultsSnapshot,
   getPollResultsSnapshotByQuery,
   hydratePollMessage,
@@ -51,6 +54,7 @@ const publishPoll = async (
     singleSelect: boolean;
     anonymous: boolean;
     passThreshold?: number | null;
+    passOptionIndex?: number | null;
     durationMs: number;
   },
 ): Promise<void> => {
@@ -68,6 +72,9 @@ const publishPoll = async (
     singleSelect: draft.singleSelect,
     anonymous: draft.anonymous,
     ...(draft.passThreshold ? { passThreshold: draft.passThreshold } : {}),
+    ...(draft.passThreshold !== null && draft.passOptionIndex !== null
+      ? { passOptionIndex: draft.passOptionIndex }
+      : {}),
     durationMs: draft.durationMs,
   });
 
@@ -91,12 +98,18 @@ export const handlePollCommand = async (
     choices: interaction.options.getString('choices', true),
     durationText: interaction.options.getString('time') ?? '24h',
   });
+  const passThreshold = interaction.options.getInteger('pass_threshold');
+  const passChoiceIndex = parsePassChoiceIndex(
+    interaction.options.getInteger('pass_choice'),
+    parsed.choices.length,
+  );
+  const passRule = resolvePassRule(passThreshold, passChoiceIndex);
 
   await publishPoll(client, interaction, {
     ...parsed,
     singleSelect: interaction.options.getBoolean('single_select') ?? true,
     anonymous: interaction.options.getBoolean('anonymous') ?? false,
-    passThreshold: interaction.options.getInteger('pass_threshold'),
+    ...passRule,
   });
 
   await interaction.editReply({
@@ -136,6 +149,7 @@ export const handlePollFromMessageContext = async (
     singleSelect: true,
     anonymous: false,
     passThreshold: null,
+    passOptionIndex: null,
     durationText: '24h',
   };
 
@@ -222,6 +236,38 @@ export const handlePollExportCommand = async (
   });
 };
 
+export const handlePollAuditCommand = async (
+  interaction: ChatInputCommandInteraction,
+): Promise<void> => {
+  if (!interaction.inGuild()) {
+    throw new Error('Poll audits can only be queried inside a server.');
+  }
+
+  const query = interaction.options.getString('query', true);
+  const snapshot = await getPollVoteAuditSnapshotByQuery(query, interaction.guildId);
+
+  if (!snapshot) {
+    throw new Error('Poll not found.');
+  }
+
+  if (snapshot.poll.anonymous) {
+    throw new Error('Anonymous polls do not expose vote audit history.');
+  }
+
+  const canManageGuild = interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
+  if (!isPollManager(snapshot.poll, interaction.user.id, canManageGuild)) {
+    throw new Error('Only the poll creator or a server manager can view poll audit history.');
+  }
+
+  await interaction.reply({
+    flags: MessageFlags.Ephemeral,
+    embeds: [buildPollAuditEmbed(snapshot.poll, snapshot.events)],
+    allowedMentions: {
+      parse: [],
+    },
+  });
+};
+
 const updatePollBuilderPreview = async (
   interaction: ButtonInteraction | ModalSubmitInteraction,
   error?: string,
@@ -272,8 +318,8 @@ export const handlePollBuilderButton = async (
     case pollBuilderButtonCustomId('time'):
       await interaction.showModal(buildPollBuilderModal('time', draft));
       return;
-    case pollBuilderButtonCustomId('threshold'):
-      await interaction.showModal(buildPollBuilderModal('threshold', draft));
+    case pollBuilderButtonCustomId('pass-rule'):
+      await interaction.showModal(buildPollBuilderModal('pass-rule', draft));
       return;
     case pollBuilderButtonCustomId('single'):
       draft.singleSelect = !draft.singleSelect;
@@ -300,6 +346,7 @@ export const handlePollBuilderButton = async (
         singleSelect: draft.singleSelect,
         anonymous: draft.anonymous,
         passThreshold: draft.passThreshold,
+        passOptionIndex: draft.passOptionIndex,
       });
 
       await deletePollDraft(redis, interaction.guildId, interaction.user.id);
@@ -329,24 +376,34 @@ export const handlePollBuilderModal = async (
   }
 
   const draft = await getPollDraft(redis, interaction.guildId, interaction.user.id);
-  const value = interaction.fields.getTextInputValue('value');
 
   switch (interaction.customId) {
     case pollBuilderModalCustomId('question'):
-      draft.question = value.trim();
+      draft.question = interaction.fields.getTextInputValue('value').trim();
       break;
     case pollBuilderModalCustomId('choices'):
-      draft.choices = parseChoicesCsv(value);
+      draft.choices = parseChoicesCsv(interaction.fields.getTextInputValue('value'));
+      if (draft.passThreshold !== null && (draft.passOptionIndex === null || draft.passOptionIndex >= draft.choices.length)) {
+        draft.passOptionIndex = 0;
+      }
       break;
     case pollBuilderModalCustomId('description'):
-      draft.description = value.trim();
+      draft.description = interaction.fields.getTextInputValue('value').trim();
       break;
     case pollBuilderModalCustomId('time'):
-      draft.durationText = value.trim();
+      draft.durationText = interaction.fields.getTextInputValue('value').trim();
       break;
-    case pollBuilderModalCustomId('threshold'):
-      draft.passThreshold = parsePassThreshold(value);
+    case pollBuilderModalCustomId('pass-rule'): {
+      const passThreshold = parsePassThreshold(interaction.fields.getTextInputValue('threshold'));
+      const passChoiceIndex = parsePassChoiceIndex(
+        interaction.fields.getTextInputValue('pass-choice'),
+        draft.choices.length,
+      );
+      const passRule = resolvePassRule(passThreshold, passChoiceIndex);
+      draft.passThreshold = passRule.passThreshold;
+      draft.passOptionIndex = passRule.passOptionIndex;
       break;
+    }
     default:
       return;
   }
@@ -414,17 +471,79 @@ export const handlePollResultsButton = async (interaction: ButtonInteraction): P
   });
 };
 
-export const handlePollCloseButton = async (
-  interaction: ButtonInteraction,
+export const handlePollResultsContext = async (
+  interaction: MessageContextMenuCommandInteraction,
 ): Promise<void> => {
-  const pollId = interaction.customId.split(':')[2];
-
-  if (!pollId || !interaction.inGuild()) {
-    throw new Error('Invalid poll identifier.');
+  if (!interaction.inGuild()) {
+    throw new Error('Poll results can only be queried inside a server.');
   }
 
-  const poll = await getPollById(pollId);
-  if (!poll) {
+  const poll = await getPollByMessageId(interaction.targetMessage.id);
+  if (!poll || poll.guildId !== interaction.guildId) {
+    throw new Error('Poll not found.');
+  }
+  const snapshot = await getPollResultsSnapshot(poll.id);
+  if (!snapshot) {
+    throw new Error('Poll not found.');
+  }
+
+  await interaction.reply({
+    flags: MessageFlags.Ephemeral,
+    embeds: [buildPollResultsEmbed(snapshot.poll, snapshot.results)],
+    allowedMentions: {
+      parse: [],
+    },
+  });
+};
+
+export const handlePollExportContext = async (
+  interaction: MessageContextMenuCommandInteraction,
+): Promise<void> => {
+  if (!interaction.inGuild()) {
+    throw new Error('Poll exports can only be generated inside a server.');
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const poll = await getPollByMessageId(interaction.targetMessage.id);
+  if (!poll || poll.guildId !== interaction.guildId) {
+    throw new Error('Poll not found.');
+  }
+
+  const exported = await exportPollToCsv(poll);
+  if (exported.kind === 'r2') {
+    await interaction.editReply({
+      embeds: [buildFeedbackEmbed('Poll Export Ready', `The CSV export for **${poll.question}** is ready.`)],
+      components: [
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setLabel('Download CSV')
+            .setStyle(ButtonStyle.Link)
+            .setURL(exported.url),
+        ),
+      ],
+    });
+    return;
+  }
+
+  await interaction.editReply({
+    embeds: [buildFeedbackEmbed('Poll Export Ready', `Attached CSV export for **${poll.question}**.`)],
+    files: [
+      new AttachmentBuilder(exported.buffer, {
+        name: exported.fileName,
+      }),
+    ],
+  });
+};
+
+export const handlePollCloseContext = async (
+  interaction: MessageContextMenuCommandInteraction,
+): Promise<void> => {
+  if (!interaction.inGuild()) {
+    throw new Error('Poll closing only works inside a server.');
+  }
+
+  const poll = await getPollByMessageId(interaction.targetMessage.id);
+  if (!poll || poll.guildId !== interaction.guildId) {
     throw new Error('Poll not found.');
   }
 

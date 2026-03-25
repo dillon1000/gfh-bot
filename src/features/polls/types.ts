@@ -21,6 +21,7 @@ export type PollCreationInput = {
   singleSelect: boolean;
   anonymous: boolean;
   passThreshold?: number | null;
+  passOptionIndex?: number | null;
   durationMs: number;
 };
 
@@ -31,6 +32,7 @@ export type PollDraft = {
   singleSelect: boolean;
   anonymous: boolean;
   passThreshold: number | null;
+  passOptionIndex: number | null;
   durationText: string;
 };
 

@@ -38,6 +38,22 @@ export const pollCommand = new SlashCommandBuilder()
       .setName('time')
       .setDescription('Duration, for example 30m, 24h, or 7d')
       .setRequired(false),
+  )
+  .addIntegerOption((option) =>
+    option
+      .setName('pass_threshold')
+      .setDescription('Optional pass percentage from 1 to 100')
+      .setRequired(false)
+      .setMinValue(1)
+      .setMaxValue(100),
+  )
+  .addIntegerOption((option) =>
+    option
+      .setName('pass_choice')
+      .setDescription('Optional 1-based choice number to measure for passing')
+      .setRequired(false)
+      .setMinValue(1)
+      .setMaxValue(10),
   );
 
 export const pollBuilderCommand = new SlashCommandBuilder()
@@ -64,7 +80,32 @@ export const pollExportCommand = new SlashCommandBuilder()
       .setRequired(true),
   );
 
+export const pollAuditCommand = new SlashCommandBuilder()
+  .setName('poll-audit')
+  .setDescription('Review vote changes for a non-anonymous poll.')
+  .addStringOption((option) =>
+    option
+      .setName('query')
+      .setDescription('Discord message link, raw message ID, or poll ID')
+      .setRequired(true),
+  );
+
 export const pollFromMessageCommand = {
   name: 'Create Poll From Message',
+  type: ApplicationCommandType.Message,
+} as const;
+
+export const pollResultsFromMessageCommand = {
+  name: 'View Poll Results',
+  type: ApplicationCommandType.Message,
+} as const;
+
+export const pollExportFromMessageCommand = {
+  name: 'Export Poll CSV',
+  type: ApplicationCommandType.Message,
+} as const;
+
+export const pollCloseFromMessageCommand = {
+  name: 'Close Poll',
   type: ApplicationCommandType.Message,
 } as const;

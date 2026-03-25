@@ -2,7 +2,17 @@ import type { RESTPostAPIApplicationCommandsJSONBody } from 'discord.js';
 
 import { meowCommand } from '../../features/meta/meow.js';
 import { pingCommand } from '../../features/meta/ping.js';
-import { pollBuilderCommand, pollCommand, pollExportCommand, pollFromMessageCommand, pollResultsCommand } from '../../features/polls/commands.js';
+import {
+  pollAuditCommand,
+  pollBuilderCommand,
+  pollCloseFromMessageCommand,
+  pollCommand,
+  pollExportCommand,
+  pollExportFromMessageCommand,
+  pollFromMessageCommand,
+  pollResultsCommand,
+  pollResultsFromMessageCommand,
+} from '../../features/polls/commands.js';
 import { starboardCommand } from '../../features/starboard/definition.js';
 
 export const applicationCommands: RESTPostAPIApplicationCommandsJSONBody[] = [
@@ -12,6 +22,10 @@ export const applicationCommands: RESTPostAPIApplicationCommandsJSONBody[] = [
   pollBuilderCommand.toJSON(),
   pollResultsCommand.toJSON(),
   pollExportCommand.toJSON(),
+  pollAuditCommand.toJSON(),
   pollFromMessageCommand,
+  pollResultsFromMessageCommand,
+  pollExportFromMessageCommand,
+  pollCloseFromMessageCommand,
   starboardCommand.toJSON(),
 ];

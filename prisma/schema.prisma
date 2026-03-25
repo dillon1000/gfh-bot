@@ -22,23 +22,25 @@ model GuildConfig {
 }
 
 model Poll {
-  id           String      @id @default(cuid())
-  guildId      String
-  channelId    String
-  messageId    String?     @unique
-  authorId     String
-  question     String
-  description  String?
-  singleSelect Boolean     @default(true)
-  anonymous    Boolean     @default(false)
-  passThreshold Int?
+  id             String          @id @default(cuid())
+  guildId        String
+  channelId      String
+  messageId      String?         @unique
+  authorId       String
+  question       String
+  description    String?
+  singleSelect   Boolean         @default(true)
+  anonymous      Boolean         @default(false)
+  passThreshold  Int?
+  passOptionIndex Int?
   reminderSentAt DateTime?
-  closesAt     DateTime
-  closedAt     DateTime?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  options      PollOption[]
-  votes        PollVote[]
+  closesAt       DateTime
+  closedAt       DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  options        PollOption[]
+  votes          PollVote[]
+  voteEvents     PollVoteEvent[]
 
   @@index([guildId, channelId])
   @@index([closesAt, closedAt])
@@ -68,6 +70,19 @@ model PollVote {
 
   @@unique([pollId, userId, optionId])
   @@index([pollId, userId])
+}
+
+model PollVoteEvent {
+  id                String   @id @default(cuid())
+  pollId            String
+  userId            String
+  previousOptionIds String[]
+  nextOptionIds     String[]
+  createdAt         DateTime @default(now())
+  poll              Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  @@index([pollId, createdAt])
+  @@index([pollId, userId, createdAt])
 }
 
 model StarboardEntry {

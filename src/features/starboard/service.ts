@@ -341,6 +341,68 @@ export const describeStarboardStatus = (config: GuildConfig | null): string => {
   ].join('\n');
 };
 
+export const getStarboardPostLeaderboard = async (
+  guildId: string,
+  limit: number,
+): Promise<Array<{ sourceMessageId: string; sourceChannelId: string; authorId: string; reactionCount: number }>> =>
+  prisma.starboardEntry.findMany({
+    where: {
+      guildConfig: {
+        guildId,
+      },
+    },
+    select: {
+      sourceMessageId: true,
+      sourceChannelId: true,
+      authorId: true,
+      reactionCount: true,
+    },
+    orderBy: [
+      { reactionCount: 'desc' },
+      { createdAt: 'desc' },
+    ],
+    take: limit,
+  });
+
+export const getStarboardAuthorLeaderboard = async (
+  guildId: string,
+  limit: number,
+): Promise<Array<{ authorId: string; totalReactions: number; postCount: number }>> => {
+  const entries = await prisma.starboardEntry.findMany({
+    where: {
+      guildConfig: {
+        guildId,
+      },
+    },
+    select: {
+      authorId: true,
+      reactionCount: true,
+    },
+  });
+
+  const totals = new Map<string, { authorId: string; totalReactions: number; postCount: number }>();
+  for (const entry of entries) {
+    const current = totals.get(entry.authorId) ?? {
+      authorId: entry.authorId,
+      totalReactions: 0,
+      postCount: 0,
+    };
+    current.totalReactions += entry.reactionCount;
+    current.postCount += 1;
+    totals.set(entry.authorId, current);
+  }
+
+  return [...totals.values()]
+    .sort((left, right) => {
+      if (right.totalReactions !== left.totalReactions) {
+        return right.totalReactions - left.totalReactions;
+      }
+
+      return right.postCount - left.postCount;
+    })
+    .slice(0, limit);
+};
+
 export const handleStarboardError = (error: unknown): void => {
   logger.error({ err: error }, 'Starboard sync failed');
 };

@@ -38,4 +38,27 @@ export const starboardCommand = new SlashCommandBuilder()
     subcommand
       .setName('status')
       .setDescription('Show the current starboard configuration'),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('leaderboard')
+      .setDescription('Show the most-starred posts or authors')
+      .addStringOption((option) =>
+        option
+          .setName('type')
+          .setDescription('Leaderboard category')
+          .setRequired(true)
+          .addChoices(
+            { name: 'Posts', value: 'posts' },
+            { name: 'Authors', value: 'authors' },
+          ),
+      )
+      .addIntegerOption((option) =>
+        option
+          .setName('limit')
+          .setDescription('Number of entries to show')
+          .setRequired(false)
+          .setMinValue(1)
+          .setMaxValue(10),
+      ),
   );
