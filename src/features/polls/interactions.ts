@@ -561,6 +561,28 @@ const getRankedDraftOrCurrentRanking = async (
   return getPollRankingForUser(poll, userId);
 };
 
+const getValidatedRankedPoll = async (
+  pollId: string,
+  options?: {
+    requireOpen?: boolean;
+  },
+) => {
+  const poll = await getPollById(pollId);
+  if (!poll) {
+    throw new Error('Poll not found.');
+  }
+
+  if (poll.mode !== 'ranked') {
+    throw new Error('This poll is not a ranked-choice poll.');
+  }
+
+  if (options?.requireOpen && (poll.closedAt || poll.closesAt.getTime() <= Date.now())) {
+    throw new Error('This poll is already closed.');
+  }
+
+  return poll;
+};
+
 export const handlePollRankOpenButton = async (
   interaction: ButtonInteraction,
 ): Promise<void> => {
@@ -570,14 +592,7 @@ export const handlePollRankOpenButton = async (
     throw new Error('Invalid poll identifier.');
   }
 
-  const poll = await getPollById(pollId);
-  if (!poll) {
-    throw new Error('Poll not found.');
-  }
-
-  if (poll.mode !== 'ranked') {
-    throw new Error('This poll is not a ranked-choice poll.');
-  }
+  const poll = await getValidatedRankedPoll(pollId, { requireOpen: true });
 
   const ranking = await getRankedDraftOrCurrentRanking(pollId, interaction.user.id) ?? [];
   await interaction.reply({
@@ -590,10 +605,7 @@ const updateRankedChoiceEditor = async (
   interaction: ButtonInteraction,
   pollId: string,
 ): Promise<void> => {
-  const poll = await getPollById(pollId);
-  if (!poll) {
-    throw new Error('Poll not found.');
-  }
+  const poll = await getValidatedRankedPoll(pollId, { requireOpen: true });
 
   const ranking = await getRankedDraftOrCurrentRanking(pollId, interaction.user.id) ?? [];
   await interaction.update(buildRankedChoiceEditor(poll, ranking));
@@ -608,18 +620,7 @@ export const handlePollRankAddButton = async (
     throw new Error('Invalid ranked-choice action.');
   }
 
-  const poll = await getPollById(pollId);
-  if (!poll) {
-    throw new Error('Poll not found.');
-  }
-
-  if (poll.mode !== 'ranked') {
-    throw new Error('This poll is not a ranked-choice poll.');
-  }
-
-  if (poll.closedAt || poll.closesAt.getTime() <= Date.now()) {
-    throw new Error('This poll is already closed.');
-  }
+  const poll = await getValidatedRankedPoll(pollId, { requireOpen: true });
 
   const currentRanking = await getRankedDraftOrCurrentRanking(pollId, interaction.user.id) ?? [];
   if (!poll.options.some((option) => option.id === optionId)) {
@@ -643,6 +644,7 @@ export const handlePollRankUndoButton = async (
     throw new Error('Invalid poll identifier.');
   }
 
+  await getValidatedRankedPoll(pollId, { requireOpen: true });
   const ranking = await getRankedDraftOrCurrentRanking(pollId, interaction.user.id) ?? [];
   await savePollRankDraft(redis, pollId, interaction.user.id, ranking.slice(0, -1));
   await updateRankedChoiceEditor(interaction, pollId);
@@ -657,6 +659,7 @@ export const handlePollRankClearButton = async (
     throw new Error('Invalid poll identifier.');
   }
 
+  await getValidatedRankedPoll(pollId, { requireOpen: true });
   await deletePollRankDraft(redis, pollId, interaction.user.id);
   await updateRankedChoiceEditor(interaction, pollId);
 };
@@ -671,14 +674,7 @@ export const handlePollRankSubmitButton = async (
     throw new Error('Invalid poll identifier.');
   }
 
-  const poll = await getPollById(pollId);
-  if (!poll) {
-    throw new Error('Poll not found.');
-  }
-
-  if (poll.mode !== 'ranked') {
-    throw new Error('This poll is not a ranked-choice poll.');
-  }
+  const poll = await getValidatedRankedPoll(pollId, { requireOpen: true });
 
   const ranking = await getRankedDraftOrCurrentRanking(pollId, interaction.user.id) ?? [];
   if (ranking.length !== poll.options.length) {
