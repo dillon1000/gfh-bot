@@ -158,9 +158,9 @@ const buildStandardArcDiagram = (
   }
 
   const rings = [
-    { inner: 120, outer: 158, opacity: 0.96 },
-    { inner: 166, outer: 204, opacity: 0.88 },
-    { inner: 212, outer: 250, opacity: 0.8 },
+    { inner: 126, outer: 162, opacity: 0.96 },
+    { inner: 170, outer: 206, opacity: 0.88 },
+    { inner: 214, outer: 250, opacity: 0.8 },
   ];
   const pieGen = pie<{ id: string; value: number }>()
     .sort(null)
@@ -216,7 +216,8 @@ const buildStandardPollSvg = (
   const arcCenterX = 410;
   const arcCenterY = 525;
   const summaryCenterX = arcCenterX;
-  const summaryCenterY = 420;
+  const summaryCenterY = 464;
+  const summaryRadius = 56;
 
   return buildSvgShell(
     { width: 1280, height: 720 },
@@ -224,9 +225,9 @@ const buildStandardPollSvg = (
       ${renderText(70, 72, truncate(poll.question, 52), { fontSize: 36, fontWeight: 700 })}
       ${renderText(70, 104, `Parliament view · ${results.totalVoters} voter${results.totalVoters === 1 ? '' : 's'} · ${results.totalVotes} total vote${results.totalVotes === 1 ? '' : 's'}`, { color: muted })}
       ${buildStandardArcDiagram(poll, results, colorScale, { x: arcCenterX, y: arcCenterY })}
-      <circle cx="${summaryCenterX}" cy="${summaryCenterY}" r="84" fill="${panelAlt}" stroke="${summary.accent}" stroke-width="8"/>
-      ${renderText(summaryCenterX, summaryCenterY - 6, summary.headline, { anchor: 'middle', fontSize: 38, fontWeight: 700, color: summary.accent })}
-      ${renderText(summaryCenterX, summaryCenterY + 28, summary.subline, { anchor: 'middle', fontSize: 20 })}
+      <circle cx="${summaryCenterX}" cy="${summaryCenterY}" r="${summaryRadius}" fill="${panelAlt}" stroke="${summary.accent}" stroke-width="7"/>
+      ${renderText(summaryCenterX, summaryCenterY - 6, summary.headline, { anchor: 'middle', fontSize: 28, fontWeight: 700, color: summary.accent })}
+      ${renderText(summaryCenterX, summaryCenterY + 18, summary.subline, { anchor: 'middle', fontSize: 14 })}
       <rect x="810" y="80" width="400" height="${Math.max(250, 120 + (results.choices.length * 52))}" rx="24" fill="${panel}" stroke="${border}"/>
       ${renderText(848, 112, 'Legend', { fontSize: 24, fontWeight: 700 })}
       ${buildStandardLegend(results, colorScale)}
