@@ -48,9 +48,21 @@ pnpm dev
 ## Use on Docker
 
 ```bash
-docker compose up --build
+docker compose pull bot
+docker compose up -d
 ```
 *The container will run migrations on startup before launching.
+Postgres and Redis stay on the internal Docker network by default and are not exposed on the VPS.
+By default the `bot` service now runs `ghcr.io/dillon1000/gfh-bot:latest`, which is published from GitHub Actions on pushes to `main`.
+
+To enable automatic updates when a new registry image is published:
+
+```bash
+docker compose --profile autoupdate up -d
+```
+
+`watchtower` will check for a newer `bot` image every 5 minutes by default and restart only containers labeled for updates.
+If the package is private, authenticate the host with `docker login ghcr.io` first and mount the correct Docker auth file into the `watchtower` container.
 
 ## Commands
 
