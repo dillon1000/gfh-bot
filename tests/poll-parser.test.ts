@@ -18,12 +18,14 @@ describe('parsePollFormInput', () => {
       parsePollFormInput({
         question: 'Should we ship?',
         description: 'Final check',
+        mode: 'single',
         choices: 'Yes,No',
         durationText: '24h',
       }),
     ).toEqual({
       question: 'Should we ship?',
       description: 'Final check',
+      mode: 'single',
       choices: ['Yes', 'No'],
       choiceEmojis: [null, null],
       durationMs: 24 * 60 * 60 * 1000,
@@ -74,9 +76,13 @@ describe('parsePassChoiceIndex', () => {
 
 describe('resolvePassRule', () => {
   it('defaults the pass option to the first choice when only a threshold is provided', () => {
-    expect(resolvePassRule(60, null)).toEqual({
+    expect(resolvePassRule('single', 60, null)).toEqual({
       passThreshold: 60,
       passOptionIndex: 0,
     });
+  });
+
+  it('rejects pass thresholds for ranked polls', () => {
+    expect(() => resolvePassRule('ranked', 60, 0)).toThrow(/Ranked-choice polls/);
   });
 });

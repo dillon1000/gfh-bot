@@ -16,6 +16,7 @@ import {
 import { logger } from '../../app/logger.js';
 import { redis } from '../../lib/redis.js';
 import { deletePollDraft, getPollDraft, savePollDraft } from './draft-store.js';
+import { deletePollRankDraft, getPollRankDraft, savePollRankDraft } from './rank-draft-store.js';
 import { parseChoiceEmojisCsv, parseChoicesCsv, parsePassChoiceIndex, parsePassThreshold, parsePollFormInput, resolvePassRule } from './parser.js';
 import { normalizeQuestionFromMessage, resolvePollThreadName } from './present.js';
 import {
@@ -24,7 +25,13 @@ import {
   buildPollBuilderModal,
   buildPollBuilderPreview,
   buildFeedbackEmbed,
+  buildRankedChoiceEditor,
   buildPollResultsEmbed,
+  pollRankAddCustomId,
+  pollRankClearCustomId,
+  pollRankOpenCustomId,
+  pollRankSubmitCustomId,
+  pollRankUndoCustomId,
   pollBuilderButtonCustomId,
   pollBuilderModalCustomId,
 } from './render.js';
@@ -35,6 +42,7 @@ import {
   exportPollToCsv,
   getPollById,
   getPollByMessageId,
+  getPollRankingForUser,
   getPollVoteAuditSnapshotByQuery,
   getPollResultsSnapshot,
   getPollResultsSnapshotByQuery,
@@ -53,7 +61,7 @@ const publishPoll = async (
     description?: string;
     choices: string[];
     choiceEmojis: Array<string | null>;
-    singleSelect: boolean;
+    mode: 'single' | 'multi' | 'ranked';
     anonymous: boolean;
     passThreshold?: number | null;
     passOptionIndex?: number | null;
@@ -76,7 +84,7 @@ const publishPoll = async (
       label,
       emoji: draft.choiceEmojis[index] ?? null,
     })),
-    singleSelect: draft.singleSelect,
+    mode: draft.mode,
     anonymous: draft.anonymous,
     ...(draft.passThreshold ? { passThreshold: draft.passThreshold } : {}),
     ...(draft.passThreshold !== null && draft.passOptionIndex !== null
@@ -105,6 +113,7 @@ export const handlePollCommand = async (
   const parsed = parsePollFormInput({
     question: interaction.options.getString('question', true),
     description: interaction.options.getString('description') ?? '',
+    mode: interaction.options.getString('mode'),
     choices: interaction.options.getString('choices', true),
     choiceEmojis: interaction.options.getString('emojis'),
     durationText: interaction.options.getString('time') ?? '24h',
@@ -114,11 +123,10 @@ export const handlePollCommand = async (
     interaction.options.getInteger('pass_choice'),
     parsed.choices.length,
   );
-  const passRule = resolvePassRule(passThreshold, passChoiceIndex);
+  const passRule = resolvePassRule(parsed.mode, passThreshold, passChoiceIndex);
 
   const published = await publishPoll(client, interaction, {
     ...parsed,
-    singleSelect: interaction.options.getBoolean('single_select') ?? true,
     anonymous: interaction.options.getBoolean('anonymous') ?? false,
     createThread: interaction.options.getBoolean('create_thread') ?? true,
     threadName: interaction.options.getString('thread_name') ?? '',
@@ -167,9 +175,9 @@ export const handlePollFromMessageContext = async (
     description: content
       ? `${target.url}`
       : `Source message: ${target.url}`,
+    mode: 'single' as const,
     choices: ['Yes', 'No'],
     choiceEmojis: [null, null],
-    singleSelect: true,
     anonymous: false,
     passThreshold: null,
     passOptionIndex: null,
@@ -293,6 +301,17 @@ export const handlePollAuditCommand = async (
   });
 };
 
+const cyclePollMode = (mode: 'single' | 'multi' | 'ranked'): 'single' | 'multi' | 'ranked' => {
+  switch (mode) {
+    case 'single':
+      return 'multi';
+    case 'multi':
+      return 'ranked';
+    default:
+      return 'single';
+  }
+};
+
 const updatePollBuilderPreview = async (
   interaction: ButtonInteraction | ModalSubmitInteraction,
   error?: string,
@@ -357,8 +376,12 @@ export const handlePollBuilderButton = async (
     case pollBuilderButtonCustomId('thread-name'):
       await interaction.showModal(buildPollBuilderModal('thread-name', draft));
       return;
-    case pollBuilderButtonCustomId('single'):
-      draft.singleSelect = !draft.singleSelect;
+    case pollBuilderButtonCustomId('mode'):
+      draft.mode = cyclePollMode(draft.mode);
+      if (draft.mode === 'ranked') {
+        draft.passThreshold = null;
+        draft.passOptionIndex = null;
+      }
       await savePollDraft(redis, interaction.guildId, interaction.user.id, draft);
       await updatePollBuilderPreview(interaction);
       return;
@@ -373,6 +396,7 @@ export const handlePollBuilderButton = async (
       const parsed = parsePollFormInput({
         question: draft.question,
         description: draft.description,
+        mode: draft.mode,
         choices: draft.choices,
         choiceEmojis: draft.choiceEmojis,
         durationText: draft.durationText,
@@ -380,7 +404,6 @@ export const handlePollBuilderButton = async (
 
       const published = await publishPoll(client, interaction, {
         ...parsed,
-        singleSelect: draft.singleSelect,
         anonymous: draft.anonymous,
         passThreshold: draft.passThreshold,
         passOptionIndex: draft.passOptionIndex,
@@ -454,7 +477,7 @@ export const handlePollBuilderModal = async (
         interaction.fields.getTextInputValue('pass-choice'),
         draft.choices.length,
       );
-      const passRule = resolvePassRule(passThreshold, passChoiceIndex);
+      const passRule = resolvePassRule(draft.mode, passThreshold, passChoiceIndex);
       draft.passThreshold = passRule.passThreshold;
       draft.passOptionIndex = passRule.passOptionIndex;
       break;
@@ -518,6 +541,156 @@ export const handlePollChoiceButton = async (
         nextOptionIds.length === 0 ? 'Your vote has been removed.' : 'Your vote has been updated.',
       ),
     ],
+  });
+};
+
+const getRankedDraftOrCurrentRanking = async (
+  pollId: string,
+  userId: string,
+): Promise<string[] | null> => {
+  const draft = await getPollRankDraft(redis, pollId, userId);
+  if (draft) {
+    return draft;
+  }
+
+  const poll = await getPollById(pollId);
+  if (!poll) {
+    return null;
+  }
+
+  return getPollRankingForUser(poll, userId);
+};
+
+export const handlePollRankOpenButton = async (
+  interaction: ButtonInteraction,
+): Promise<void> => {
+  const pollId = interaction.customId.split(':')[3];
+
+  if (!pollId) {
+    throw new Error('Invalid poll identifier.');
+  }
+
+  const poll = await getPollById(pollId);
+  if (!poll) {
+    throw new Error('Poll not found.');
+  }
+
+  if (poll.mode !== 'ranked') {
+    throw new Error('This poll is not a ranked-choice poll.');
+  }
+
+  const ranking = await getRankedDraftOrCurrentRanking(pollId, interaction.user.id) ?? [];
+  await interaction.reply({
+    flags: MessageFlags.Ephemeral,
+    ...buildRankedChoiceEditor(poll, ranking),
+  });
+};
+
+const updateRankedChoiceEditor = async (
+  interaction: ButtonInteraction,
+  pollId: string,
+): Promise<void> => {
+  const poll = await getPollById(pollId);
+  if (!poll) {
+    throw new Error('Poll not found.');
+  }
+
+  const ranking = await getRankedDraftOrCurrentRanking(pollId, interaction.user.id) ?? [];
+  await interaction.update(buildRankedChoiceEditor(poll, ranking));
+};
+
+export const handlePollRankAddButton = async (
+  interaction: ButtonInteraction,
+): Promise<void> => {
+  const [, , , pollId, optionId] = interaction.customId.split(':');
+
+  if (!pollId || !optionId) {
+    throw new Error('Invalid ranked-choice action.');
+  }
+
+  const poll = await getPollById(pollId);
+  if (!poll) {
+    throw new Error('Poll not found.');
+  }
+
+  if (poll.mode !== 'ranked') {
+    throw new Error('This poll is not a ranked-choice poll.');
+  }
+
+  if (poll.closedAt || poll.closesAt.getTime() <= Date.now()) {
+    throw new Error('This poll is already closed.');
+  }
+
+  const currentRanking = await getRankedDraftOrCurrentRanking(pollId, interaction.user.id) ?? [];
+  if (!poll.options.some((option) => option.id === optionId)) {
+    throw new Error('Invalid ranked-choice option.');
+  }
+
+  if (currentRanking.includes(optionId)) {
+    throw new Error('That option is already ranked.');
+  }
+
+  await savePollRankDraft(redis, pollId, interaction.user.id, [...currentRanking, optionId]);
+  await updateRankedChoiceEditor(interaction, pollId);
+};
+
+export const handlePollRankUndoButton = async (
+  interaction: ButtonInteraction,
+): Promise<void> => {
+  const pollId = interaction.customId.split(':')[3];
+
+  if (!pollId) {
+    throw new Error('Invalid poll identifier.');
+  }
+
+  const ranking = await getRankedDraftOrCurrentRanking(pollId, interaction.user.id) ?? [];
+  await savePollRankDraft(redis, pollId, interaction.user.id, ranking.slice(0, -1));
+  await updateRankedChoiceEditor(interaction, pollId);
+};
+
+export const handlePollRankClearButton = async (
+  interaction: ButtonInteraction,
+): Promise<void> => {
+  const pollId = interaction.customId.split(':')[3];
+
+  if (!pollId) {
+    throw new Error('Invalid poll identifier.');
+  }
+
+  await deletePollRankDraft(redis, pollId, interaction.user.id);
+  await updateRankedChoiceEditor(interaction, pollId);
+};
+
+export const handlePollRankSubmitButton = async (
+  client: Client,
+  interaction: ButtonInteraction,
+): Promise<void> => {
+  const pollId = interaction.customId.split(':')[3];
+
+  if (!pollId) {
+    throw new Error('Invalid poll identifier.');
+  }
+
+  const poll = await getPollById(pollId);
+  if (!poll) {
+    throw new Error('Poll not found.');
+  }
+
+  if (poll.mode !== 'ranked') {
+    throw new Error('This poll is not a ranked-choice poll.');
+  }
+
+  const ranking = await getRankedDraftOrCurrentRanking(pollId, interaction.user.id) ?? [];
+  if (ranking.length !== poll.options.length) {
+    throw new Error('Rank every option before submitting your ballot.');
+  }
+
+  await setPollVotes(pollId, interaction.user.id, ranking);
+  await deletePollRankDraft(redis, pollId, interaction.user.id);
+  await refreshPollMessage(client, pollId);
+  await interaction.update({
+    embeds: [buildFeedbackEmbed('Ranked Ballot Recorded', 'Your ranked ballot has been updated.')],
+    components: [],
   });
 };
 

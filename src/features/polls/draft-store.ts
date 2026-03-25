@@ -9,9 +9,9 @@ const getDraftKey = (guildId: string, userId: string): string => `poll-draft:${g
 export const createDefaultDraft = (): PollDraft => ({
   question: 'What should we decide?',
   description: '',
+  mode: 'single',
   choices: ['Yes', 'No'],
   choiceEmojis: [null, null],
-  singleSelect: true,
   anonymous: false,
   passThreshold: null,
   passOptionIndex: null,

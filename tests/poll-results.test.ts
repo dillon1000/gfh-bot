@@ -12,6 +12,7 @@ const poll = {
   authorId: 'user_1',
   question: 'Pick one',
   description: null,
+  mode: 'multi',
   singleSelect: false,
   anonymous: false,
   passThreshold: 60,
@@ -45,6 +46,7 @@ const poll = {
       pollId: 'poll_1',
       optionId: 'option_1',
       userId: 'user_1',
+      rank: null,
       createdAt: new Date('2026-03-24T00:00:00.000Z'),
     },
     {
@@ -52,6 +54,7 @@ const poll = {
       pollId: 'poll_1',
       optionId: 'option_2',
       userId: 'user_2',
+      rank: null,
       createdAt: new Date('2026-03-24T00:00:00.000Z'),
     },
     {
@@ -59,6 +62,7 @@ const poll = {
       pollId: 'poll_1',
       optionId: 'option_1',
       userId: 'user_2',
+      rank: null,
       createdAt: new Date('2026-03-24T00:00:00.000Z'),
     },
   ],
@@ -77,6 +81,7 @@ describe('computePollResults', () => {
 
   it('aggregates votes and unique voters', () => {
     expect(computePollResults(poll)).toEqual({
+      kind: 'standard',
       totalVotes: 3,
       totalVoters: 2,
       choices: [
@@ -104,6 +109,7 @@ describe('computePollOutcome', () => {
     const results = computePollResults(poll);
 
     expect(computePollOutcome(poll, results)).toEqual({
+      kind: 'standard',
       status: 'failed',
       passThreshold: 60,
       measuredChoiceLabel: 'No',

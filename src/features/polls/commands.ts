@@ -27,11 +27,16 @@ export const pollCommand = new SlashCommandBuilder()
       .setDescription('Optional comma-separated emoji overrides for each choice')
       .setRequired(false),
   )
-  .addBooleanOption((option) =>
+  .addStringOption((option) =>
     option
-      .setName('single_select')
-      .setDescription('Allow only one choice')
-      .setRequired(false),
+      .setName('mode')
+      .setDescription('Poll mode')
+      .setRequired(false)
+      .addChoices(
+        { name: 'Single choice', value: 'single' },
+        { name: 'Multi choice', value: 'multi' },
+        { name: 'Ranked choice', value: 'ranked' },
+      ),
   )
   .addBooleanOption((option) =>
     option

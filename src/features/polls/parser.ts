@@ -1,11 +1,25 @@
 import { parseDurationToMs } from '../../lib/duration.js';
 import { normalizeEmojiInput } from '../../lib/emoji.js';
+import type { PollMode } from './types.js';
 
 const minChoices = 2;
 const maxChoices = 10;
 const maxQuestionLength = 200;
 const maxDescriptionLength = 1_000;
 const maxChoiceLength = 80;
+
+export const parsePollMode = (value: string | null | undefined): PollMode => {
+  const normalized = value ?? 'single';
+
+  switch (normalized) {
+    case 'single':
+    case 'multi':
+    case 'ranked':
+      return normalized;
+    default:
+      throw new Error('Poll mode must be single, multi, or ranked.');
+  }
+};
 
 export const parsePassThreshold = (value: string): number | null => {
   const trimmed = value.trim();
@@ -44,9 +58,21 @@ export const parsePassChoiceIndex = (
 };
 
 export const resolvePassRule = (
+  mode: PollMode,
   passThreshold: number | null,
   passChoiceIndex: number | null,
 ): { passThreshold: number | null; passOptionIndex: number | null } => {
+  if (mode === 'ranked') {
+    if (passThreshold !== null || passChoiceIndex !== null) {
+      throw new Error('Ranked-choice polls cannot use pass-threshold settings.');
+    }
+
+    return {
+      passThreshold: null,
+      passOptionIndex: null,
+    };
+  }
+
   if (passThreshold === null) {
     if (passChoiceIndex !== null) {
       throw new Error('Pass choice requires a pass threshold.');
@@ -150,18 +176,21 @@ export const parseChoiceEmojisCsv = (
 export const parsePollFormInput = (input: {
   question: string;
   description?: string;
+  mode?: PollMode | string | null;
   choices: string[] | string;
   choiceEmojis?: Array<string | null> | string | null;
   durationText: string;
 }): {
   question: string;
   description?: string;
+  mode: PollMode;
   choices: string[];
   choiceEmojis: Array<string | null>;
   durationMs: number;
 } => {
   const question = sanitizeQuestion(input.question);
   const description = sanitizeDescription(input.description ?? '');
+  const mode = parsePollMode(input.mode);
   const choices = Array.isArray(input.choices)
     ? parseChoicesCsv(input.choices.join(', '))
     : parseChoicesCsv(input.choices);
@@ -171,6 +200,7 @@ export const parsePollFormInput = (input: {
   return {
     question,
     choices,
+    mode,
     choiceEmojis,
     durationMs,
     ...(description ? { description } : {}),

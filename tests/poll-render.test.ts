@@ -13,6 +13,7 @@ const basePoll = {
   authorId: 'user_1',
   question: 'Ship it?',
   description: null,
+  mode: 'single',
   singleSelect: true,
   anonymous: false,
   passThreshold: null,
@@ -46,6 +47,7 @@ const basePoll = {
       pollId: 'poll_1',
       optionId: 'option_1',
       userId: 'user_a',
+      rank: null,
       createdAt: new Date('2026-03-24T00:00:00.000Z'),
     },
     {
@@ -53,6 +55,7 @@ const basePoll = {
       pollId: 'poll_1',
       optionId: 'option_2',
       userId: 'user_b',
+      rank: null,
       createdAt: new Date('2026-03-24T00:00:00.000Z'),
     },
   ],
