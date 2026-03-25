@@ -36,6 +36,7 @@ import {
   pollBuilderModalCustomId,
 } from './render.js';
 import {
+  clearPollVotes,
   closePollAndRefresh,
   createPollRecord,
   deletePollRecord,
@@ -661,6 +662,8 @@ export const handlePollRankClearButton = async (
 
   await getValidatedRankedPoll(pollId, { requireOpen: true });
   await savePollRankDraft(redis, pollId, interaction.user.id, []);
+  await clearPollVotes(pollId, interaction.user.id);
+  await refreshPollMessage(client, pollId);
   await updateRankedChoiceEditor(interaction, pollId);
 };
 

@@ -260,11 +260,18 @@ export const recoverMissedPollReminders = async (client: Client): Promise<void> 
 const assertPollVoteSelection = (
   poll: PollWithRelations,
   selectedOptionIds: string[],
+  options?: {
+    allowRankedClear?: boolean;
+  },
 ): void => {
   const mode = getEffectivePollMode(poll);
 
   if (mode === 'single' && selectedOptionIds.length > 1) {
     throw new Error('This poll only allows one selection.');
+  }
+
+  if (mode === 'ranked' && selectedOptionIds.length === 0 && options?.allowRankedClear) {
+    return;
   }
 
   if (mode === 'ranked' && selectedOptionIds.length !== poll.options.length) {
@@ -295,6 +302,9 @@ export const setPollVotes = async (
   pollId: string,
   userId: string,
   selectedOptionIds: string[],
+  options?: {
+    allowRankedClear?: boolean;
+  },
 ): Promise<PollWithRelations> => {
   const result = await withRedisLock(redis, `lock:poll-vote:${pollId}:${userId}`, 5_000, async () =>
     prisma.$transaction(async (tx) => {
@@ -313,7 +323,7 @@ export const setPollVotes = async (
         throw new Error('This poll is already closed.');
       }
 
-      assertPollVoteSelection(poll, selectedOptionIds);
+      assertPollVoteSelection(poll, selectedOptionIds, options);
       const mode = getEffectivePollMode(poll);
       const previousOptionIds = poll.votes
         .filter((vote) => vote.userId === userId)
@@ -373,6 +383,12 @@ export const setPollVotes = async (
 
   return result;
 };
+
+export const clearPollVotes = async (
+  pollId: string,
+  userId: string,
+): Promise<PollWithRelations> =>
+  setPollVotes(pollId, userId, [], { allowRankedClear: true });
 
 export const closePoll = async (
   pollId: string,
