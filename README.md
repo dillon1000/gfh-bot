@@ -1,6 +1,5 @@
 # gfh-bot
-discord bot built with discord.js :D
-
+The most powerful polling/voting bot. Supports single choice, Multi-choice, and Ranked Choice Voting.
 ## Features
 
 - Polls
@@ -62,8 +61,6 @@ docker compose --profile autoupdate up -d
 ```
 
 `watchtower` will check for a newer `bot` image every 5 minutes by default and restart only containers labeled for updates.
-If the package is private, authenticate the host with `docker login ghcr.io` first and mount the correct Docker auth file into the `watchtower` container.
-
 ## Commands
 
 - `/ping`
