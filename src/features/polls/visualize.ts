@@ -144,6 +144,10 @@ const buildStandardArcDiagram = (
   poll: PollWithRelations,
   results: Extract<PollComputedResults, { kind: 'standard' }>,
   colorScale: ReturnType<typeof createColorScale>,
+  center: {
+    x: number;
+    y: number;
+  },
 ): string => {
   if (results.totalVotes === 0) {
     return `
@@ -153,8 +157,6 @@ const buildStandardArcDiagram = (
     `;
   }
 
-  const centerX = 410;
-  const centerY = 560;
   const rings = [
     { inner: 120, outer: 158, opacity: 0.96 },
     { inner: 166, outer: 204, opacity: 0.88 },
@@ -184,7 +186,7 @@ const buildStandardArcDiagram = (
           return '';
         }
 
-        return `<path d="${path}" transform="translate(${centerX} ${centerY})" fill="${colorScale(segment.data.id)}" fill-opacity="${ring.opacity}" stroke="${background}" stroke-width="2"/>`;
+        return `<path d="${path}" transform="translate(${center.x} ${center.y})" fill="${colorScale(segment.data.id)}" fill-opacity="${ring.opacity}" stroke="${background}" stroke-width="2"/>`;
       }).join('');
     })
     .join('');
@@ -212,7 +214,7 @@ const buildStandardPollSvg = (
   const summary = buildStandardSummary(poll, results, outcome);
   const colorScale = createColorScale(poll);
   const arcCenterX = 410;
-  const arcCenterY = 560;
+  const arcCenterY = 525;
   const summaryCenterX = arcCenterX;
   const summaryCenterY = 420;
 
@@ -221,7 +223,7 @@ const buildStandardPollSvg = (
     `
       ${renderText(70, 72, truncate(poll.question, 52), { fontSize: 36, fontWeight: 700 })}
       ${renderText(70, 104, `Parliament view · ${results.totalVoters} voter${results.totalVoters === 1 ? '' : 's'} · ${results.totalVotes} total vote${results.totalVotes === 1 ? '' : 's'}`, { color: muted })}
-      ${buildStandardArcDiagram(poll, results, colorScale)}
+      ${buildStandardArcDiagram(poll, results, colorScale, { x: arcCenterX, y: arcCenterY })}
       <circle cx="${summaryCenterX}" cy="${summaryCenterY}" r="84" fill="${panelAlt}" stroke="${summary.accent}" stroke-width="8"/>
       ${renderText(summaryCenterX, summaryCenterY - 6, summary.headline, { anchor: 'middle', fontSize: 38, fontWeight: 700, color: summary.accent })}
       ${renderText(summaryCenterX, summaryCenterY + 28, summary.subline, { anchor: 'middle', fontSize: 20 })}
