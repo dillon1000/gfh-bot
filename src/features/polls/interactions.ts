@@ -660,7 +660,7 @@ export const handlePollRankClearButton = async (
   }
 
   await getValidatedRankedPoll(pollId, { requireOpen: true });
-  await deletePollRankDraft(redis, pollId, interaction.user.id);
+  await savePollRankDraft(redis, pollId, interaction.user.id, []);
   await updateRankedChoiceEditor(interaction, pollId);
 };
 
