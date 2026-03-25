@@ -52,6 +52,9 @@ const buildVoterMentionsByOption = (poll: PollWithRelations): Map<string, string
   return votersByOption;
 };
 
+const buildUniqueVoterMentions = (poll: PollWithRelations): string[] =>
+  [...new Set(poll.votes.map((vote) => vote.userId))].map((userId) => `<@${userId}>`);
+
 export const buildFeedbackEmbed = (
   title: string,
   description: string,
@@ -168,6 +171,7 @@ export const buildPollResultsEmbed = (
   results: PollComputedResults,
 ): EmbedBuilder => {
   const votersByOption = buildVoterMentionsByOption(poll);
+  const uniqueVoterMentions = buildUniqueVoterMentions(poll);
   const embed = new EmbedBuilder()
     .setTitle(`Results: ${poll.question}`)
     .setColor(poll.closedAt ? 0xef4444 : 0x5eead4)
@@ -176,7 +180,7 @@ export const buildPollResultsEmbed = (
         `Status: ${poll.closedAt ? 'Closed' : 'Open'}`,
         `Total voters: ${results.totalVoters}`,
         `Pass rule: ${getPassRuleLabel(poll.passThreshold, poll.passOptionIndex, poll.options)}`,
-        poll.anonymous ? 'Anonymous poll: voter identities are hidden.' : 'Non-anonymous poll: voter identities are shown below.',
+        poll.anonymous ? 'Anonymous poll: voter identities are shown below, but option selections remain private.' : 'Non-anonymous poll: voter identities are shown below.',
       ]
         .filter(Boolean)
         .join('\n'),
@@ -198,6 +202,13 @@ export const buildPollResultsEmbed = (
       ]
         .filter(Boolean)
         .join('\n'),
+    });
+  }
+
+  if (poll.anonymous) {
+    embed.addFields({
+      name: 'Voters',
+      value: uniqueVoterMentions.join(', ') || 'No votes yet',
     });
   }
 

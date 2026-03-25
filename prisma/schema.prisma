@@ -105,3 +105,33 @@ model StarboardEntry {
 
   @@index([guildConfigId])
 }
+
+model ReactionRolePanel {
+  id          String               @id @default(cuid())
+  guildId     String
+  channelId   String
+  messageId   String?              @unique
+  title       String
+  description String?
+  exclusive   Boolean              @default(false)
+  createdById String
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  options     ReactionRoleOption[]
+
+  @@index([guildId, channelId])
+}
+
+model ReactionRoleOption {
+  id        String            @id @default(cuid())
+  panelId   String
+  roleId    String
+  label     String
+  sortOrder Int
+  createdAt DateTime          @default(now())
+  panel     ReactionRolePanel @relation(fields: [panelId], references: [id], onDelete: Cascade)
+
+  @@unique([panelId, roleId])
+  @@unique([panelId, sortOrder])
+  @@index([panelId])
+}

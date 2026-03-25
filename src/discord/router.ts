@@ -1,5 +1,11 @@
 import { Events, type Client, type Interaction } from 'discord.js';
 
+import {
+  handleEmojiBuilderButton,
+  handleEmojiBuilderCommand,
+  handleEmojiBuilderInteractionError,
+  handleEmojiBuilderModal,
+} from '../features/emojis/interactions.js';
 import { handleMeowCommand } from '../features/meta/meow.js';
 import { handlePingCommand } from '../features/meta/ping.js';
 import {
@@ -20,6 +26,15 @@ import {
   handlePollResultsContext,
   handlePollVoteSelect,
 } from '../features/polls/interactions.js';
+import {
+  handleReactionRoleClear,
+  handleReactionRoleBuilderButton,
+  handleReactionRoleBuilderCommand,
+  handleReactionRoleBuilderModal,
+  handleReactionRoleInteractionError,
+  handleReactionRolesCommand,
+  handleReactionRoleSelect,
+} from '../features/reaction-roles/interactions.js';
 import { handleStarboardCommand } from '../features/starboard/commands.js';
 
 export const registerInteractionRouter = (client: Client): void => {
@@ -27,6 +42,9 @@ export const registerInteractionRouter = (client: Client): void => {
     try {
       if (interaction.isChatInputCommand()) {
         switch (interaction.commandName) {
+          case 'emoji-builder':
+            await handleEmojiBuilderCommand(interaction);
+            return;
           case 'meow':
             await handleMeowCommand(interaction);
             return;
@@ -50,6 +68,12 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'starboard':
             await handleStarboardCommand(interaction);
+            return;
+          case 'reaction-roles':
+            await handleReactionRolesCommand(client, interaction);
+            return;
+          case 'reaction-role-builder':
+            await handleReactionRoleBuilderCommand(interaction);
             return;
           default:
             return;
@@ -80,6 +104,21 @@ export const registerInteractionRouter = (client: Client): void => {
       }
 
       if (interaction.isButton()) {
+        if (interaction.customId.startsWith('emoji-builder:')) {
+          await handleEmojiBuilderButton(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('reaction-role-builder:')) {
+          await handleReactionRoleBuilderButton(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('reaction-role:clear:')) {
+          await handleReactionRoleClear(interaction);
+          return;
+        }
+
         if (interaction.customId.startsWith('poll-builder:')) {
           await handlePollBuilderButton(client, interaction);
           return;
@@ -97,12 +136,29 @@ export const registerInteractionRouter = (client: Client): void => {
 
       }
 
-      if (interaction.isStringSelectMenu() && interaction.customId.startsWith('poll:vote:')) {
-        await handlePollVoteSelect(client, interaction);
-        return;
+      if (interaction.isStringSelectMenu()) {
+        if (interaction.customId.startsWith('poll:vote:')) {
+          await handlePollVoteSelect(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('reaction-role:select:')) {
+          await handleReactionRoleSelect(interaction);
+          return;
+        }
       }
 
       if (interaction.isModalSubmit()) {
+        if (interaction.customId.startsWith('emoji-builder:modal:')) {
+          await handleEmojiBuilderModal(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('reaction-role-builder:modal:')) {
+          await handleReactionRoleBuilderModal(interaction);
+          return;
+        }
+
         if (interaction.customId.startsWith('poll-builder:modal:')) {
           await handlePollBuilderModal(interaction);
           return;
@@ -120,7 +176,24 @@ export const registerInteractionRouter = (client: Client): void => {
         interaction.isStringSelectMenu() ||
         interaction.isModalSubmit()
       ) {
-        await handlePollInteractionError(interaction, error);
+        if (
+          (interaction.isChatInputCommand() && interaction.commandName === 'emoji-builder') ||
+          (interaction.isButton() && interaction.customId.startsWith('emoji-builder:')) ||
+          (interaction.isModalSubmit() && interaction.customId.startsWith('emoji-builder:'))
+        ) {
+          await handleEmojiBuilderInteractionError(interaction, error);
+        } else if (
+          (interaction.isChatInputCommand() && interaction.commandName === 'reaction-roles') ||
+          (interaction.isChatInputCommand() && interaction.commandName === 'reaction-role-builder') ||
+          (interaction.isButton() && interaction.customId.startsWith('reaction-role-builder:')) ||
+          (interaction.isModalSubmit() && interaction.customId.startsWith('reaction-role-builder:')) ||
+          (interaction.isButton() && interaction.customId.startsWith('reaction-role:')) ||
+          (interaction.isStringSelectMenu() && interaction.customId.startsWith('reaction-role:'))
+        ) {
+          await handleReactionRoleInteractionError(interaction, error);
+        } else {
+          await handlePollInteractionError(interaction, error);
+        }
       }
     }
   });

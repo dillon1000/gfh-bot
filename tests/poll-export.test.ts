@@ -52,8 +52,28 @@ describe('buildPollExportCsv', () => {
   it('includes vote counts and voter mentions for non-anonymous polls', () => {
     const csv = buildPollExportCsv(poll);
 
-    expect(csv).toContain('poll_id,question,option_label,vote_count,percentage,total_voters,anonymous,pass_threshold,outcome,voters');
+    expect(csv).toContain('poll_id,question,option_label,vote_count,percentage,total_voters,anonymous,pass_threshold,outcome,all_voters,voters');
     expect(csv).toContain('<@user_a>');
     expect(csv).toContain('"passed"');
+  });
+
+  it('includes only all-voter identities for anonymous polls', () => {
+    const csv = buildPollExportCsv({
+      ...poll,
+      anonymous: true,
+      votes: [
+        ...poll.votes,
+        {
+          id: 'vote_2',
+          pollId: 'poll_1',
+          optionId: 'option_2',
+          userId: 'user_b',
+          createdAt: new Date('2026-03-24T00:00:00.000Z'),
+        },
+      ],
+    });
+
+    expect(csv).toContain('<@user_a> | <@user_b>');
+    expect(csv).not.toContain('"<@user_a>"');
   });
 });

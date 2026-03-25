@@ -71,6 +71,8 @@ describe('buildPollResultsEmbed', () => {
 
     const embed = buildPollResultsEmbed(poll, computePollResults(poll)).toJSON();
     expect(embed.fields?.[0]?.value).not.toContain('Voters:');
-    expect(embed.description).toContain('voter identities are hidden');
+    expect(embed.fields?.find((field) => field.name === 'Voters')?.value).toContain('<@user_a>');
+    expect(embed.fields?.find((field) => field.name === 'Voters')?.value).toContain('<@user_b>');
+    expect(embed.description).toContain('option selections remain private');
   });
 });

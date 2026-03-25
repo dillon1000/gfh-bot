@@ -15,6 +15,7 @@ export const buildPollExportCsv = (poll: PollWithRelations): string => {
   for (const vote of poll.votes) {
     voterMentionsByOption.get(vote.optionId)?.push(`<@${vote.userId}>`);
   }
+  const allVoters = [...new Set(poll.votes.map((vote) => vote.userId))].map((userId) => `<@${userId}>`).join(' | ');
 
   const header = [
     'poll_id',
@@ -26,6 +27,7 @@ export const buildPollExportCsv = (poll: PollWithRelations): string => {
     'anonymous',
     'pass_threshold',
     'outcome',
+    'all_voters',
     'voters',
   ].join(',');
 
@@ -40,6 +42,7 @@ export const buildPollExportCsv = (poll: PollWithRelations): string => {
       poll.anonymous ? 'true' : 'false',
       poll.passThreshold ?? '',
       escapeCsv(outcome.status),
+      escapeCsv(allVoters),
       escapeCsv(poll.anonymous ? '' : (voterMentionsByOption.get(choice.id) ?? []).join(' | ')),
     ].join(','),
   );
