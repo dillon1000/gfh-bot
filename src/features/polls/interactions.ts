@@ -652,6 +652,7 @@ export const handlePollRankUndoButton = async (
 };
 
 export const handlePollRankClearButton = async (
+  client: Client,
   interaction: ButtonInteraction,
 ): Promise<void> => {
   const pollId = interaction.customId.split(':')[3];

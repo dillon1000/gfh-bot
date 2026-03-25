@@ -160,7 +160,7 @@ export const registerInteractionRouter = (client: Client): void => {
         }
 
         if (interaction.customId.startsWith('poll:rank:clear:')) {
-          await handlePollRankClearButton(interaction);
+          await handlePollRankClearButton(client, interaction);
           return;
         }
 
