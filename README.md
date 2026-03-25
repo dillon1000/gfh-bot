@@ -11,6 +11,18 @@ The most powerful polling/voting bot. Supports single choice, Multi-choice, and 
 - Starboard
 - Ping health check
 
+## Gallery
+Interactive Poll Builder
+<img width="805" height="496" alt="image" src="https://github.com/user-attachments/assets/0a025615-2541-48f7-8f27-527d90edcbd9" />
+Live generated results image
+<img width="592" height="841" alt="image" src="https://github.com/user-attachments/assets/0d3a4d87-2fd4-40eb-806a-1410df42595d" />
+Ranked Choice voting Ballot menu
+<img width="548" height="491" alt="image" src="https://github.com/user-attachments/assets/72602e72-a5de-4eca-804c-2620bb496431" />
+Customize what counts as a PASS result
+<img width="532" height="448" alt="image" src="https://github.com/user-attachments/assets/b50c0578-5714-465a-ab91-bca0bb5eb498" />
+Export poll results to CSV
+<img width="1092" height="398" alt="image" src="https://github.com/user-attachments/assets/1dec7b8f-f7c0-4cd9-af67-cf6d619f85d2" />
+
 ## Requirements
 
 - Node `22.12.0+`
