@@ -6,6 +6,7 @@ import {
   handleEmojiBuilderInteractionError,
   handleEmojiBuilderModal,
 } from '../features/emojis/interactions.js';
+import { handleLatexCommand } from '../features/meta/latex.js';
 import { handleMeowCommand } from '../features/meta/meow.js';
 import { handlePingCommand } from '../features/meta/ping.js';
 import {
@@ -47,6 +48,9 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'meow':
             await handleMeowCommand(interaction);
+            return;
+          case 'latex':
+            await handleLatexCommand(interaction);
             return;
           case 'ping':
             await handlePingCommand(interaction);
