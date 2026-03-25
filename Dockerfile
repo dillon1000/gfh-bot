@@ -24,6 +24,9 @@ RUN pnpm build
 FROM base AS runtime
 
 ENV NODE_ENV=production
+ARG APP_REVISION=unknown
+ENV APP_REVISION=$APP_REVISION
+LABEL org.opencontainers.image.revision=$APP_REVISION
 
 RUN groupadd --system app && useradd --system --gid app --create-home app
 
