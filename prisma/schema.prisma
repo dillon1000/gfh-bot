@@ -14,6 +14,7 @@ model GuildConfig {
   starboardChannelId String?
   starboardThreshold Int              @default(3)
   starboardEmojis    String[]         @default([])
+  starboardBlacklistedChannelIds String[] @default([])
   starboardEmojiId   String?
   starboardEmojiName String?
   createdAt          DateTime         @default(now())

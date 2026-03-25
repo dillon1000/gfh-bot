@@ -27,6 +27,12 @@ export const starboardCommand = new SlashCommandBuilder()
           .setRequired(true)
           .setMinValue(1)
           .setMaxValue(50),
+      )
+      .addStringOption((option) =>
+        option
+          .setName('blacklist_channels')
+          .setDescription('Optional comma-separated channel IDs or mentions to ignore')
+          .setRequired(false),
       ),
   )
   .addSubcommand((subcommand) =>

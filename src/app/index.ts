@@ -5,7 +5,7 @@ import { env } from './config.js';
 import { registerInteractionRouter } from '../discord/router.js';
 import { recoverExpiredPolls, recoverMissedPollReminders, syncOpenPollCloseJobs, syncOpenPollReminderJobs } from '../features/polls/service.js';
 import { startPollReminderWorker, startPollWorker } from '../features/polls/worker.js';
-import { syncStarboardForReaction } from '../features/starboard/service.js';
+import { removeStarboardEntryForSourceMessage, syncStarboardForReaction } from '../features/starboard/service.js';
 import { prisma } from '../lib/prisma.js';
 import { pollCloseQueue, pollReminderQueue } from '../lib/queue.js';
 import { redis } from '../lib/redis.js';
@@ -52,6 +52,14 @@ client.on(Events.MessageReactionRemove, async (reaction, user) => {
     await syncStarboardForReaction(client, reaction, user);
   } catch (error) {
     logger.error({ err: error }, 'Failed to sync starboard on reaction remove');
+  }
+});
+
+client.on(Events.MessageDelete, async (message) => {
+  try {
+    await removeStarboardEntryForSourceMessage(client, message.id);
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to remove starboard entry for deleted source message');
   }
 });
 

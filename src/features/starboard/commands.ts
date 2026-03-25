@@ -5,6 +5,7 @@ import {
 } from 'discord.js';
 
 import { starboardCommand } from './definition.js';
+import { parseChannelIdBlacklist } from './parser.js';
 import {
   describeStarboardStatus,
   disableStarboard,
@@ -43,6 +44,9 @@ export const handleStarboardCommand = async (
       const channel = interaction.options.getChannel('channel', true);
       const emojis = interaction.options.getString('emoji', true);
       const threshold = interaction.options.getInteger('threshold', true);
+      const blacklistedChannels = parseChannelIdBlacklist(
+        interaction.options.getString('blacklist_channels'),
+      );
 
       if (!('isTextBased' in channel) || !channel.isTextBased()) {
         throw new Error('Starboard channel must be text-based.');
@@ -53,6 +57,7 @@ export const handleStarboardCommand = async (
         channelId: channel.id,
         emojis,
         threshold,
+        blacklistedChannelIds: blacklistedChannels,
       });
 
       await interaction.reply({

@@ -57,6 +57,7 @@ export const setStarboardConfig = async (input: {
   channelId: string;
   emojis: string;
   threshold: number;
+  blacklistedChannelIds: string[];
 }): Promise<GuildConfig> => {
   const normalizedEmojis = normalizeEmojiListInput(input.emojis);
   const storedEmojis = normalizedEmojis.map(serializeNormalizedEmoji);
@@ -72,6 +73,7 @@ export const setStarboardConfig = async (input: {
       starboardChannelId: input.channelId,
       starboardThreshold: input.threshold,
       starboardEmojis: storedEmojis,
+      starboardBlacklistedChannelIds: input.blacklistedChannelIds,
       starboardEmojiId: primaryEmoji?.id ?? null,
       starboardEmojiName: primaryEmoji?.name ?? null,
     },
@@ -80,6 +82,7 @@ export const setStarboardConfig = async (input: {
       starboardChannelId: input.channelId,
       starboardThreshold: input.threshold,
       starboardEmojis: storedEmojis,
+      starboardBlacklistedChannelIds: input.blacklistedChannelIds,
       starboardEmojiId: primaryEmoji?.id ?? null,
       starboardEmojiName: primaryEmoji?.name ?? null,
     },
@@ -211,6 +214,19 @@ const deleteStarboardEntry = async (
   });
 };
 
+export const removeStarboardEntryForSourceMessage = async (
+  client: Client,
+  sourceMessageId: string,
+): Promise<void> => {
+  const entry = await getExistingStarboardEntry(sourceMessageId);
+
+  if (!entry) {
+    return;
+  }
+
+  await deleteStarboardEntry(client, entry);
+};
+
 const upsertStarboardMessage = async (
   client: Client,
   config: ActiveGuildConfig,
@@ -326,6 +342,10 @@ export const syncStarboardForReaction = async (
     return;
   }
 
+  if (config.starboardBlacklistedChannelIds.includes(message.channelId)) {
+    return;
+  }
+
   if (message.author?.bot) {
     return;
   }
@@ -371,6 +391,7 @@ export const describeStarboardStatus = (config: GuildConfig | null): string => {
     `Channel: <#${config.starboardChannelId}>`,
     `Emojis: ${formatStoredEmojiList(getConfiguredStarboardEmojis(config))}`,
     `Threshold: ${config.starboardThreshold}`,
+    `Blacklist: ${config.starboardBlacklistedChannelIds.length > 0 ? config.starboardBlacklistedChannelIds.map((channelId) => `<#${channelId}>`).join(', ') : 'None'}`,
   ].join('\n');
 };
 
