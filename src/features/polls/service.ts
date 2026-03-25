@@ -1,0 +1,447 @@
+import type { Poll, PollOption } from '@prisma/client';
+import type { Client } from 'discord.js';
+
+import { env } from '../../app/config.js';
+import { logger } from '../../app/logger.js';
+import { withRedisLock } from '../../lib/locks.js';
+import { pollCloseQueue } from '../../lib/queue.js';
+import { assertWithinRateLimit } from '../../lib/rate-limit.js';
+import { prisma } from '../../lib/prisma.js';
+import { redis } from '../../lib/redis.js';
+import { buildPollMessage } from './render.js';
+import { parsePollLookup } from './query.js';
+import { computePollOutcome, computePollResults } from './results.js';
+import type { PollComputedResults, PollCreationInput, PollOutcome, PollWithRelations } from './types.js';
+
+const pollInclude = {
+  options: {
+    orderBy: {
+      sortOrder: 'asc',
+    },
+  },
+  votes: true,
+} as const;
+
+export const createPollRecord = async (input: PollCreationInput): Promise<PollWithRelations> => {
+  await assertWithinRateLimit(
+    redis,
+    `rate-limit:poll-create:${input.guildId}:${input.authorId}`,
+    env.POLL_CREATION_LIMIT_PER_HOUR,
+    60 * 60,
+  );
+
+  const closesAt = new Date(Date.now() + input.durationMs);
+
+  const poll = await prisma.poll.create({
+    data: {
+      guildId: input.guildId,
+      channelId: input.channelId,
+      authorId: input.authorId,
+      question: input.question,
+      description: input.description ?? null,
+      singleSelect: input.singleSelect,
+      anonymous: input.anonymous,
+      passThreshold: input.passThreshold ?? null,
+      closesAt,
+      options: {
+        create: input.choices.map((choice, index) => ({
+          label: choice,
+          sortOrder: index,
+        })),
+      },
+    },
+  });
+
+  return prisma.poll.findUniqueOrThrow({
+    where: {
+      id: poll.id,
+    },
+    include: pollInclude,
+  });
+};
+
+export const attachPollMessage = async (pollId: string, messageId: string): Promise<PollWithRelations> => {
+  await prisma.poll.update({
+    where: {
+      id: pollId,
+    },
+    data: {
+      messageId,
+    },
+  });
+
+  return prisma.poll.findUniqueOrThrow({
+    where: {
+      id: pollId,
+    },
+    include: pollInclude,
+  });
+};
+
+export const getPollById = async (pollId: string): Promise<PollWithRelations | null> =>
+  prisma.poll.findUnique({
+    where: {
+      id: pollId,
+    },
+    include: pollInclude,
+  });
+
+export const getPollByMessageId = async (messageId: string): Promise<PollWithRelations | null> =>
+  prisma.poll.findUnique({
+    where: {
+      messageId,
+    },
+    include: pollInclude,
+  });
+
+export const getPollByQuery = async (
+  query: string,
+  guildId?: string,
+): Promise<PollWithRelations | null> => {
+  const lookup = parsePollLookup(query);
+
+  if (lookup.kind === 'message-link') {
+    if (guildId && lookup.guildId !== guildId) {
+      throw new Error('That poll belongs to a different server.');
+    }
+
+    return getPollByMessageId(lookup.messageId);
+  }
+
+  if (lookup.kind === 'message-id') {
+    const poll = await getPollByMessageId(lookup.value);
+
+    if (guildId && poll && poll.guildId !== guildId) {
+      throw new Error('That poll belongs to a different server.');
+    }
+
+    return poll;
+  }
+
+  const poll = await getPollById(lookup.value);
+
+  if (guildId && poll && poll.guildId !== guildId) {
+    throw new Error('That poll belongs to a different server.');
+  }
+
+  return poll;
+};
+
+export const schedulePollClose = async (poll: Pick<Poll, 'id' | 'closesAt'>): Promise<void> => {
+  const delay = Math.max(0, poll.closesAt.getTime() - Date.now());
+
+  await pollCloseQueue.add(
+    'close',
+    { pollId: poll.id },
+    {
+      jobId: poll.id,
+      delay,
+    },
+  );
+};
+
+export const syncOpenPollCloseJobs = async (): Promise<void> => {
+  const polls = await prisma.poll.findMany({
+    where: {
+      closedAt: null,
+      closesAt: {
+        gt: new Date(),
+      },
+    },
+    select: {
+      id: true,
+      closesAt: true,
+    },
+  });
+
+  await Promise.all(polls.map((poll) => schedulePollClose(poll)));
+};
+
+export const recoverExpiredPolls = async (client: Client): Promise<void> => {
+  const polls = await prisma.poll.findMany({
+    where: {
+      closedAt: null,
+      closesAt: {
+        lte: new Date(),
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  await Promise.all(polls.map((poll) => closePollAndRefresh(client, poll.id)));
+};
+
+const assertPollVoteSelection = (
+  poll: PollWithRelations,
+  selectedOptionIds: string[],
+): void => {
+  if (selectedOptionIds.length === 0) {
+    throw new Error('Select at least one option.');
+  }
+
+  if (poll.singleSelect && selectedOptionIds.length > 1) {
+    throw new Error('This poll only allows one selection.');
+  }
+
+  const allowedOptionIds = new Set(poll.options.map((option) => option.id));
+
+  for (const optionId of selectedOptionIds) {
+    if (!allowedOptionIds.has(optionId)) {
+      throw new Error('One or more selected options are invalid.');
+    }
+  }
+};
+
+export const setPollVotes = async (
+  pollId: string,
+  userId: string,
+  selectedOptionIds: string[],
+): Promise<PollWithRelations> => {
+  const result = await withRedisLock(redis, `lock:poll-vote:${pollId}:${userId}`, 5_000, async () =>
+    prisma.$transaction(async (tx) => {
+      const poll = await tx.poll.findUnique({
+        where: {
+          id: pollId,
+        },
+        include: pollInclude,
+      });
+
+      if (!poll) {
+        throw new Error('Poll not found.');
+      }
+
+      if (poll.closedAt || poll.closesAt.getTime() <= Date.now()) {
+        throw new Error('This poll is already closed.');
+      }
+
+      assertPollVoteSelection(poll, selectedOptionIds);
+
+      await tx.pollVote.deleteMany({
+        where: {
+          pollId,
+          userId,
+        },
+      });
+
+      await tx.pollVote.createMany({
+        data: selectedOptionIds.map((optionId) => ({
+          pollId,
+          optionId,
+          userId,
+        })),
+      });
+
+      return tx.poll.findUniqueOrThrow({
+        where: {
+          id: pollId,
+        },
+        include: pollInclude,
+      });
+    }),
+  );
+
+  if (!result) {
+    throw new Error('Another vote update is already in progress. Please try again.');
+  }
+
+  return result;
+};
+
+export const closePoll = async (
+  pollId: string,
+): Promise<{ poll: PollWithRelations | null; didClose: boolean }> => {
+  const result = await withRedisLock(redis, `lock:poll-close:${pollId}`, 10_000, async () =>
+    prisma.$transaction(async (tx) => {
+      const poll = await tx.poll.findUnique({
+        where: {
+          id: pollId,
+        },
+        include: pollInclude,
+      });
+
+      if (!poll) {
+        return {
+          poll: null,
+          didClose: false,
+        };
+      }
+
+      if (poll.closedAt) {
+        return {
+          poll,
+          didClose: false,
+        };
+      }
+
+      await tx.poll.update({
+        where: {
+          id: pollId,
+        },
+        data: {
+          closedAt: new Date(),
+        },
+      });
+
+      const closedPoll = await tx.poll.findUniqueOrThrow({
+        where: {
+          id: pollId,
+        },
+        include: pollInclude,
+      });
+
+      return {
+        poll: closedPoll,
+        didClose: true,
+      };
+    }),
+  );
+
+  return result ?? {
+    poll: null,
+    didClose: false,
+  };
+};
+
+export const refreshPollMessage = async (client: Client, pollId: string): Promise<void> => {
+  const poll = await getPollById(pollId);
+
+  if (!poll?.messageId) {
+    return;
+  }
+
+  const channel = await client.channels.fetch(poll.channelId);
+  if (!channel?.isTextBased() || !('messages' in channel)) {
+    return;
+  }
+
+  const message = await channel.messages.fetch(poll.messageId).catch(() => null);
+  if (!message) {
+    logger.warn({ pollId }, 'Could not fetch poll message for refresh');
+    return;
+  }
+
+  const results = computePollResults(poll);
+  await message.edit(buildPollMessage(poll, results));
+};
+
+export const describePollOutcome = (outcome: PollOutcome): string => {
+  if (outcome.status === 'no-threshold') {
+    return `No pass threshold was configured. ${outcome.measuredChoiceLabel} finished at ${outcome.measuredPercentage.toFixed(1)}%.`;
+  }
+
+  return `${outcome.status === 'passed' ? 'Passed' : 'Failed'}: ${outcome.measuredChoiceLabel} reached ${outcome.measuredPercentage.toFixed(1)}% against a ${outcome.passThreshold}% threshold.`;
+};
+
+const sendPollCloseAnnouncement = async (
+  client: Client,
+  poll: PollWithRelations,
+  outcome: PollOutcome,
+  closedByUserId?: string,
+): Promise<void> => {
+  const channel = await client.channels.fetch(poll.channelId).catch(() => null);
+  if (!channel?.isTextBased() || !('send' in channel)) {
+    return;
+  }
+
+  const closerLine = closedByUserId
+    ? `<@${closedByUserId}> closed poll **${poll.question}**.`
+    : `Poll **${poll.question}** closed automatically.`;
+
+  await channel.send({
+    content: `${closerLine}\n${describePollOutcome(outcome)}`,
+    allowedMentions: closedByUserId
+      ? {
+          parse: [],
+          users: [closedByUserId],
+        }
+      : {
+          parse: [],
+        },
+  });
+};
+
+export const closePollAndRefresh = async (
+  client: Client,
+  pollId: string,
+  closedByUserId?: string,
+): Promise<void> => {
+  const { poll, didClose } = await closePoll(pollId);
+  if (!poll) {
+    return;
+  }
+
+  await refreshPollMessage(client, poll.id);
+
+  if (didClose) {
+    await sendPollCloseAnnouncement(client, poll, computePollOutcome(poll, computePollResults(poll)), closedByUserId);
+  }
+};
+
+export const getPollResultsSnapshot = async (
+  pollId: string,
+): Promise<{ poll: PollWithRelations; results: PollComputedResults } | null> => {
+  const poll = await getPollById(pollId);
+
+  if (!poll) {
+    return null;
+  }
+
+  return {
+    poll,
+    results: computePollResults(poll),
+  };
+};
+
+export const getPollResultsSnapshotByQuery = async (
+  query: string,
+  guildId?: string,
+): Promise<{ poll: PollWithRelations; results: PollComputedResults } | null> => {
+  const poll = await getPollByQuery(query, guildId);
+
+  if (!poll) {
+    return null;
+  }
+
+  return {
+    poll,
+    results: computePollResults(poll),
+  };
+};
+
+export const isPollManager = (
+  poll: Pick<Poll, 'authorId'>,
+  userId: string,
+  canManageGuild: boolean,
+): boolean => poll.authorId === userId || canManageGuild;
+
+export const hydratePollMessage = async (
+  channelId: string,
+  client: Client,
+  poll: PollWithRelations,
+): Promise<string> => {
+  const channel = await client.channels.fetch(channelId);
+  if (!channel?.isTextBased() || !('send' in channel)) {
+    throw new Error('Polls can only be published in text-based channels.');
+  }
+
+  const results = computePollResults(poll);
+  const message = await channel.send(buildPollMessage(poll, results));
+  await attachPollMessage(poll.id, message.id);
+  await schedulePollClose(poll);
+
+  return message.id;
+};
+
+export const deletePollRecord = async (pollId: string): Promise<void> => {
+  await prisma.poll.delete({
+    where: {
+      id: pollId,
+    },
+  });
+};
+
+export const mapOptionIdsToLabels = (
+  options: PollOption[],
+): Map<string, string> => new Map(options.map((option) => [option.id, option.label]));

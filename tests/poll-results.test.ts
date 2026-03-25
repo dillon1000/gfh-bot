@@ -1,0 +1,96 @@
+import { describe, expect, it } from 'vitest';
+
+import { computePollOutcome, computePollResults } from '../src/features/polls/results.js';
+import type { PollWithRelations } from '../src/features/polls/types.js';
+
+const poll = {
+  id: 'poll_1',
+  guildId: 'guild_1',
+  channelId: 'channel_1',
+  messageId: 'message_1',
+  authorId: 'user_1',
+  question: 'Pick one',
+  description: null,
+  singleSelect: false,
+  anonymous: false,
+  passThreshold: 60,
+  closesAt: new Date('2026-03-24T00:00:00.000Z'),
+  closedAt: null,
+  createdAt: new Date('2026-03-24T00:00:00.000Z'),
+  updatedAt: new Date('2026-03-24T00:00:00.000Z'),
+  options: [
+    {
+      id: 'option_1',
+      pollId: 'poll_1',
+      label: 'Yes',
+      sortOrder: 0,
+      createdAt: new Date('2026-03-24T00:00:00.000Z'),
+    },
+    {
+      id: 'option_2',
+      pollId: 'poll_1',
+      label: 'No',
+      sortOrder: 1,
+      createdAt: new Date('2026-03-24T00:00:00.000Z'),
+    },
+  ],
+  votes: [
+    {
+      id: 'vote_1',
+      pollId: 'poll_1',
+      optionId: 'option_1',
+      userId: 'user_1',
+      createdAt: new Date('2026-03-24T00:00:00.000Z'),
+    },
+    {
+      id: 'vote_2',
+      pollId: 'poll_1',
+      optionId: 'option_2',
+      userId: 'user_2',
+      createdAt: new Date('2026-03-24T00:00:00.000Z'),
+    },
+    {
+      id: 'vote_3',
+      pollId: 'poll_1',
+      optionId: 'option_1',
+      userId: 'user_2',
+      createdAt: new Date('2026-03-24T00:00:00.000Z'),
+    },
+  ],
+} satisfies PollWithRelations;
+
+describe('computePollResults', () => {
+  it('aggregates votes and unique voters', () => {
+    expect(computePollResults(poll)).toEqual({
+      totalVotes: 3,
+      totalVoters: 2,
+      choices: [
+        {
+          id: 'option_1',
+          label: 'Yes',
+          votes: 2,
+          percentage: (2 / 3) * 100,
+        },
+        {
+          id: 'option_2',
+          label: 'No',
+          votes: 1,
+          percentage: (1 / 3) * 100,
+        },
+      ],
+    });
+  });
+});
+
+describe('computePollOutcome', () => {
+  it('marks the poll as passed when the first choice reaches the threshold', () => {
+    const results = computePollResults(poll);
+
+    expect(computePollOutcome(poll, results)).toEqual({
+      status: 'passed',
+      passThreshold: 60,
+      measuredChoiceLabel: 'Yes',
+      measuredPercentage: (2 / 3) * 100,
+    });
+  });
+});

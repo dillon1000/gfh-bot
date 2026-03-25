@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model GuildConfig {
+  id                 String           @id @default(cuid())
+  guildId            String           @unique
+  starboardEnabled   Boolean          @default(false)
+  starboardChannelId String?
+  starboardThreshold Int              @default(3)
+  starboardEmojiId   String?
+  starboardEmojiName String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  starboardEntries   StarboardEntry[]
+}
+
+model Poll {
+  id           String      @id @default(cuid())
+  guildId      String
+  channelId    String
+  messageId    String?     @unique
+  authorId     String
+  question     String
+  description  String?
+  singleSelect Boolean     @default(true)
+  anonymous    Boolean     @default(false)
+  passThreshold Int?
+  closesAt     DateTime
+  closedAt     DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  options      PollOption[]
+  votes        PollVote[]
+
+  @@index([guildId, channelId])
+  @@index([closesAt, closedAt])
+}
+
+model PollOption {
+  id        String     @id @default(cuid())
+  pollId    String
+  label     String
+  sortOrder Int
+  createdAt DateTime   @default(now())
+  poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes     PollVote[]
+
+  @@unique([pollId, sortOrder])
+  @@index([pollId])
+}
+
+model PollVote {
+  id        String     @id @default(cuid())
+  pollId    String
+  optionId  String
+  userId    String
+  createdAt DateTime   @default(now())
+  poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option    PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, userId, optionId])
+  @@index([pollId, userId])
+}
+
+model StarboardEntry {
+  id              String      @id @default(cuid())
+  guildConfigId   String
+  sourceMessageId String      @unique
+  sourceChannelId String
+  boardMessageId  String      @unique
+  boardChannelId  String
+  authorId        String
+  reactionCount   Int         @default(0)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  guildConfig     GuildConfig @relation(fields: [guildConfigId], references: [id], onDelete: Cascade)
+
+  @@index([guildConfigId])
+}

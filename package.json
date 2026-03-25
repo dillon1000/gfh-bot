@@ -1,0 +1,38 @@
+{
+  "name": "gfh-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.27.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/app/index.ts",
+    "start": "node dist/src/app/index.js",
+    "register-commands": "tsx src/app/register-commands.ts",
+    "register-commands:dist": "node dist/src/app/register-commands.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.7.0",
+    "bullmq": "^5.56.1",
+    "discord.js": "^14.20.0",
+    "dotenv": "^16.5.0",
+    "ioredis": "^5.8.1",
+    "pino": "^10.1.0",
+    "prisma": "^6.7.0",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

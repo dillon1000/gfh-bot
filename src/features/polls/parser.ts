@@ -1,0 +1,105 @@
+import { parseDurationToMs } from '../../lib/duration.js';
+
+const minChoices = 2;
+const maxChoices = 10;
+const maxQuestionLength = 200;
+const maxDescriptionLength = 1_000;
+const maxChoiceLength = 80;
+
+export const parsePassThreshold = (value: string): number | null => {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const threshold = Number(trimmed);
+
+  if (!Number.isInteger(threshold) || threshold < 1 || threshold > 100) {
+    throw new Error('Pass threshold must be an integer from 1 to 100.');
+  }
+
+  return threshold;
+};
+
+export const sanitizeQuestion = (value: string): string => {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    throw new Error('Question cannot be empty.');
+  }
+
+  if (trimmed.length > maxQuestionLength) {
+    throw new Error(`Question cannot exceed ${maxQuestionLength} characters.`);
+  }
+
+  return trimmed;
+};
+
+export const sanitizeDescription = (value: string): string => {
+  const trimmed = value.trim();
+
+  if (trimmed.length > maxDescriptionLength) {
+    throw new Error(`Description cannot exceed ${maxDescriptionLength} characters.`);
+  }
+
+  return trimmed;
+};
+
+export const parseChoicesCsv = (value: string): string[] => {
+  const choices = value
+    .split(',')
+    .map((choice) => choice.trim())
+    .filter(Boolean);
+
+  if (choices.length < minChoices) {
+    throw new Error(`At least ${minChoices} choices are required.`);
+  }
+
+  if (choices.length > maxChoices) {
+    throw new Error(`No more than ${maxChoices} choices are allowed.`);
+  }
+
+  const normalized = new Set<string>();
+
+  for (const choice of choices) {
+    if (choice.length > maxChoiceLength) {
+      throw new Error(`Each choice must be ${maxChoiceLength} characters or fewer.`);
+    }
+
+    const key = choice.toLocaleLowerCase();
+    if (normalized.has(key)) {
+      throw new Error('Choices must be unique.');
+    }
+
+    normalized.add(key);
+  }
+
+  return choices;
+};
+
+export const parsePollFormInput = (input: {
+  question: string;
+  description?: string;
+  choices: string[] | string;
+  durationText: string;
+}): {
+  question: string;
+  description?: string;
+  choices: string[];
+  durationMs: number;
+} => {
+  const question = sanitizeQuestion(input.question);
+  const description = sanitizeDescription(input.description ?? '');
+  const choices = Array.isArray(input.choices)
+    ? parseChoicesCsv(input.choices.join(', '))
+    : parseChoicesCsv(input.choices);
+  const durationMs = parseDurationToMs(input.durationText);
+
+  return {
+    question,
+    choices,
+    durationMs,
+    ...(description ? { description } : {}),
+  };
+};

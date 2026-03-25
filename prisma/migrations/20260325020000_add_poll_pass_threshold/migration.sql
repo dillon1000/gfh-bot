@@ -1,0 +1,2 @@
+ALTER TABLE "Poll"
+ADD COLUMN "passThreshold" INTEGER;
