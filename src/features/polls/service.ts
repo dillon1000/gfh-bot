@@ -28,6 +28,45 @@ const pollInclude = {
 
 const oneHourMs = 60 * 60 * 1000;
 
+const shouldAttachLivePollDiagram = (
+  poll: Pick<PollWithRelations, 'mode' | 'closedAt' | 'closesAt'>,
+): boolean => poll.mode !== 'ranked' || poll.closedAt !== null || poll.closesAt.getTime() <= Date.now();
+
+const buildLivePollMessagePayload = async (
+  poll: PollWithRelations,
+  results: PollComputedResults,
+  options?: {
+    replaceAttachments?: boolean;
+  },
+) => {
+  const payload = buildPollMessage(poll, results);
+
+  if (!shouldAttachLivePollDiagram(poll)) {
+    return {
+      ...payload,
+      ...(options?.replaceAttachments ? { attachments: [] } : {}),
+    };
+  }
+
+  try {
+    const diagram = await buildPollResultDiagram(poll, results);
+    payload.embeds[0]?.setImage(`attachment://${diagram.fileName}`);
+
+    return {
+      ...payload,
+      files: [diagram.attachment],
+      ...(options?.replaceAttachments ? { attachments: [] } : {}),
+    };
+  } catch (error) {
+    logger.warn({ err: error, pollId: poll.id }, 'Could not generate live poll diagram');
+
+    return {
+      ...payload,
+      ...(options?.replaceAttachments ? { attachments: [] } : {}),
+    };
+  }
+};
+
 const getEffectivePollMode = (poll: { mode?: PollMode | null; singleSelect: boolean }): PollMode =>
   poll.mode ?? (poll.singleSelect ? 'single' : 'multi');
 
@@ -465,7 +504,7 @@ export const refreshPollMessage = async (client: Client, pollId: string): Promis
   }
 
   const results = computePollResults(poll);
-  await message.edit(buildPollMessage(poll, results));
+  await message.edit(await buildLivePollMessagePayload(poll, results, { replaceAttachments: true }));
 };
 
 export const describePollOutcome = (outcome: PollOutcome): string => {
@@ -683,7 +722,7 @@ export const hydratePollMessage = async (
   }
 
   const results = computePollResults(poll);
-  const message = await channel.send(buildPollMessage(poll, results));
+  const message = await channel.send(await buildLivePollMessagePayload(poll, results));
   const attachedPoll = await attachPollMessage(poll.id, message.id);
   let threadCreated = false;
 

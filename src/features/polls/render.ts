@@ -62,6 +62,9 @@ const isPollClosedOrExpired = (poll: Pick<PollWithRelations, 'closedAt' | 'close
 const clampFieldValue = (value: string, maxLength = 1024): string =>
   value.length <= maxLength ? value : `${value.slice(0, Math.max(0, maxLength - 3))}...`;
 
+const shouldRevealRankedResults = (poll: Pick<PollWithRelations, 'closedAt' | 'closesAt' | 'mode'>): boolean =>
+  poll.mode !== 'ranked' || isPollClosedOrExpired(poll);
+
 const renderChoiceLine = (
   choice: PollComputedResults['choices'][number],
   index: number,
@@ -152,13 +155,16 @@ export const buildPollMessage = (
   poll: PollWithRelations,
   results: PollComputedResults,
 ) => {
+  const revealRankedResults = shouldRevealRankedResults(poll);
   const details = [
     `**Mode** ${getModeLabel(poll.mode)}`,
     `**Visibility** ${poll.anonymous ? 'Anonymous option selections' : 'Public vote totals'}`,
     poll.mode === 'ranked'
-      ? `**Status** ${results.kind === 'ranked' && results.status === 'winner'
-        ? `Current leader: ${poll.options.find((option) => option.id === results.winnerOptionId)?.label ?? 'Unknown'}`
-        : 'No winner yet'}`
+      ? `**Status** ${revealRankedResults && results.kind === 'ranked' && results.status === 'winner'
+        ? `Winner: ${poll.options.find((option) => option.id === results.winnerOptionId)?.label ?? 'Unknown'}`
+        : revealRankedResults
+          ? 'Final rounds available below'
+          : 'Round totals hidden until voting closes'}`
       : `**Pass Rule** ${getPassRuleLabel(poll.mode, poll.passThreshold, poll.passOptionIndex, poll.options)}`,
     `**Timing** ${poll.closedAt
       ? `Closed <t:${Math.floor(poll.closedAt.getTime() / 1000)}:R>`
@@ -175,17 +181,22 @@ export const buildPollMessage = (
     const latestRound = results.rounds[results.rounds.length - 1] ?? null;
     embed.addFields(
       {
-        name: poll.closedAt ? 'Final Ranked Rounds' : 'Live Ranked Rounds',
-        value: clampFieldValue(results.rounds.length === 0
-          ? 'No ballots yet.'
-          : results.rounds.slice(0, 3).map((round) => buildRankedRoundSummary(poll, round)).join('\n\n')),
+        name: revealRankedResults ? 'Final Ranked Rounds' : 'Ranked Choice Status',
+        value: clampFieldValue(revealRankedResults
+          ? results.rounds.length === 0
+            ? 'No ballots yet.'
+            : results.rounds.slice(0, 3).map((round) => buildRankedRoundSummary(poll, round)).join('\n\n')
+          : [
+              'Round-by-round tallies are hidden until this ranked-choice poll closes.',
+              `Ballots submitted: ${results.totalVoters}`,
+            ].join('\n')),
       },
       {
         name: 'Details',
         value: clampFieldValue([
           ...details,
           `**Ballots** ${results.totalVoters}`,
-          latestRound ? `**Latest Elimination** ${buildRoundEliminationLabel(poll, latestRound)}` : null,
+          revealRankedResults && latestRound ? `**Latest Elimination** ${buildRoundEliminationLabel(poll, latestRound)}` : null,
         ]
           .filter(Boolean)
           .join('\n')),
@@ -274,6 +285,7 @@ export const buildPollResultsEmbed = (
 ): EmbedBuilder => {
   const votersByOption = buildVoterMentionsByOption(poll);
   const uniqueVoterMentions = buildUniqueVoterMentions(poll);
+  const revealRankedResults = shouldRevealRankedResults(poll);
   const embed = new EmbedBuilder()
     .setTitle(`Results: ${poll.question}`)
     .setColor(poll.closedAt ? 0xef4444 : 0x5eead4)
@@ -291,25 +303,29 @@ export const buildPollResultsEmbed = (
         `Status: ${poll.closedAt ? 'Closed' : 'Open'}`,
         `Mode: Ranked choice`,
         `Ballots: ${results.totalVoters}`,
-        `Exhausted ballots: ${results.exhaustedVotes}`,
-        winnerLabel
-          ? `Winner: ${winnerLabel}`
-          : `Outcome: ${results.status === 'tied' ? 'Tied / inconclusive' : 'No winner yet'}`,
+        ...(revealRankedResults ? [`Exhausted ballots: ${results.exhaustedVotes}`] : []),
+        revealRankedResults
+          ? winnerLabel
+            ? `Winner: ${winnerLabel}`
+            : `Outcome: ${results.status === 'tied' ? 'Tied / inconclusive' : 'No winner yet'}`
+          : 'Round-by-round ranked results stay hidden until voting closes.',
         poll.anonymous
           ? 'Anonymous poll: voters may be listed overall, but ballot rankings stay private.'
           : 'Non-anonymous poll: ordered ballot changes are available in audit history.',
       ].join('\n'),
     );
 
-    for (const round of results.rounds) {
-      embed.addFields({
-        name: `Round ${round.round}`,
-        value: clampFieldValue([
-          `Active: ${round.activeVotes} • Exhausted: ${round.exhaustedVotes}`,
-          ...round.tallies.map((choice, index) => renderChoiceLine(choice, index)),
-          `Eliminated: ${buildRoundEliminationLabel(poll, round)}`,
-        ].join('\n')),
-      });
+    if (revealRankedResults) {
+      for (const round of results.rounds) {
+        embed.addFields({
+          name: `Round ${round.round}`,
+          value: clampFieldValue([
+            `Active: ${round.activeVotes} • Exhausted: ${round.exhaustedVotes}`,
+            ...round.tallies.map((choice, index) => renderChoiceLine(choice, index)),
+            `Eliminated: ${buildRoundEliminationLabel(poll, round)}`,
+          ].join('\n')),
+        });
+      }
     }
 
     if (poll.anonymous) {

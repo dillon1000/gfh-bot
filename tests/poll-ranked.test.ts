@@ -66,6 +66,12 @@ const rankedPoll = {
   ],
 } satisfies PollWithRelations;
 
+const openRankedPoll = {
+  ...rankedPoll,
+  closesAt: new Date('2099-03-24T00:00:00.000Z'),
+  closedAt: null,
+} satisfies PollWithRelations;
+
 describe('ranked-choice poll results', () => {
   it('runs instant-runoff rounds until a winner is found', () => {
     const results = computePollResults(rankedPoll);
@@ -93,6 +99,22 @@ describe('ranked-choice poll results', () => {
     const embed = buildPollResultsEmbed(rankedPoll, computePollResults(rankedPoll)).toJSON();
     expect(embed.fields?.some((field) => field.name === 'Round 1')).toBe(true);
     expect(embed.description).toContain('Mode: Ranked choice');
+  });
+
+  it('hides live ranked rounds while the poll is still open', () => {
+    const message = buildPollMessage(openRankedPoll, computePollResults(openRankedPoll));
+    const embed = message.embeds[0]?.toJSON();
+
+    expect(embed?.fields?.some((field) => field.name === 'Ranked Choice Status')).toBe(true);
+    expect(embed?.fields?.some((field) => field.name === 'Live Ranked Rounds')).toBe(false);
+    expect(JSON.stringify(embed)).toContain('hidden until this ranked-choice poll closes');
+  });
+
+  it('hides round-by-round ranked results in the results embed while the poll is open', () => {
+    const embed = buildPollResultsEmbed(openRankedPoll, computePollResults(openRankedPoll)).toJSON();
+
+    expect(embed.fields?.some((field) => field.name === 'Round 1') ?? false).toBe(false);
+    expect(embed.description).toContain('Round-by-round ranked results stay hidden until voting closes.');
   });
 
   it('exports non-anonymous ranked polls as ballot rows', () => {

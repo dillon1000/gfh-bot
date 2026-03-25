@@ -67,6 +67,16 @@ const buildPollResultsResponse = async (
   };
 }> => {
   const embed = buildPollResultsEmbed(poll, results);
+  const shouldAttachDiagram = poll.mode !== 'ranked' || poll.closedAt !== null || poll.closesAt.getTime() <= Date.now();
+
+  if (!shouldAttachDiagram) {
+    return {
+      embeds: [embed],
+      allowedMentions: {
+        parse: [],
+      },
+    };
+  }
 
   try {
     const diagram = await buildPollResultDiagram(poll, results);
