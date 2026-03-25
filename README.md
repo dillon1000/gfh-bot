@@ -21,27 +21,27 @@ Supports single-choice polls, multi-choice polls, ranked-choice voting, starboar
   <tr>
     <td align="center" width="50%">
       <strong>Interactive Poll Builder</strong><br />
-      <img src="https://github.com/user-attachments/assets/4eb0106b-0e0c-4aab-b47a-8abaf9562968" alt="Interactive Poll Builder" width="100%" />
+      <img src="https://github.com/user-attachments/assets/0a025615-2541-48f7-8f27-527d90edcbd9" alt="Interactive Poll Builder" width="100%" />
     </td>
     <td align="center" width="50%">
       <strong>Live Results Diagram</strong><br />
-      <img src="https://github.com/user-attachments/assets/82dd2c5d-4c1b-46f4-a82c-b66dc0a23e6f" alt="Live Results Diagram" width="100%" />
+      <img src="https://github.com/user-attachments/assets/0d3a4d87-2fd4-40eb-806a-1410df42595d" alt="Live Results Diagram" width="100%" />
     </td>
   </tr>
   <tr>
     <td align="center" width="50%">
       <strong>Ranked-Choice Ballot Menu</strong><br />
-      <img src="https://github.com/user-attachments/assets/2a9f8138-c0d2-4ec3-95c7-906415d88fc0" alt="Ranked-Choice Ballot Menu" width="100%" />
+      <img src="https://github.com/user-attachments/assets/72602e72-a5de-4eca-804c-2620bb496431" alt="Ranked-Choice Ballot Menu" width="100%" />
     </td>
     <td align="center" width="50%">
       <strong>Pass Threshold Configuration</strong><br />
-      <img src="https://github.com/user-attachments/assets/e1bc306d-c834-4968-9763-f23d4b58a949" alt="Pass Threshold Configuration" width="100%" />
+      <img src="https://github.com/user-attachments/assets/b50c0578-5714-465a-ab91-bca0bb5eb498" alt="Pass Threshold Configuration" width="100%" />
     </td>
   </tr>
   <tr>
     <td align="center" width="50%">
       <strong>CSV Export</strong><br />
-      <img src="https://github.com/user-attachments/assets/78052c13-c00b-4bd0-bf6a-eb3c708ed1e4" alt="CSV Export" width="100%" />
+      <img src="https://github.com/user-attachments/assets/1dec7b8f-f7c0-4cd9-af67-cf6d619f85d2" alt="CSV Export" width="100%" />
     </td>
     <td width="50%"></td>
   </tr>
