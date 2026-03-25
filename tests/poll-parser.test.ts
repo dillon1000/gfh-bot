@@ -39,6 +39,13 @@ describe('parseChoiceEmojisCsv', () => {
   it('pads missing emoji overrides with defaults', () => {
     expect(parseChoiceEmojisCsv('✅', 3)).toEqual(['✅', null, null]);
   });
+
+  it('normalizes and truncates array input from the builder workflow', () => {
+    expect(parseChoiceEmojisCsv([' ✅ ', '<a:blobyes:12345>', '❌'], 2)).toEqual([
+      '✅',
+      '<a:blobyes:12345>',
+    ]);
+  });
 });
 
 describe('parsePassThreshold', () => {

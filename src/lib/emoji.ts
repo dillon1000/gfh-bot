@@ -4,17 +4,24 @@ export type NormalizedEmoji = {
   id: string | null;
   name: string;
   display: string;
+  animated?: boolean;
 };
 
 const maxConfiguredEmojis = 5;
 
-const customEmojiPattern = /^<a?:(?<name>[a-zA-Z0-9_]+):(?<id>\d+)>$/;
+const customEmojiPattern = /^<(?<animated>a?):(?<name>[a-zA-Z0-9_]{2,32}):(?<id>\d+)>$/;
+const unicodeEmojiPattern = /^(?:\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|(?:\p{Extended_Pictographic}(?:\uFE0F|\uFE0E)?(?:\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\uFE0E)?(?:\p{Emoji_Modifier})?)*)+)$/u;
 
 export const normalizeEmojiInput = (value: string): NormalizedEmoji => {
   const trimmed = value.trim();
   const customMatch = customEmojiPattern.exec(trimmed);
 
+  if (!trimmed) {
+    throw new Error('Emoji cannot be empty.');
+  }
+
   if (customMatch?.groups) {
+    const animated = customMatch.groups.animated === 'a';
     const name = customMatch.groups.name;
     const id = customMatch.groups.id;
 
@@ -25,12 +32,13 @@ export const normalizeEmojiInput = (value: string): NormalizedEmoji => {
     return {
       id,
       name,
-      display: `<:${name}:${id}>`,
+      display: trimmed,
+      ...(animated ? { animated: true } : {}),
     };
   }
 
-  if (!trimmed) {
-    throw new Error('Emoji cannot be empty.');
+  if (!unicodeEmojiPattern.test(trimmed)) {
+    throw new Error('Emoji must be a Unicode emoji or a custom emoji like <:name:id>.');
   }
 
   return {
@@ -42,7 +50,7 @@ export const normalizeEmojiInput = (value: string): NormalizedEmoji => {
 
 export const serializeNormalizedEmoji = (emoji: NormalizedEmoji): string =>
   emoji.id
-    ? `c:${encodeURIComponent(emoji.id)}:${encodeURIComponent(emoji.name)}`
+    ? `${emoji.animated ? 'a' : 'c'}:${encodeURIComponent(emoji.id)}:${encodeURIComponent(emoji.name)}`
     : `u::${encodeURIComponent(emoji.name)}`;
 
 export const deserializeStoredEmoji = (value: string): NormalizedEmoji => {
@@ -58,7 +66,7 @@ export const deserializeStoredEmoji = (value: string): NormalizedEmoji => {
   const id = decodeURIComponent(rawId);
   const name = decodeURIComponent(rawName);
 
-  if (kind === 'c') {
+  if (kind === 'c' || kind === 'a') {
     if (!id || !name) {
       throw new Error('Invalid stored custom emoji.');
     }
@@ -66,7 +74,8 @@ export const deserializeStoredEmoji = (value: string): NormalizedEmoji => {
     return {
       id,
       name,
-      display: `<:${name}:${id}>`,
+      display: `<${kind === 'a' ? 'a' : ''}:${name}:${id}>`,
+      ...(kind === 'a' ? { animated: true } : {}),
     };
   }
 

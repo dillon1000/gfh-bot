@@ -26,6 +26,10 @@ describe('normalizeEmojiInput', () => {
       display: '⭐',
     });
   });
+
+  it('rejects non-emoji text input', () => {
+    expect(() => normalizeEmojiInput('hello')).toThrow(/Unicode emoji or a custom emoji/);
+  });
 });
 
 describe('reactionMatchesEmoji', () => {
