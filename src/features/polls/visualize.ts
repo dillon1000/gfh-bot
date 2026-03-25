@@ -15,6 +15,7 @@ const success = '#57f287';
 const danger = '#ed4245';
 const neutral = '#5865f2';
 const border = '#40444b';
+const fontStack = "'DejaVu Sans', 'Noto Sans', 'Liberation Sans', sans-serif";
 
 type DiagramPayload = {
   attachment: AttachmentBuilder;
@@ -50,6 +51,12 @@ const buildSvgShell = (
   content: string,
 ): string => `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${size.width}" height="${size.height}" viewBox="0 0 ${size.width} ${size.height}" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text {
+      font-family: ${fontStack};
+      text-rendering: geometricPrecision;
+    }
+  </style>
   <rect width="${size.width}" height="${size.height}" rx="28" fill="${background}"/>
   ${content}
 </svg>`;
@@ -69,7 +76,7 @@ const renderText = (
     fontSize?: number;
     fontWeight?: string | number;
   },
-): string => `<text x="${x}" y="${y}" fill="${options?.color ?? text}" font-size="${options?.fontSize ?? 18}" font-family="Arial, sans-serif" font-weight="${options?.fontWeight ?? 400}"${options?.anchor ? ` text-anchor="${options.anchor}"` : ''}>${escapeXml(value)}</text>`;
+): string => `<text x="${x}" y="${y}" fill="${options?.color ?? text}" font-size="${options?.fontSize ?? 18}" font-weight="${options?.fontWeight ?? 400}"${options?.anchor ? ` text-anchor="${options.anchor}"` : ''}>${escapeXml(value)}</text>`;
 
 const buildStandardSummary = (
   outcome: PollOutcome,

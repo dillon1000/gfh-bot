@@ -28,6 +28,10 @@ ARG APP_REVISION=unknown
 ENV APP_REVISION=$APP_REVISION
 LABEL org.opencontainers.image.revision=$APP_REVISION
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends fontconfig fonts-dejavu-core fonts-noto-core \
+  && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --system app && useradd --system --gid app --create-home app
 
 COPY --from=deps /app/package.json /app/pnpm-lock.yaml ./
