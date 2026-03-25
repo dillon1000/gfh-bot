@@ -5,6 +5,7 @@ export const assertWithinRateLimit = async (
   key: string,
   limit: number,
   windowSeconds: number,
+  errorMessage = 'Rate limit exceeded. Please wait before trying again.',
 ): Promise<void> => {
   const total = await client.incr(key);
 
@@ -13,6 +14,6 @@ export const assertWithinRateLimit = async (
   }
 
   if (total > limit) {
-    throw new Error('Rate limit exceeded. Please wait before creating another poll.');
+    throw new Error(errorMessage);
   }
 };

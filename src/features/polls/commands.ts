@@ -54,6 +54,16 @@ export const pollResultsCommand = new SlashCommandBuilder()
       .setRequired(true),
   );
 
+export const pollExportCommand = new SlashCommandBuilder()
+  .setName('poll-export')
+  .setDescription('Export poll results as a CSV file.')
+  .addStringOption((option) =>
+    option
+      .setName('query')
+      .setDescription('Discord message link, raw message ID, or poll ID')
+      .setRequired(true),
+  );
+
 export const pollFromMessageCommand = {
   name: 'Create Poll From Message',
   type: ApplicationCommandType.Message,

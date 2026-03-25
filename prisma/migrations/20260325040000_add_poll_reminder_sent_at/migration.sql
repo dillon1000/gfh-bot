@@ -1,0 +1,2 @@
+ALTER TABLE "Poll"
+ADD COLUMN "reminderSentAt" TIMESTAMP(3);

@@ -1,5 +1,6 @@
 import { Events, type Client, type Interaction } from 'discord.js';
 
+import { handleMeowCommand } from '../features/meta/meow.js';
 import { handlePingCommand } from '../features/meta/ping.js';
 import {
   handlePollBuilderButton,
@@ -9,6 +10,7 @@ import {
   handlePollCloseButton,
   handlePollCloseModal,
   handlePollCommand,
+  handlePollExportCommand,
   handlePollFromMessageContext,
   handlePollInteractionError,
   handlePollResultsCommand,
@@ -22,6 +24,9 @@ export const registerInteractionRouter = (client: Client): void => {
     try {
       if (interaction.isChatInputCommand()) {
         switch (interaction.commandName) {
+          case 'meow':
+            await handleMeowCommand(interaction);
+            return;
           case 'ping':
             await handlePingCommand(interaction);
             return;
@@ -33,6 +38,9 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'poll-results':
             await handlePollResultsCommand(interaction);
+            return;
+          case 'poll-export':
+            await handlePollExportCommand(interaction);
             return;
           case 'starboard':
             await handleStarboardCommand(interaction);

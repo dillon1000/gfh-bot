@@ -32,6 +32,7 @@ model Poll {
   singleSelect Boolean     @default(true)
   anonymous    Boolean     @default(false)
   passThreshold Int?
+  reminderSentAt DateTime?
   closesAt     DateTime
   closedAt     DateTime?
   createdAt    DateTime    @default(now())

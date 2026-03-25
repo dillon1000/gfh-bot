@@ -6,6 +6,8 @@ discord bot built with discord.js :D
 - Polls
 - Interactive poll builder
 - Persistent poll lookup
+- Poll reminders one hour before close
+- Poll CSV export with optional R2 upload
 - Message context-menu poll seeding
 - Starboard
 - Ping health check
@@ -25,6 +27,11 @@ Copy `.env.example` to `.env` and fill in:
 - `DISCORD_GUILD_ID`
 - `DATABASE_URL`
 - `REDIS_URL`
+- `R2_ACCOUNT_ID` optional
+- `R2_ACCESS_KEY_ID` optional
+- `R2_SECRET_ACCESS_KEY` optional
+- `R2_BUCKET` optional
+- `R2_PUBLIC_BASE_URL` optional
 
 For local development on your machine, use `localhost` in `DATABASE_URL` and `REDIS_URL`.
 ## development
@@ -51,6 +58,7 @@ docker compose up --build
 - `/poll question:... choices:... description:... single_select:true anonymous:false time:24h`
 - `/poll-builder`
 - `/poll-results query:<message link|message id|poll id>`
+- `/poll-export query:<message link|message id|poll id>`
 - Message context menu: `Create Poll From Message`
 - `/starboard setup channel:#starboard emoji:"⭐,💎,<:gold_star:123>" threshold:3`
 - `/starboard disable`

@@ -15,6 +15,7 @@ const basePoll = {
   singleSelect: true,
   anonymous: false,
   passThreshold: null,
+  reminderSentAt: null,
   closesAt: new Date('2026-03-24T00:00:00.000Z'),
   closedAt: null,
   createdAt: new Date('2026-03-24T00:00:00.000Z'),

@@ -1,14 +1,16 @@
 import type { Poll, PollOption } from '@prisma/client';
-import type { Client } from 'discord.js';
+import { EmbedBuilder, type Client } from 'discord.js';
 
 import { env } from '../../app/config.js';
 import { logger } from '../../app/logger.js';
 import { withRedisLock } from '../../lib/locks.js';
-import { pollCloseQueue } from '../../lib/queue.js';
+import { pollCloseQueue, pollReminderQueue } from '../../lib/queue.js';
+import { uploadCsvToR2, isR2Configured } from '../../lib/r2.js';
 import { assertWithinRateLimit } from '../../lib/rate-limit.js';
 import { prisma } from '../../lib/prisma.js';
 import { redis } from '../../lib/redis.js';
 import { buildPollMessage } from './render.js';
+import { buildPollExportCsv } from './export.js';
 import { parsePollLookup } from './query.js';
 import { computePollOutcome, computePollResults } from './results.js';
 import type { PollComputedResults, PollCreationInput, PollOutcome, PollWithRelations } from './types.js';
@@ -21,6 +23,8 @@ const pollInclude = {
   },
   votes: true,
 } as const;
+
+const oneHourMs = 60 * 60 * 1000;
 
 export const createPollRecord = async (input: PollCreationInput): Promise<PollWithRelations> => {
   await assertWithinRateLimit(
@@ -140,6 +144,30 @@ export const schedulePollClose = async (poll: Pick<Poll, 'id' | 'closesAt'>): Pr
   );
 };
 
+export const schedulePollReminder = async (
+  poll: Pick<Poll, 'id' | 'closesAt' | 'closedAt' | 'reminderSentAt'>,
+): Promise<void> => {
+  if (poll.closedAt || poll.reminderSentAt) {
+    return;
+  }
+
+  const reminderAt = poll.closesAt.getTime() - oneHourMs;
+  const delay = reminderAt - Date.now();
+
+  if (delay <= 0) {
+    return;
+  }
+
+  await pollReminderQueue.add(
+    'remind',
+    { pollId: poll.id },
+    {
+      jobId: poll.id,
+      delay,
+    },
+  );
+};
+
 export const syncOpenPollCloseJobs = async (): Promise<void> => {
   const polls = await prisma.poll.findMany({
     where: {
@@ -157,6 +185,26 @@ export const syncOpenPollCloseJobs = async (): Promise<void> => {
   await Promise.all(polls.map((poll) => schedulePollClose(poll)));
 };
 
+export const syncOpenPollReminderJobs = async (): Promise<void> => {
+  const polls = await prisma.poll.findMany({
+    where: {
+      closedAt: null,
+      reminderSentAt: null,
+      closesAt: {
+        gt: new Date(Date.now() + oneHourMs),
+      },
+    },
+    select: {
+      id: true,
+      closesAt: true,
+      closedAt: true,
+      reminderSentAt: true,
+    },
+  });
+
+  await Promise.all(polls.map((poll) => schedulePollReminder(poll)));
+};
+
 export const recoverExpiredPolls = async (client: Client): Promise<void> => {
   const polls = await prisma.poll.findMany({
     where: {
@@ -171,6 +219,24 @@ export const recoverExpiredPolls = async (client: Client): Promise<void> => {
   });
 
   await Promise.all(polls.map((poll) => closePollAndRefresh(client, poll.id)));
+};
+
+export const recoverMissedPollReminders = async (client: Client): Promise<void> => {
+  const polls = await prisma.poll.findMany({
+    where: {
+      closedAt: null,
+      reminderSentAt: null,
+      closesAt: {
+        gt: new Date(),
+        lte: new Date(Date.now() + oneHourMs),
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  await Promise.all(polls.map((poll) => sendPollReminder(client, poll.id)));
 };
 
 const assertPollVoteSelection = (
@@ -345,12 +411,23 @@ const sendPollCloseAnnouncement = async (
     return;
   }
 
-  const closerLine = closedByUserId
-    ? `<@${closedByUserId}> closed poll **${poll.question}**.`
-    : `Poll **${poll.question}** closed automatically.`;
+  const embed = new EmbedBuilder()
+    .setTitle('Poll Closed')
+    .setColor(0xef4444)
+    .setDescription(
+      [
+        closedByUserId
+          ? `<@${closedByUserId}> closed **${poll.question}**.`
+          : `**${poll.question}** closed automatically.`,
+        describePollOutcome(outcome),
+      ].join('\n\n'),
+    )
+    .setFooter({
+      text: `Poll ID: ${poll.id}`,
+    });
 
   await channel.send({
-    content: `${closerLine}\n${describePollOutcome(outcome)}`,
+    embeds: [embed],
     allowedMentions: closedByUserId
       ? {
           parse: [],
@@ -359,6 +436,53 @@ const sendPollCloseAnnouncement = async (
       : {
           parse: [],
         },
+  });
+};
+
+export const sendPollReminder = async (client: Client, pollId: string): Promise<void> => {
+  await withRedisLock(redis, `lock:poll-reminder:${pollId}`, 10_000, async () => {
+    const poll = await prisma.poll.findUnique({
+      where: {
+        id: pollId,
+      },
+      include: pollInclude,
+    });
+
+    if (!poll || poll.closedAt || poll.reminderSentAt || !poll.messageId) {
+      return;
+    }
+
+    const channel = await client.channels.fetch(poll.channelId).catch(() => null);
+    if (!channel?.isTextBased() || !('messages' in channel)) {
+      return;
+    }
+
+    const originalMessage = await channel.messages.fetch(poll.messageId).catch(() => null);
+    if (!originalMessage) {
+      return;
+    }
+
+    await originalMessage.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle('Poll Closing Soon')
+          .setDescription(`Voting on **${poll.question}** closes in 1 hour. Cast your vote before it ends.`)
+          .setColor(0xf59e0b),
+      ],
+      allowedMentions: {
+        parse: [],
+        repliedUser: false,
+      },
+    });
+
+    await prisma.poll.update({
+      where: {
+        id: poll.id,
+      },
+      data: {
+        reminderSentAt: new Date(),
+      },
+    });
   });
 };
 
@@ -428,8 +552,11 @@ export const hydratePollMessage = async (
 
   const results = computePollResults(poll);
   const message = await channel.send(buildPollMessage(poll, results));
-  await attachPollMessage(poll.id, message.id);
-  await schedulePollClose(poll);
+  const attachedPoll = await attachPollMessage(poll.id, message.id);
+  await Promise.all([
+    schedulePollClose(attachedPoll),
+    schedulePollReminder(attachedPoll),
+  ]);
 
   return message.id;
 };
@@ -445,3 +572,28 @@ export const deletePollRecord = async (pollId: string): Promise<void> => {
 export const mapOptionIdsToLabels = (
   options: PollOption[],
 ): Map<string, string> => new Map(options.map((option) => [option.id, option.label]));
+
+export const exportPollToCsv = async (
+  poll: PollWithRelations,
+): Promise<
+  | { kind: 'r2'; url: string; fileName: string }
+  | { kind: 'attachment'; buffer: Buffer; fileName: string }
+> => {
+  const fileName = `poll-${poll.id}.csv`;
+  const csv = buildPollExportCsv(poll);
+
+  if (isR2Configured()) {
+    const url = await uploadCsvToR2(`poll-exports/${fileName}`, csv);
+    return {
+      kind: 'r2',
+      url,
+      fileName,
+    };
+  }
+
+  return {
+    kind: 'attachment',
+    buffer: Buffer.from(csv, 'utf8'),
+    fileName,
+  };
+};

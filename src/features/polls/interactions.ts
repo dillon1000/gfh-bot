@@ -1,4 +1,8 @@
 import {
+  ActionRowBuilder,
+  AttachmentBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   type MessageContextMenuCommandInteraction,
   MessageFlags,
   ModalSubmitInteraction,
@@ -27,6 +31,7 @@ import {
   closePollAndRefresh,
   createPollRecord,
   deletePollRecord,
+  exportPollToCsv,
   getPollById,
   getPollResultsSnapshot,
   getPollResultsSnapshotByQuery,
@@ -161,6 +166,59 @@ export const handlePollResultsCommand = async (
     allowedMentions: {
       parse: [],
     },
+  });
+};
+
+export const handlePollExportCommand = async (
+  interaction: ChatInputCommandInteraction,
+): Promise<void> => {
+  if (!interaction.inGuild()) {
+    throw new Error('Poll exports can only be generated inside a server.');
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const query = interaction.options.getString('query', true);
+  const snapshot = await getPollResultsSnapshotByQuery(query, interaction.guildId);
+
+  if (!snapshot) {
+    throw new Error('Poll not found.');
+  }
+
+  const exported = await exportPollToCsv(snapshot.poll);
+
+  if (exported.kind === 'r2') {
+    await interaction.editReply({
+      embeds: [
+        buildFeedbackEmbed(
+          'Poll Export Ready',
+          `The CSV export for **${snapshot.poll.question}** is ready.`,
+        ),
+      ],
+      components: [
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setLabel('Download CSV')
+            .setStyle(ButtonStyle.Link)
+            .setURL(exported.url),
+        ),
+      ],
+    });
+    return;
+  }
+
+  await interaction.editReply({
+    embeds: [
+      buildFeedbackEmbed(
+        'Poll Export Ready',
+        `Attached CSV export for **${snapshot.poll.question}**.`,
+      ),
+    ],
+    files: [
+      new AttachmentBuilder(exported.buffer, {
+        name: exported.fileName,
+      }),
+    ],
   });
 };
 

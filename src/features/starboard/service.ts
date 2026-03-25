@@ -234,7 +234,6 @@ const upsertStarboardMessage = async (
       });
     } else {
       await boardMessage.edit({
-        content: `${primaryEmoji.display} **${reactionCount}**`,
         embeds: [embed],
         allowedMentions: {
           parse: [],
@@ -254,7 +253,6 @@ const upsertStarboardMessage = async (
   }
 
   const created = await boardChannel.send({
-    content: `${primaryEmoji.display} **${reactionCount}**`,
     embeds: [embed],
     allowedMentions: {
       parse: [],
