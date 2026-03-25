@@ -1,47 +1,30 @@
+import { normalizeEmojiInput } from '../../lib/emoji.js';
+
 const defaultPollChoiceEmojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'] as const;
-const customEmojiPattern = /^<(a?):([a-zA-Z0-9_]{2,32}):(\d+)>$/;
 
 export const getDefaultPollChoiceEmoji = (index: number): string =>
   defaultPollChoiceEmojis[index] ?? `${index + 1}\u20e3`;
 
-export const normalizePollChoiceEmojiInput = (value: string): string => {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    throw new Error('Emoji values cannot be blank.');
-  }
-
-  const customMatch = trimmed.match(customEmojiPattern);
-  if (customMatch) {
-    return trimmed;
-  }
-
-  if (trimmed.length > 20) {
-    throw new Error('Emoji values must be a Unicode emoji or a custom emoji like <:name:id>.');
-  }
-
-  return trimmed;
-};
-
 export const getPollChoiceEmojiDisplay = (rawEmoji: string | null | undefined, index: number): string =>
-  rawEmoji?.trim() || getDefaultPollChoiceEmoji(index);
+  rawEmoji?.trim() ? normalizeEmojiInput(rawEmoji).display : getDefaultPollChoiceEmoji(index);
 
 export const getPollChoiceComponentEmoji = (
   rawEmoji: string | null | undefined,
   index: number,
 ): string | { id: string; name: string; animated?: boolean } => {
-  const display = getPollChoiceEmojiDisplay(rawEmoji, index);
-  const customMatch = display.match(customEmojiPattern);
-
-  if (!customMatch) {
-    return display;
+  if (!rawEmoji?.trim()) {
+    return getDefaultPollChoiceEmoji(index);
   }
 
-  const [, animated, name, id] = customMatch;
+  const normalized = normalizeEmojiInput(rawEmoji);
+  if (!normalized.id) {
+    return normalized.display;
+  }
+
   return {
-    id: id!,
-    name: name!,
-    ...(animated ? { animated: true } : {}),
+    id: normalized.id,
+    name: normalized.name,
+    ...(normalized.animated ? { animated: true } : {}),
   };
 };
 

@@ -1,5 +1,5 @@
 import { parseDurationToMs } from '../../lib/duration.js';
-import { normalizePollChoiceEmojiInput } from './present.js';
+import { normalizeEmojiInput } from '../../lib/emoji.js';
 
 const minChoices = 2;
 const maxChoices = 10;
@@ -127,7 +127,7 @@ export const parseChoiceEmojisCsv = (
   if (Array.isArray(value)) {
     return Array.from({ length: choiceCount }, (_, index) => {
       const emoji = value[index] ?? null;
-      return emoji ? normalizePollChoiceEmojiInput(emoji) : null;
+      return emoji ? normalizeEmojiInput(emoji).display : null;
     });
   }
 
@@ -143,7 +143,7 @@ export const parseChoiceEmojisCsv = (
 
   return Array.from({ length: choiceCount }, (_, index) => {
     const emoji = parts[index] ?? '';
-    return emoji ? normalizePollChoiceEmojiInput(emoji) : null;
+    return emoji ? normalizeEmojiInput(emoji).display : null;
   });
 };
 
