@@ -22,6 +22,11 @@ import {
   handlePollExportContext,
   handlePollFromMessageContext,
   handlePollInteractionError,
+  handlePollRankAddButton,
+  handlePollRankClearButton,
+  handlePollRankOpenButton,
+  handlePollRankSubmitButton,
+  handlePollRankUndoButton,
   handlePollResultsCommand,
   handlePollResultsButton,
   handlePollResultsContext,
@@ -136,6 +141,31 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('poll:choice:')) {
           await handlePollChoiceButton(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:rank:open:')) {
+          await handlePollRankOpenButton(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:rank:add:')) {
+          await handlePollRankAddButton(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:rank:undo:')) {
+          await handlePollRankUndoButton(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:rank:clear:')) {
+          await handlePollRankClearButton(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:rank:submit:')) {
+          await handlePollRankSubmitButton(client, interaction);
           return;
         }
 

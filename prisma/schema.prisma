@@ -7,6 +7,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum PollMode {
+  single
+  multi
+  ranked
+}
+
 model GuildConfig {
   id                 String           @id @default(cuid())
   guildId            String           @unique
@@ -31,6 +37,7 @@ model Poll {
   authorId       String
   question       String
   description    String?
+  mode           PollMode        @default(single)
   singleSelect   Boolean         @default(true)
   anonymous      Boolean         @default(false)
   passThreshold  Int?
@@ -67,11 +74,13 @@ model PollVote {
   pollId    String
   optionId  String
   userId    String
+  rank      Int?
   createdAt DateTime   @default(now())
   poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
   option    PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
 
   @@unique([pollId, userId, optionId])
+  @@unique([pollId, userId, rank])
   @@index([pollId, userId])
 }
 

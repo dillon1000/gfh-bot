@@ -13,7 +13,7 @@ import { buildPollMessage } from './render.js';
 import { buildPollExportCsv } from './export.js';
 import { parsePollLookup } from './query.js';
 import { computePollOutcome, computePollResults } from './results.js';
-import type { PollComputedResults, PollCreationInput, PollOutcome, PollWithRelations } from './types.js';
+import type { PollComputedResults, PollCreationInput, PollMode, PollOutcome, PollWithRelations } from './types.js';
 export { resolveSingleSelectVoteToggle } from './vote-toggle.js';
 
 const pollInclude = {
@@ -26,6 +26,9 @@ const pollInclude = {
 } as const;
 
 const oneHourMs = 60 * 60 * 1000;
+
+const getEffectivePollMode = (poll: { mode?: PollMode | null; singleSelect: boolean }): PollMode =>
+  poll.mode ?? (poll.singleSelect ? 'single' : 'multi');
 
 export const createPollRecord = async (input: PollCreationInput): Promise<PollWithRelations> => {
   await assertWithinRateLimit(
@@ -44,7 +47,8 @@ export const createPollRecord = async (input: PollCreationInput): Promise<PollWi
       authorId: input.authorId,
       question: input.question,
       description: input.description ?? null,
-      singleSelect: input.singleSelect,
+      mode: input.mode,
+      singleSelect: input.mode !== 'multi',
       anonymous: input.anonymous,
       passThreshold: input.passThreshold ?? null,
       passOptionIndex: input.passOptionIndex ?? null,
@@ -257,16 +261,33 @@ const assertPollVoteSelection = (
   poll: PollWithRelations,
   selectedOptionIds: string[],
 ): void => {
-  if (poll.singleSelect && selectedOptionIds.length > 1) {
+  const mode = getEffectivePollMode(poll);
+
+  if (mode === 'single' && selectedOptionIds.length > 1) {
     throw new Error('This poll only allows one selection.');
   }
 
+  if (mode === 'ranked' && selectedOptionIds.length !== poll.options.length) {
+    throw new Error('Ranked-choice polls require a complete ranking.');
+  }
+
+  if (mode !== 'ranked' && selectedOptionIds.length === 0) {
+    return;
+  }
+
   const allowedOptionIds = new Set(poll.options.map((option) => option.id));
+  const uniqueIds = new Set<string>();
 
   for (const optionId of selectedOptionIds) {
     if (!allowedOptionIds.has(optionId)) {
       throw new Error('One or more selected options are invalid.');
     }
+
+    if (uniqueIds.has(optionId)) {
+      throw new Error('Duplicate selections are not allowed.');
+    }
+
+    uniqueIds.add(optionId);
   }
 };
 
@@ -293,11 +314,20 @@ export const setPollVotes = async (
       }
 
       assertPollVoteSelection(poll, selectedOptionIds);
+      const mode = getEffectivePollMode(poll);
       const previousOptionIds = poll.votes
         .filter((vote) => vote.userId === userId)
-        .map((vote) => vote.optionId)
-        .sort();
-      const nextOptionIds = [...selectedOptionIds].sort();
+        .sort((left, right) => {
+          if (mode === 'ranked') {
+            return (left.rank ?? Number.MAX_SAFE_INTEGER) - (right.rank ?? Number.MAX_SAFE_INTEGER);
+          }
+
+          return left.optionId.localeCompare(right.optionId);
+        })
+        .map((vote) => vote.optionId);
+      const nextOptionIds = mode === 'ranked'
+        ? [...selectedOptionIds]
+        : [...selectedOptionIds].sort();
 
       await tx.pollVote.deleteMany({
         where: {
@@ -306,13 +336,16 @@ export const setPollVotes = async (
         },
       });
 
-      await tx.pollVote.createMany({
-        data: selectedOptionIds.map((optionId) => ({
-          pollId,
-          optionId,
-          userId,
-        })),
-      });
+      if (selectedOptionIds.length > 0) {
+        await tx.pollVote.createMany({
+          data: selectedOptionIds.map((optionId, index) => ({
+            pollId,
+            optionId,
+            userId,
+            ...(mode === 'ranked' ? { rank: index + 1 } : {}),
+          })),
+        });
+      }
 
       if (previousOptionIds.join(',') !== nextOptionIds.join(',')) {
         await tx.pollVoteEvent.create({
@@ -419,6 +452,14 @@ export const refreshPollMessage = async (client: Client, pollId: string): Promis
 };
 
 export const describePollOutcome = (outcome: PollOutcome): string => {
+  if (outcome.kind === 'ranked') {
+    if (outcome.status === 'winner' && outcome.winnerLabel) {
+      return `${outcome.winnerLabel} won after ${outcome.rounds} round${outcome.rounds === 1 ? '' : 's'}, with ${outcome.exhaustedVotes} exhausted ballot${outcome.exhaustedVotes === 1 ? '' : 's'}.`;
+    }
+
+    return `The ranked-choice poll finished ${outcome.status}, after ${outcome.rounds} round${outcome.rounds === 1 ? '' : 's'}, with ${outcome.exhaustedVotes} exhausted ballot${outcome.exhaustedVotes === 1 ? '' : 's'}.`;
+  }
+
   if (outcome.status === 'no-threshold') {
     return `No pass threshold was configured. ${outcome.measuredChoiceLabel} finished at ${outcome.measuredPercentage.toFixed(1)}%.`;
   }
@@ -590,6 +631,14 @@ export const isPollManager = (
   userId: string,
   canManageGuild: boolean,
 ): boolean => poll.authorId === userId || canManageGuild;
+
+export const getPollRankingForUser = (
+  poll: PollWithRelations,
+  userId: string,
+): string[] => poll.votes
+  .filter((vote) => vote.userId === userId)
+  .sort((left, right) => (left.rank ?? Number.MAX_SAFE_INTEGER) - (right.rank ?? Number.MAX_SAFE_INTEGER))
+  .map((vote) => vote.optionId);
 
 export const hydratePollMessage = async (
   channelId: string,
