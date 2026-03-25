@@ -131,6 +131,25 @@ const getReachableMaximumSupport = (
 
 const computeRankedPollResults = (poll: PollWithRelations): RankedPollComputedResults => {
   const ballots = getRankedBallots(poll);
+  if (ballots.length === 0) {
+    return {
+      kind: 'ranked',
+      totalVotes: 0,
+      totalVoters: 0,
+      exhaustedVotes: 0,
+      winnerOptionId: null,
+      status: 'inconclusive',
+      rounds: [],
+      choices: poll.options.map((option) => ({
+        id: option.id,
+        label: option.label,
+        emoji: option.emoji ?? null,
+        votes: 0,
+        percentage: 0,
+      })),
+    };
+  }
+
   const remaining = new Set(poll.options.map((option) => option.id));
   const rounds: RankedPollRound[] = [];
   let exhaustedVotes = 0;

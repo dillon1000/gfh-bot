@@ -59,6 +59,9 @@ const chunkButtons = (buttons: ButtonBuilder[]): ActionRowBuilder<ButtonBuilder>
 const isPollClosedOrExpired = (poll: Pick<PollWithRelations, 'closedAt' | 'closesAt'>): boolean =>
   Boolean(poll.closedAt) || poll.closesAt.getTime() <= Date.now();
 
+const clampFieldValue = (value: string, maxLength = 1024): string =>
+  value.length <= maxLength ? value : `${value.slice(0, Math.max(0, maxLength - 3))}...`;
+
 const renderChoiceLine = (
   choice: PollComputedResults['choices'][number],
   index: number,
@@ -173,30 +176,30 @@ export const buildPollMessage = (
     embed.addFields(
       {
         name: poll.closedAt ? 'Final Ranked Rounds' : 'Live Ranked Rounds',
-        value: results.rounds.length === 0
+        value: clampFieldValue(results.rounds.length === 0
           ? 'No ballots yet.'
-          : results.rounds.slice(0, 3).map((round) => buildRankedRoundSummary(poll, round)).join('\n\n'),
+          : results.rounds.slice(0, 3).map((round) => buildRankedRoundSummary(poll, round)).join('\n\n')),
       },
       {
         name: 'Details',
-        value: [
+        value: clampFieldValue([
           ...details,
           `**Ballots** ${results.totalVoters}`,
           latestRound ? `**Latest Elimination** ${buildRoundEliminationLabel(poll, latestRound)}` : null,
         ]
           .filter(Boolean)
-          .join('\n'),
+          .join('\n')),
       },
     );
   } else {
     embed.addFields(
       {
         name: poll.closedAt ? 'Final Results' : 'Live Results',
-        value: results.choices.map((choice, index) => renderChoiceLine(choice, index)).join('\n\n'),
+        value: clampFieldValue(results.choices.map((choice, index) => renderChoiceLine(choice, index)).join('\n\n')),
       },
       {
         name: 'Details',
-        value: [...details, `**Voters** ${results.totalVoters}`].join('\n'),
+        value: clampFieldValue([...details, `**Voters** ${results.totalVoters}`].join('\n')),
       },
     );
   }
@@ -301,11 +304,11 @@ export const buildPollResultsEmbed = (
     for (const round of results.rounds) {
       embed.addFields({
         name: `Round ${round.round}`,
-        value: [
+        value: clampFieldValue([
           `Active: ${round.activeVotes} • Exhausted: ${round.exhaustedVotes}`,
           ...round.tallies.map((choice, index) => renderChoiceLine(choice, index)),
           `Eliminated: ${buildRoundEliminationLabel(poll, round)}`,
-        ].join('\n'),
+        ].join('\n')),
       });
     }
 
@@ -337,12 +340,12 @@ export const buildPollResultsEmbed = (
 
     embed.addFields({
       name: `${getPollChoiceEmojiDisplay(choice.emoji, index)} ${choice.label}`,
-      value: [
+      value: clampFieldValue([
         renderChoiceLine(choice, index),
         voterMentions ? `Voters: ${voterMentions}` : null,
       ]
         .filter(Boolean)
-        .join('\n'),
+        .join('\n')),
     });
   }
 
@@ -387,7 +390,7 @@ export const buildPollAuditEmbed = (
   for (const event of events.slice(0, 10)) {
     embed.addFields({
       name: `<@${event.userId}> • <t:${Math.floor(event.createdAt.getTime() / 1000)}:R>`,
-      value: `**From**\n${formatAuditSelection(optionLabels, event.previousOptionIds)}\n\n**To**\n${formatAuditSelection(optionLabels, event.nextOptionIds)}`,
+      value: clampFieldValue(`**From**\n${formatAuditSelection(optionLabels, event.previousOptionIds)}\n\n**To**\n${formatAuditSelection(optionLabels, event.nextOptionIds)}`),
     });
   }
 
