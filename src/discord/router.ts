@@ -11,6 +11,7 @@ import { handleMeowCommand } from '../features/meta/meow.js';
 import { handlePingCommand } from '../features/meta/ping.js';
 import {
   handlePollAuditCommand,
+  handlePollAuditContext,
   handlePollBuilderButton,
   handlePollBuilderCommand,
   handlePollBuilderModal,
@@ -103,6 +104,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.commandName === 'Export Poll CSV') {
           await handlePollExportContext(interaction);
+          return;
+        }
+
+        if (interaction.commandName === 'View Poll Audit') {
+          await handlePollAuditContext(interaction);
           return;
         }
 

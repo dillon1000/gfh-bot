@@ -6,6 +6,7 @@ import { meowCommand } from '../../features/meta/meow.js';
 import { pingCommand } from '../../features/meta/ping.js';
 import {
   pollAuditCommand,
+  pollAuditFromMessageCommand,
   pollBuilderCommand,
   pollCloseFromMessageCommand,
   pollCommand,
@@ -31,6 +32,7 @@ export const applicationCommands: RESTPostAPIApplicationCommandsJSONBody[] = [
   pollFromMessageCommand,
   pollResultsFromMessageCommand,
   pollExportFromMessageCommand,
+  pollAuditFromMessageCommand,
   pollCloseFromMessageCommand,
   reactionRolesCommand.toJSON(),
   reactionRoleBuilderCommand.toJSON(),

@@ -293,11 +293,19 @@ export const handlePollAuditCommand = async (
     throw new Error('Only the poll creator or a server manager can view poll audit history.');
   }
 
+  const auditUserIds = [...new Set(snapshot.events.slice(0, 10).map((event) => event.userId))];
+
   await interaction.reply({
     flags: MessageFlags.Ephemeral,
     embeds: [buildPollAuditEmbed(snapshot.poll, snapshot.events)],
+    ...(auditUserIds.length > 0
+      ? {
+          content: `Users in this view: ${auditUserIds.map((userId) => `<@${userId}>`).join(', ')}`,
+        }
+      : {}),
     allowedMentions: {
       parse: [],
+      users: auditUserIds,
     },
   });
 };
@@ -776,6 +784,49 @@ export const handlePollExportContext = async (
         name: exported.fileName,
       }),
     ],
+  });
+};
+
+export const handlePollAuditContext = async (
+  interaction: MessageContextMenuCommandInteraction,
+): Promise<void> => {
+  if (!interaction.inGuild()) {
+    throw new Error('Poll audits can only be queried inside a server.');
+  }
+
+  const poll = await getPollByMessageId(interaction.targetMessage.id);
+  if (!poll || poll.guildId !== interaction.guildId) {
+    throw new Error('Poll not found.');
+  }
+
+  if (poll.anonymous) {
+    throw new Error('Anonymous polls do not expose vote audit history.');
+  }
+
+  const canManageGuild = interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
+  if (!isPollManager(poll, interaction.user.id, canManageGuild)) {
+    throw new Error('Only the poll creator or a server manager can view poll audit history.');
+  }
+
+  const snapshot = await getPollVoteAuditSnapshotByQuery(poll.id, interaction.guildId);
+  if (!snapshot) {
+    throw new Error('Poll not found.');
+  }
+
+  const auditUserIds = [...new Set(snapshot.events.slice(0, 10).map((event) => event.userId))];
+
+  await interaction.reply({
+    flags: MessageFlags.Ephemeral,
+    embeds: [buildPollAuditEmbed(snapshot.poll, snapshot.events)],
+    ...(auditUserIds.length > 0
+      ? {
+          content: `Users in this view: ${auditUserIds.map((userId) => `<@${userId}>`).join(', ')}`,
+        }
+      : {}),
+    allowedMentions: {
+      parse: [],
+      users: auditUserIds,
+    },
   });
 };
 

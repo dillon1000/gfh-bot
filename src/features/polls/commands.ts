@@ -129,6 +129,11 @@ export const pollExportFromMessageCommand = {
   type: ApplicationCommandType.Message,
 } as const;
 
+export const pollAuditFromMessageCommand = {
+  name: 'View Poll Audit',
+  type: ApplicationCommandType.Message,
+} as const;
+
 export const pollCloseFromMessageCommand = {
   name: 'Close Poll',
   type: ApplicationCommandType.Message,
