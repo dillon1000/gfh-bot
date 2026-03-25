@@ -20,6 +20,7 @@ export const computePollResults = (poll: PollWithRelations): PollComputedResults
     return {
       id: option.id,
       label: option.label,
+      emoji: option.emoji ?? null,
       votes,
       percentage,
     };

@@ -50,7 +50,8 @@ export const createPollRecord = async (input: PollCreationInput): Promise<PollWi
       closesAt,
       options: {
         create: input.choices.map((choice, index) => ({
-          label: choice,
+          label: choice.label,
+          emoji: choice.emoji ?? null,
           sortOrder: index,
         })),
       },

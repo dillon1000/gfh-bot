@@ -10,7 +10,7 @@ import {
 } from 'discord.js';
 import type { PollVoteEvent } from '@prisma/client';
 
-import { getPollChoiceToken, renderPollBar, resolvePollThreadName } from './present.js';
+import { getPollChoiceComponentEmoji, getPollChoiceEmojiDisplay, renderPollBar, resolvePollThreadName } from './present.js';
 import type { PollComputedResults, PollDraft, PollWithRelations } from './types.js';
 
 export const pollVoteCustomId = (pollId: string): string => `poll:vote:${pollId}`;
@@ -18,10 +18,10 @@ export const pollChoiceCustomId = (pollId: string, optionId: string): string => 
 export const pollResultsCustomId = (pollId: string): string => `poll:results:${pollId}`;
 export const pollCloseModalCustomId = (pollId: string): string => `poll:close-modal:${pollId}`;
 export const pollBuilderButtonCustomId = (
-  action: 'question' | 'choices' | 'description' | 'time' | 'pass-rule' | 'thread-toggle' | 'thread-name' | 'single' | 'anonymous' | 'publish' | 'cancel',
+  action: 'question' | 'choices' | 'emojis' | 'description' | 'time' | 'pass-rule' | 'thread-toggle' | 'thread-name' | 'single' | 'anonymous' | 'publish' | 'cancel',
 ): string => `poll-builder:${action}`;
 export const pollBuilderModalCustomId = (
-  field: 'question' | 'choices' | 'description' | 'time' | 'pass-rule' | 'thread-name',
+  field: 'question' | 'choices' | 'emojis' | 'description' | 'time' | 'pass-rule' | 'thread-name',
 ): string => `poll-builder:modal:${field}`;
 
 const renderChoiceLine = (
@@ -29,7 +29,7 @@ const renderChoiceLine = (
   index: number,
 ): string => {
   const percent = `${choice.percentage.toFixed(1)}%`;
-  const token = getPollChoiceToken(index);
+  const token = getPollChoiceEmojiDisplay(choice.emoji, index);
   const bar = renderPollBar(choice.percentage);
 
   return `**${token}  ${choice.label}**\n\`${bar}\` ${percent} (${choice.votes})`;
@@ -132,7 +132,8 @@ export const buildPollMessage = (
           poll.options.map((option, index) =>
             new ButtonBuilder()
               .setCustomId(pollChoiceCustomId(poll.id, option.id))
-              .setLabel(`${getPollChoiceToken(index)} ${option.label}`)
+              .setLabel(option.label)
+              .setEmoji(getPollChoiceComponentEmoji(option.emoji, index))
               .setStyle(ButtonStyle.Secondary)
               .setDisabled(Boolean(poll.closedAt)),
           ),
@@ -149,8 +150,9 @@ export const buildPollMessage = (
             .setMaxValues(poll.options.length)
             .addOptions(
               poll.options.map((option, index) => ({
-                label: `${getPollChoiceToken(index)} ${option.label}`,
+                label: option.label,
                 value: option.id,
+                emoji: getPollChoiceComponentEmoji(option.emoji, index),
               })),
             ),
         ),
@@ -195,7 +197,7 @@ export const buildPollResultsEmbed = (
       : (votersByOption.get(choice.id) ?? []).join(', ') || 'No votes yet';
 
     embed.addFields({
-      name: `${getPollChoiceToken(index)} ${choice.label}`,
+      name: `${getPollChoiceEmojiDisplay(choice.emoji, index)} ${choice.label}`,
       value: [
         renderChoiceLine(choice, index),
         voterMentions ? `Voters: ${voterMentions}` : null,
@@ -263,7 +265,10 @@ const getDraftSummary = (draft: PollDraft): string =>
     draft.description || '*No description or source link yet*',
     '',
     `**Question** ${draft.question}`,
-    `**Choices** ${draft.choices.map((choice, index) => `${getPollChoiceToken(index)} ${choice}`).join(' • ')}`,
+    `**Choices** ${draft.choices.map((choice, index) => `${getPollChoiceEmojiDisplay(draft.choiceEmojis[index], index)} ${choice}`).join(' • ')}`,
+    `**Emojis** ${draft.choiceEmojis.some((emoji) => emoji)
+      ? draft.choiceEmojis.map((emoji, index) => getPollChoiceEmojiDisplay(emoji, index)).join(' • ')
+      : 'Default numbered emoji'}`,
     `**Mode** ${draft.singleSelect ? 'Single select buttons' : 'Multi select menu'}`,
     `**Visibility** ${draft.anonymous ? 'Anonymous identities hidden' : 'Public vote totals'}`,
     `**Pass Rule** ${getPassRuleLabel(draft.passThreshold, draft.passOptionIndex, draft.choices.map((label) => ({ label })))}`,
@@ -303,16 +308,20 @@ export const buildPollBuilderPreview = (
       .setLabel('Description')
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
-      .setCustomId(pollBuilderButtonCustomId('time'))
-      .setLabel('Timing')
+      .setCustomId(pollBuilderButtonCustomId('emojis'))
+      .setLabel('Emojis')
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
-      .setCustomId(pollBuilderButtonCustomId('pass-rule'))
-      .setLabel('Pass Rule')
+      .setCustomId(pollBuilderButtonCustomId('time'))
+      .setLabel('Timing')
       .setStyle(ButtonStyle.Secondary),
   );
 
   const rowTwo = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(pollBuilderButtonCustomId('pass-rule'))
+      .setLabel('Pass Rule')
+      .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('thread-toggle'))
       .setLabel(draft.createThread ? 'Thread: On' : 'Thread: Off')
@@ -352,7 +361,7 @@ export const buildPollBuilderPreview = (
 };
 
 export const buildPollBuilderModal = (
-  field: 'question' | 'choices' | 'description' | 'time' | 'pass-rule' | 'thread-name',
+  field: 'question' | 'choices' | 'emojis' | 'description' | 'time' | 'pass-rule' | 'thread-name',
   draft: PollDraft,
 ): ModalBuilder => {
   const input = new TextInputBuilder().setCustomId('value');
@@ -381,6 +390,15 @@ export const buildPollBuilderModal = (
         .setRequired(false)
         .setValue(draft.description)
         .setMaxLength(1_000);
+      break;
+    case 'emojis':
+      input
+        .setLabel('Emojis (comma separated)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(false)
+        .setValue(draft.choiceEmojis.map((emoji) => emoji ?? '').join(', '))
+        .setPlaceholder('Examples: ✅, ❌ or <:yes:123>, <:no:456>')
+        .setMaxLength(500);
       break;
     case 'time':
       input

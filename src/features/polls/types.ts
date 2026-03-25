@@ -17,7 +17,10 @@ export type PollCreationInput = {
   authorId: string;
   question: string;
   description?: string;
-  choices: string[];
+  choices: Array<{
+    label: string;
+    emoji?: string | null;
+  }>;
   singleSelect: boolean;
   anonymous: boolean;
   passThreshold?: number | null;
@@ -29,6 +32,7 @@ export type PollDraft = {
   question: string;
   description: string;
   choices: string[];
+  choiceEmojis: Array<string | null>;
   singleSelect: boolean;
   anonymous: boolean;
   passThreshold: number | null;
@@ -44,6 +48,7 @@ export type PollComputedResults = {
   choices: Array<{
     id: string;
     label: string;
+    emoji: string | null;
     votes: number;
     percentage: number;
   }>;

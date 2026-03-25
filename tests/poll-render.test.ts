@@ -27,6 +27,7 @@ const basePoll = {
       id: 'option_1',
       pollId: 'poll_1',
       label: 'Yes',
+      emoji: '✅',
       sortOrder: 0,
       createdAt: new Date('2026-03-24T00:00:00.000Z'),
     },
@@ -34,6 +35,7 @@ const basePoll = {
       id: 'option_2',
       pollId: 'poll_1',
       label: 'No',
+      emoji: null,
       sortOrder: 1,
       createdAt: new Date('2026-03-24T00:00:00.000Z'),
     },
@@ -59,6 +61,7 @@ const basePoll = {
 describe('buildPollResultsEmbed', () => {
   it('shows voter identities for non-anonymous polls', () => {
     const embed = buildPollResultsEmbed(basePoll, computePollResults(basePoll)).toJSON();
+    expect(embed.fields?.[0]?.name).toContain('✅');
     expect(embed.fields?.[0]?.value).toContain('Voters: <@user_a>');
     expect(embed.description).toContain('voter identities are shown below');
   });

@@ -52,6 +52,7 @@ model PollOption {
   id        String     @id @default(cuid())
   pollId    String
   label     String
+  emoji     String?
   sortOrder Int
   createdAt DateTime   @default(now())
   poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)

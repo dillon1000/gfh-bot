@@ -1,4 +1,5 @@
 import { parseDurationToMs } from '../../lib/duration.js';
+import { normalizePollChoiceEmojiInput } from './present.js';
 
 const minChoices = 2;
 const maxChoices = 10;
@@ -119,15 +120,44 @@ export const parseChoicesCsv = (value: string): string[] => {
   return choices;
 };
 
+export const parseChoiceEmojisCsv = (
+  value: string | Array<string | null> | null | undefined,
+  choiceCount: number,
+): Array<string | null> => {
+  if (Array.isArray(value)) {
+    return Array.from({ length: choiceCount }, (_, index) => {
+      const emoji = value[index] ?? null;
+      return emoji ? normalizePollChoiceEmojiInput(emoji) : null;
+    });
+  }
+
+  const trimmed = (value ?? '').trim();
+  if (!trimmed) {
+    return Array.from({ length: choiceCount }, () => null);
+  }
+
+  const parts = trimmed.split(',').map((part) => part.trim());
+  if (parts.length > choiceCount) {
+    throw new Error(`No more than ${choiceCount} emojis can be provided for this poll.`);
+  }
+
+  return Array.from({ length: choiceCount }, (_, index) => {
+    const emoji = parts[index] ?? '';
+    return emoji ? normalizePollChoiceEmojiInput(emoji) : null;
+  });
+};
+
 export const parsePollFormInput = (input: {
   question: string;
   description?: string;
   choices: string[] | string;
+  choiceEmojis?: Array<string | null> | string | null;
   durationText: string;
 }): {
   question: string;
   description?: string;
   choices: string[];
+  choiceEmojis: Array<string | null>;
   durationMs: number;
 } => {
   const question = sanitizeQuestion(input.question);
@@ -135,11 +165,13 @@ export const parsePollFormInput = (input: {
   const choices = Array.isArray(input.choices)
     ? parseChoicesCsv(input.choices.join(', '))
     : parseChoicesCsv(input.choices);
+  const choiceEmojis = parseChoiceEmojisCsv(input.choiceEmojis, choices.length);
   const durationMs = parseDurationToMs(input.durationText);
 
   return {
     question,
     choices,
+    choiceEmojis,
     durationMs,
     ...(description ? { description } : {}),
   };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseChoicesCsv, parsePassChoiceIndex, parsePassThreshold, parsePollFormInput, resolvePassRule } from '../src/features/polls/parser.js';
+import { parseChoiceEmojisCsv, parseChoicesCsv, parsePassChoiceIndex, parsePassThreshold, parsePollFormInput, resolvePassRule } from '../src/features/polls/parser.js';
 
 describe('parseChoicesCsv', () => {
   it('parses comma-separated choices', () => {
@@ -25,8 +25,19 @@ describe('parsePollFormInput', () => {
       question: 'Should we ship?',
       description: 'Final check',
       choices: ['Yes', 'No'],
+      choiceEmojis: [null, null],
       durationMs: 24 * 60 * 60 * 1000,
     });
+  });
+});
+
+describe('parseChoiceEmojisCsv', () => {
+  it('parses unicode and custom emoji overrides', () => {
+    expect(parseChoiceEmojisCsv('✅, <:blobno:12345>', 2)).toEqual(['✅', '<:blobno:12345>']);
+  });
+
+  it('pads missing emoji overrides with defaults', () => {
+    expect(parseChoiceEmojisCsv('✅', 3)).toEqual(['✅', null, null]);
   });
 });
 

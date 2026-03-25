@@ -10,6 +10,7 @@ export const createDefaultDraft = (): PollDraft => ({
   question: 'What should we decide?',
   description: '',
   choices: ['Yes', 'No'],
+  choiceEmojis: [null, null],
   singleSelect: true,
   anonymous: false,
   passThreshold: null,
