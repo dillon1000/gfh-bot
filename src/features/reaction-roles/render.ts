@@ -15,6 +15,7 @@ import type { ReactionRolePanelWithOptions } from './types.js';
 
 export const reactionRoleSelectCustomId = (panelId: string): string => `reaction-role:select:${panelId}`;
 export const reactionRoleClearCustomId = (panelId: string): string => `reaction-role:clear:${panelId}`;
+export const reactionRoleManageCustomId = (panelId: string): string => `reaction-role:manage:${panelId}`;
 export const reactionRoleBuilderButtonCustomId = (
   action: 'title' | 'description' | 'roles' | 'exclusive' | 'publish' | 'cancel',
 ): string => `reaction-role-builder:${action}`;
@@ -26,7 +27,7 @@ export const buildReactionRolePanelMessage = (
   panel: ReactionRolePanelWithOptions,
 ): {
   embeds: [EmbedBuilder];
-  components: [ActionRowBuilder<StringSelectMenuBuilder>, ActionRowBuilder<ButtonBuilder>];
+  components: [ActionRowBuilder<ButtonBuilder>];
   allowedMentions: {
     parse: [];
   };
@@ -42,29 +43,84 @@ export const buildReactionRolePanelMessage = (
       },
       {
         name: 'Mode',
-        value: panel.exclusive ? 'Choose one role at a time.' : 'Select roles to toggle them on or off.',
+        value: panel.exclusive ? 'Choose one role at a time.' : 'Open the role manager to add or remove multiple roles.',
+      },
+      {
+        name: 'How It Works',
+        value: 'Use **Manage Roles** below. Your current roles are pre-selected in the private selector.',
       },
     )
     .setFooter({
       text: `Panel ID: ${panel.id}`,
     });
 
+  const manage = new ButtonBuilder()
+    .setCustomId(reactionRoleManageCustomId(panel.id))
+    .setLabel('Manage Roles')
+    .setStyle(ButtonStyle.Primary);
+
+  return {
+    embeds: [embed],
+    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(manage)],
+    allowedMentions: {
+      parse: [],
+    },
+  };
+};
+
+export const buildReactionRoleSelectionMessage = (
+  panel: ReactionRolePanelWithOptions,
+  selectedOptionIds: string[],
+  status?: string,
+): {
+  embeds: [EmbedBuilder];
+  components: [ActionRowBuilder<StringSelectMenuBuilder>, ActionRowBuilder<ButtonBuilder>];
+  allowedMentions: {
+    parse: [];
+  };
+} => {
+  const selected = new Set(selectedOptionIds);
+  const selectedRoles = panel.options
+    .filter((option) => selected.has(option.id))
+    .map((option) => `<@&${option.roleId}>`);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`Manage Roles: ${panel.title}`)
+    .setDescription(panel.description ?? 'Select the roles you want to hold from this panel.')
+    .setColor(status ? 0x5eead4 : 0x60a5fa)
+    .addFields(
+      {
+        name: 'Current Roles',
+        value: selectedRoles.join(', ') || 'No panel roles selected right now.',
+      },
+      {
+        name: 'Mode',
+        value: panel.exclusive
+          ? 'Choose exactly one role from this panel.'
+          : 'Select the full set of roles you want to keep from this panel.',
+      },
+    )
+    .setFooter({
+      text: status ?? 'Your current roles are pre-selected below.',
+    });
+
   const select = new StringSelectMenuBuilder()
     .setCustomId(reactionRoleSelectCustomId(panel.id))
-    .setPlaceholder(panel.exclusive ? 'Select one role' : 'Select roles to add or remove')
-    .setMinValues(1)
+    .setPlaceholder(panel.exclusive ? 'Choose one role' : 'Choose the roles you want to keep')
+    .setMinValues(0)
     .setMaxValues(panel.exclusive ? 1 : panel.options.length)
     .addOptions(
       panel.options.map((option) => ({
         label: option.label,
         value: option.id,
-        description: `Assign ${option.label}`,
+        description: selected.has(option.id) ? `Currently has ${option.label}` : `Add ${option.label}`,
+        default: selected.has(option.id),
       })),
     );
 
   const clear = new ButtonBuilder()
     .setCustomId(reactionRoleClearCustomId(panel.id))
-    .setLabel('Clear Panel Roles')
+    .setLabel('Clear My Panel Roles')
     .setStyle(ButtonStyle.Secondary);
 
   return {

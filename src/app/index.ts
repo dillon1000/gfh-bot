@@ -5,6 +5,7 @@ import { env } from './config.js';
 import { registerInteractionRouter } from '../discord/router.js';
 import { recoverExpiredPolls, recoverMissedPollReminders, syncOpenPollCloseJobs, syncOpenPollReminderJobs } from '../features/polls/service.js';
 import { startPollReminderWorker, startPollWorker } from '../features/polls/worker.js';
+import { syncReactionRolePanels } from '../features/reaction-roles/service.js';
 import { removeStarboardEntryForSourceMessage, syncStarboardForReaction } from '../features/starboard/service.js';
 import { prisma } from '../lib/prisma.js';
 import { pollCloseQueue, pollReminderQueue } from '../lib/queue.js';
@@ -37,6 +38,7 @@ client.once(Events.ClientReady, async (readyClient) => {
   await recoverMissedPollReminders(readyClient);
   await syncOpenPollCloseJobs();
   await syncOpenPollReminderJobs();
+  await syncReactionRolePanels(readyClient);
 });
 
 client.on(Events.MessageReactionAdd, async (reaction, user) => {

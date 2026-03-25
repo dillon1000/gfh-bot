@@ -14,10 +14,12 @@ import {
   buildReactionRolePanelMessage,
   buildReactionRoleBuilderModal,
   buildReactionRoleBuilderPreview,
+  buildReactionRoleSelectionMessage,
   buildReactionRoleStatusEmbed,
   reactionRoleBuilderButtonCustomId,
   reactionRoleBuilderModalCustomId,
   reactionRoleClearCustomId,
+  reactionRoleManageCustomId,
   reactionRoleSelectCustomId,
 } from './render.js';
 import {
@@ -27,6 +29,7 @@ import {
   deleteReactionRolePanel,
   describeReactionRolePanel,
   getReactionRolePanelByQuery,
+  getSelectedReactionRoleOptionIds,
   handleReactionRoleError,
   listReactionRolePanels,
   publishReactionRolePanel,
@@ -311,25 +314,46 @@ export const handleReactionRoleSelect = async (
     throw new Error('Invalid reaction role panel identifier.');
   }
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const member = await guild.members.fetch(interaction.user.id);
   const result = await applyReactionRoleSelection(panelId, member, interaction.values);
-  await interaction.message.edit(buildReactionRolePanelMessage(result.panel)).catch(() => undefined);
+  const refreshedMember = await guild.members.fetch(interaction.user.id);
+  const selectedOptionIds = getSelectedReactionRoleOptionIds(result.panel, refreshedMember);
+  const status = [
+    result.addedRoleIds.length > 0 ? `Added: ${result.addedRoleIds.map((roleId) => `<@&${roleId}>`).join(', ')}` : null,
+    result.removedRoleIds.length > 0 ? `Removed: ${result.removedRoleIds.map((roleId) => `<@&${roleId}>`).join(', ')}` : null,
+    result.addedRoleIds.length === 0 && result.removedRoleIds.length === 0 ? 'No role changes were needed.' : null,
+  ].filter(Boolean).join('\n');
 
-  await interaction.editReply({
-    embeds: [
-      buildReactionRoleStatusEmbed(
-        'Roles Updated',
-        [
-          result.addedRoleIds.length > 0 ? `Added: ${result.addedRoleIds.map((roleId) => `<@&${roleId}>`).join(', ')}` : null,
-          result.removedRoleIds.length > 0 ? `Removed: ${result.removedRoleIds.map((roleId) => `<@&${roleId}>`).join(', ')}` : null,
-          result.addedRoleIds.length === 0 && result.removedRoleIds.length === 0 ? 'No role changes were needed.' : null,
-        ].filter(Boolean).join('\n'),
-      ),
-    ],
-    allowedMentions: {
-      parse: [],
-    },
+  await interaction.update(buildReactionRoleSelectionMessage(result.panel, selectedOptionIds, status));
+};
+
+export const handleReactionRoleManage = async (
+  interaction: ButtonInteraction,
+): Promise<void> => {
+  if (!interaction.inGuild()) {
+    throw new Error('Reaction role panels can only be used in a server.');
+  }
+  const guild = interaction.guild;
+  if (!guild) {
+    throw new Error('Reaction role panels can only be used in a server.');
+  }
+
+  const panelId = interaction.customId.split(':')[2];
+  if (!panelId) {
+    throw new Error('Invalid reaction role panel identifier.');
+  }
+
+  const panel = await getReactionRolePanelByQuery(panelId, interaction.guildId);
+  if (!panel) {
+    throw new Error('Reaction role panel not found.');
+  }
+
+  const member = await guild.members.fetch(interaction.user.id);
+  const selectedOptionIds = getSelectedReactionRoleOptionIds(panel, member);
+
+  await interaction.reply({
+    flags: MessageFlags.Ephemeral,
+    ...buildReactionRoleSelectionMessage(panel, selectedOptionIds),
   });
 };
 
@@ -349,24 +373,18 @@ export const handleReactionRoleClear = async (
     throw new Error('Invalid reaction role panel identifier.');
   }
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const member = await guild.members.fetch(interaction.user.id);
   const result = await clearReactionRoleSelection(panelId, member);
-  await interaction.message.edit(buildReactionRolePanelMessage(result.panel)).catch(() => undefined);
 
-  await interaction.editReply({
-    embeds: [
-      buildReactionRoleStatusEmbed(
-        'Roles Cleared',
-        result.removedRoleIds.length > 0
-          ? `Removed: ${result.removedRoleIds.map((roleId) => `<@&${roleId}>`).join(', ')}`
-          : 'You did not currently hold any panel roles.',
-      ),
-    ],
-    allowedMentions: {
-      parse: [],
-    },
-  });
+  await interaction.update(
+    buildReactionRoleSelectionMessage(
+      result.panel,
+      [],
+      result.removedRoleIds.length > 0
+        ? `Removed: ${result.removedRoleIds.map((roleId) => `<@&${roleId}>`).join(', ')}`
+        : 'You did not currently hold any panel roles.',
+    ),
+  );
 };
 
 export const handleReactionRoleInteractionError = async (

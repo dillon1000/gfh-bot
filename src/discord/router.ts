@@ -33,6 +33,7 @@ import {
   handleReactionRoleBuilderCommand,
   handleReactionRoleBuilderModal,
   handleReactionRoleInteractionError,
+  handleReactionRoleManage,
   handleReactionRolesCommand,
   handleReactionRoleSelect,
 } from '../features/reaction-roles/interactions.js';
@@ -115,6 +116,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('reaction-role-builder:')) {
           await handleReactionRoleBuilderButton(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('reaction-role:manage:')) {
+          await handleReactionRoleManage(interaction);
           return;
         }
 

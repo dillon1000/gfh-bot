@@ -201,6 +201,39 @@ export const publishReactionRolePanel = async (
   return { messageId: message.id };
 };
 
+export const syncReactionRolePanels = async (
+  client: Client,
+): Promise<void> => {
+  const panels = await prisma.reactionRolePanel.findMany({
+    where: {
+      messageId: {
+        not: null,
+      },
+    },
+    include: reactionRolePanelInclude,
+  });
+
+  await Promise.all(
+    panels.map(async (panel) => {
+      if (!panel.messageId) {
+        return;
+      }
+
+      const channel = await client.channels.fetch(panel.channelId).catch(() => null);
+      if (!channel?.isTextBased() || !('messages' in channel)) {
+        return;
+      }
+
+      const message = await channel.messages.fetch(panel.messageId).catch(() => null);
+      if (!message) {
+        return;
+      }
+
+      await message.edit(buildReactionRolePanelMessage(panel)).catch(() => undefined);
+    }),
+  );
+};
+
 export const validateReactionRoleTargets = async (
   member: GuildMember,
   roleIds: string[],
@@ -222,6 +255,17 @@ export const validateReactionRoleTargets = async (
   );
 
   return resolvedRoles;
+};
+
+export const getSelectedReactionRoleOptionIds = (
+  panel: ReactionRolePanelWithOptions,
+  guildMember: GuildMember,
+): string[] => {
+  const heldRoleIds = new Set(guildMember.roles.cache.map((role) => role.id));
+
+  return panel.options
+    .filter((option) => heldRoleIds.has(option.roleId))
+    .map((option) => option.id);
 };
 
 export const applyReactionRoleSelection = async (
@@ -270,12 +314,8 @@ export const applyReactionRoleSelection = async (
       .filter((option) => selected.has(option.id))
       .map((option) => option.roleId);
 
-    const toAdd = panel.exclusive
-      ? selectedRoleIds.filter((roleId) => !guildMember.roles.cache.has(roleId))
-      : selectedRoleIds.filter((roleId) => !guildMember.roles.cache.has(roleId));
-    const toRemove = panel.exclusive
-      ? currentPanelRoleIds.filter((roleId) => !selectedRoleIds.includes(roleId))
-      : selectedRoleIds.filter((roleId) => guildMember.roles.cache.has(roleId));
+    const toAdd = selectedRoleIds.filter((roleId) => !guildMember.roles.cache.has(roleId));
+    const toRemove = currentPanelRoleIds.filter((roleId) => !selectedRoleIds.includes(roleId));
 
     if (toAdd.length > 0) {
       await guildMember.roles.add(toAdd);

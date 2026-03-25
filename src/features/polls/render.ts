@@ -323,7 +323,7 @@ export const buildPollBuilderPreview = (
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('single'))
-      .setLabel(draft.singleSelect ? 'Single: On' : 'Single: Off')
+      .setLabel(draft.singleSelect ? 'Choice: Single' : 'Choice: Multi')
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('anonymous'))
