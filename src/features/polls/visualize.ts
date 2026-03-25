@@ -78,7 +78,28 @@ const renderText = (
   },
 ): string => `<text x="${x}" y="${y}" fill="${options?.color ?? text}" font-size="${options?.fontSize ?? 18}" font-weight="${options?.fontWeight ?? 400}"${options?.anchor ? ` text-anchor="${options.anchor}"` : ''}>${escapeXml(value)}</text>`;
 
+const getLeadingStandardChoices = (
+  results: Extract<PollComputedResults, { kind: 'standard' }>,
+) => {
+  const sorted = [...results.choices].sort((left, right) => {
+    if (right.votes !== left.votes) {
+      return right.votes - left.votes;
+    }
+
+    return left.label.localeCompare(right.label);
+  });
+  const leader = sorted[0] ?? null;
+
+  if (!leader) {
+    return [];
+  }
+
+  return sorted.filter((choice) => choice.votes === leader.votes);
+};
+
 const buildStandardSummary = (
+  poll: PollWithRelations,
+  results: Extract<PollComputedResults, { kind: 'standard' }>,
   outcome: PollOutcome,
 ): { accent: string; headline: string; subline: string } => {
   if (outcome.kind !== 'standard') {
@@ -89,18 +110,33 @@ const buildStandardSummary = (
     };
   }
 
-  if (outcome.status === 'no-threshold') {
+  if (results.totalVotes === 0) {
     return {
-      headline: truncate(outcome.measuredChoiceLabel, 18),
+      headline: 'No Votes',
       accent: neutral,
-      subline: `${formatPercent(outcome.measuredPercentage)} of votes`,
+      subline: 'No ballots recorded',
     };
   }
+
+  if (outcome.status === 'no-threshold') {
+    const leaders = getLeadingStandardChoices(results);
+    const leader = leaders[0] ?? null;
+
+    return {
+      headline: leaders.length > 1 ? 'Tie' : truncate(leader?.label ?? 'Leader', 18),
+      accent: neutral,
+      subline: leaders.length > 1
+        ? `${leaders.length} options tied at ${formatPercent(leader?.percentage ?? 0)}`
+        : `${formatPercent(leader?.percentage ?? 0)} of votes`,
+    };
+  }
+
+  const measuredChoice = poll.options[poll.passOptionIndex ?? 0] ?? poll.options[0] ?? null;
 
   return {
     headline: outcome.status === 'passed' ? 'Passed' : 'Failed',
     accent: outcome.status === 'passed' ? success : danger,
-    subline: `${truncate(outcome.measuredChoiceLabel, 14)} · ${formatPercent(outcome.measuredPercentage)}`,
+    subline: `${truncate(measuredChoice?.label ?? outcome.measuredChoiceLabel, 14)} · ${formatPercent(outcome.measuredPercentage)}`,
   };
 };
 
@@ -127,8 +163,8 @@ const buildStandardArcDiagram = (
   const pieGen = pie<{ id: string; value: number }>()
     .sort(null)
     .value((datum) => datum.value)
-    .startAngle(-Math.PI)
-    .endAngle(0);
+    .startAngle(-Math.PI / 2)
+    .endAngle(Math.PI / 2);
   const segments = pieGen(results.choices.map((choice) => ({
     id: choice.id,
     value: Math.max(choice.votes, 0),
@@ -173,7 +209,7 @@ const buildStandardPollSvg = (
   results: Extract<PollComputedResults, { kind: 'standard' }>,
   outcome: PollOutcome,
 ): string => {
-  const summary = buildStandardSummary(outcome);
+  const summary = buildStandardSummary(poll, results, outcome);
   const colorScale = createColorScale(poll);
 
   return buildSvgShell(
