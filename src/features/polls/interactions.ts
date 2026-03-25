@@ -43,6 +43,7 @@ import {
   refreshPollMessage,
   setPollVotes,
 } from './service.js';
+import { resolveSingleSelectVoteToggle } from './vote-toggle.js';
 
 const publishPoll = async (
   client: Client,
@@ -497,10 +498,26 @@ export const handlePollChoiceButton = async (
   }
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  await setPollVotes(pollId, interaction.user.id, [optionId]);
+  const poll = await getPollById(pollId);
+  if (!poll) {
+    throw new Error('Poll not found.');
+  }
+
+  const currentOptionIds = poll.votes
+    .filter((vote) => vote.userId === interaction.user.id)
+    .map((vote) => vote.optionId)
+    .sort();
+  const nextOptionIds = resolveSingleSelectVoteToggle(currentOptionIds, optionId);
+
+  await setPollVotes(pollId, interaction.user.id, nextOptionIds);
   await refreshPollMessage(client, pollId);
   await interaction.editReply({
-    embeds: [buildFeedbackEmbed('Vote Recorded', 'Your vote has been updated.')],
+    embeds: [
+      buildFeedbackEmbed(
+        nextOptionIds.length === 0 ? 'Vote Removed' : 'Vote Recorded',
+        nextOptionIds.length === 0 ? 'Your vote has been removed.' : 'Your vote has been updated.',
+      ),
+    ],
   });
 };
 

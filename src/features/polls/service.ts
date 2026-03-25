@@ -14,6 +14,7 @@ import { buildPollExportCsv } from './export.js';
 import { parsePollLookup } from './query.js';
 import { computePollOutcome, computePollResults } from './results.js';
 import type { PollComputedResults, PollCreationInput, PollOutcome, PollWithRelations } from './types.js';
+export { resolveSingleSelectVoteToggle } from './vote-toggle.js';
 
 const pollInclude = {
   options: {
@@ -256,10 +257,6 @@ const assertPollVoteSelection = (
   poll: PollWithRelations,
   selectedOptionIds: string[],
 ): void => {
-  if (selectedOptionIds.length === 0) {
-    throw new Error('Select at least one option.');
-  }
-
   if (poll.singleSelect && selectedOptionIds.length > 1) {
     throw new Error('This poll only allows one selection.');
   }

@@ -65,6 +65,16 @@ const poll = {
 } satisfies PollWithRelations;
 
 describe('computePollResults', () => {
+  it('supports cleared votes by allowing zero selected options in the totals model', () => {
+    const results = computePollResults({
+      ...poll,
+      votes: [],
+    });
+
+    expect(results.totalVotes).toBe(0);
+    expect(results.totalVoters).toBe(0);
+  });
+
   it('aggregates votes and unique voters', () => {
     expect(computePollResults(poll)).toEqual({
       totalVotes: 3,
