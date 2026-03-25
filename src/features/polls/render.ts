@@ -56,6 +56,9 @@ const chunkButtons = (buttons: ButtonBuilder[]): ActionRowBuilder<ButtonBuilder>
   return rows;
 };
 
+const isPollClosedOrExpired = (poll: Pick<PollWithRelations, 'closedAt' | 'closesAt'>): boolean =>
+  Boolean(poll.closedAt) || poll.closesAt.getTime() <= Date.now();
+
 const renderChoiceLine = (
   choice: PollComputedResults['choices'][number],
   index: number,
@@ -209,7 +212,7 @@ export const buildPollMessage = (
             .setCustomId(pollRankOpenCustomId(poll.id))
             .setLabel('Rank Choices')
             .setStyle(ButtonStyle.Primary)
-            .setDisabled(Boolean(poll.closedAt)),
+            .setDisabled(isPollClosedOrExpired(poll)),
         ]
       : []),
     new ButtonBuilder()
@@ -621,6 +624,7 @@ export const buildRankedChoiceEditor = (
   components: ActionRowBuilder<ButtonBuilder>[];
   allowedMentions: { parse: [] };
 } => {
+  const isClosedOrExpired = isPollClosedOrExpired(poll);
   const ranked = ranking
     .map((optionId, index) => {
       const option = poll.options.find((item) => item.id === optionId);
@@ -641,7 +645,9 @@ export const buildRankedChoiceEditor = (
       [
         poll.description || null,
         ranked ? `**Current ranking**\n${ranked}` : '**Current ranking**\nNo choices ranked yet.',
-        remaining.length > 0
+        isClosedOrExpired
+          ? 'This ranked-choice poll is closed. The ranking editor is read-only.'
+          : remaining.length > 0
           ? `Select your next rank from the buttons below. ${remaining.length} choice${remaining.length === 1 ? '' : 's'} left.`
           : 'Your ballot is complete. Submit it to record your vote.',
       ]
@@ -658,7 +664,8 @@ export const buildRankedChoiceEditor = (
         .setCustomId(pollRankAddCustomId(poll.id, option.id))
         .setLabel(option.label)
         .setEmoji(getPollChoiceComponentEmoji(option.emoji, option.sortOrder))
-        .setStyle(ButtonStyle.Secondary),
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(isClosedOrExpired),
     ),
   );
 
@@ -667,17 +674,17 @@ export const buildRankedChoiceEditor = (
       .setCustomId(pollRankUndoCustomId(poll.id))
       .setLabel('Undo')
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(ranking.length === 0),
+      .setDisabled(isClosedOrExpired || ranking.length === 0),
     new ButtonBuilder()
       .setCustomId(pollRankClearCustomId(poll.id))
       .setLabel('Clear')
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(ranking.length === 0),
+      .setDisabled(isClosedOrExpired || ranking.length === 0),
     new ButtonBuilder()
       .setCustomId(pollRankSubmitCustomId(poll.id))
       .setLabel('Submit')
       .setStyle(ButtonStyle.Success)
-      .setDisabled(ranking.length !== poll.options.length || Boolean(poll.closedAt)),
+      .setDisabled(isClosedOrExpired || ranking.length !== poll.options.length),
   );
 
   return {
