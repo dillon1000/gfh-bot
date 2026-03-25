@@ -6,8 +6,6 @@ services:
       POSTGRES_DB: gfh_bot
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,8 +17,6 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -30,9 +26,11 @@ services:
       retries: 10
 
   bot:
-    build:
-      context: .
+    image: ${BOT_IMAGE:-ghcr.io/dillon1000/gfh-bot:latest}
+    pull_policy: always
     restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
     environment:
       DISCORD_TOKEN: ${DISCORD_TOKEN}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
@@ -46,6 +44,21 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    restart: unless-stopped
+    profiles:
+      - autoupdate
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_ROLLING_RESTART: "true"
+      WATCHTOWER_POLL_INTERVAL: ${WATCHTOWER_POLL_INTERVAL:-300}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - bot
 
 volumes:
   postgres_data:
