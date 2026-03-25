@@ -16,7 +16,7 @@ import {
 import { logger } from '../../app/logger.js';
 import { redis } from '../../lib/redis.js';
 import { deletePollDraft, getPollDraft, savePollDraft } from './draft-store.js';
-import { parseChoicesCsv, parsePassChoiceIndex, parsePassThreshold, parsePollFormInput, resolvePassRule } from './parser.js';
+import { parseChoiceEmojisCsv, parseChoicesCsv, parsePassChoiceIndex, parsePassThreshold, parsePollFormInput, resolvePassRule } from './parser.js';
 import { normalizeQuestionFromMessage, resolvePollThreadName } from './present.js';
 import {
   buildPollCloseModal,
@@ -51,6 +51,7 @@ const publishPoll = async (
     question: string;
     description?: string;
     choices: string[];
+    choiceEmojis: Array<string | null>;
     singleSelect: boolean;
     anonymous: boolean;
     passThreshold?: number | null;
@@ -70,7 +71,10 @@ const publishPoll = async (
     authorId: interaction.user.id,
     question: draft.question,
     ...(draft.description ? { description: draft.description } : {}),
-    choices: draft.choices,
+    choices: draft.choices.map((label, index) => ({
+      label,
+      emoji: draft.choiceEmojis[index] ?? null,
+    })),
     singleSelect: draft.singleSelect,
     anonymous: draft.anonymous,
     ...(draft.passThreshold ? { passThreshold: draft.passThreshold } : {}),
@@ -101,6 +105,7 @@ export const handlePollCommand = async (
     question: interaction.options.getString('question', true),
     description: interaction.options.getString('description') ?? '',
     choices: interaction.options.getString('choices', true),
+    choiceEmojis: interaction.options.getString('emojis'),
     durationText: interaction.options.getString('time') ?? '24h',
   });
   const passThreshold = interaction.options.getInteger('pass_threshold');
@@ -162,6 +167,7 @@ export const handlePollFromMessageContext = async (
       ? `${target.url}`
       : `Source message: ${target.url}`,
     choices: ['Yes', 'No'],
+    choiceEmojis: [null, null],
     singleSelect: true,
     anonymous: false,
     passThreshold: null,
@@ -333,6 +339,9 @@ export const handlePollBuilderButton = async (
     case pollBuilderButtonCustomId('description'):
       await interaction.showModal(buildPollBuilderModal('description', draft));
       return;
+    case pollBuilderButtonCustomId('emojis'):
+      await interaction.showModal(buildPollBuilderModal('emojis', draft));
+      return;
     case pollBuilderButtonCustomId('time'):
       await interaction.showModal(buildPollBuilderModal('time', draft));
       return;
@@ -364,6 +373,7 @@ export const handlePollBuilderButton = async (
         question: draft.question,
         description: draft.description,
         choices: draft.choices,
+        choiceEmojis: draft.choiceEmojis,
         durationText: draft.durationText,
       });
 
@@ -420,9 +430,13 @@ export const handlePollBuilderModal = async (
       break;
     case pollBuilderModalCustomId('choices'):
       draft.choices = parseChoicesCsv(interaction.fields.getTextInputValue('value'));
+      draft.choiceEmojis = parseChoiceEmojisCsv(draft.choiceEmojis, draft.choices.length);
       if (draft.passThreshold !== null && (draft.passOptionIndex === null || draft.passOptionIndex >= draft.choices.length)) {
         draft.passOptionIndex = 0;
       }
+      break;
+    case pollBuilderModalCustomId('emojis'):
+      draft.choiceEmojis = parseChoiceEmojisCsv(interaction.fields.getTextInputValue('value'), draft.choices.length);
       break;
     case pollBuilderModalCustomId('description'):
       draft.description = interaction.fields.getTextInputValue('value').trim();
