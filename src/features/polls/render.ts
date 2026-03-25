@@ -10,7 +10,7 @@ import {
 } from 'discord.js';
 import type { PollVoteEvent } from '@prisma/client';
 
-import { getPollChoiceToken, renderPollBar } from './present.js';
+import { getPollChoiceToken, renderPollBar, resolvePollThreadName } from './present.js';
 import type { PollComputedResults, PollDraft, PollWithRelations } from './types.js';
 
 export const pollVoteCustomId = (pollId: string): string => `poll:vote:${pollId}`;
@@ -18,10 +18,10 @@ export const pollChoiceCustomId = (pollId: string, optionId: string): string => 
 export const pollResultsCustomId = (pollId: string): string => `poll:results:${pollId}`;
 export const pollCloseModalCustomId = (pollId: string): string => `poll:close-modal:${pollId}`;
 export const pollBuilderButtonCustomId = (
-  action: 'question' | 'choices' | 'description' | 'time' | 'pass-rule' | 'single' | 'anonymous' | 'publish' | 'cancel',
+  action: 'question' | 'choices' | 'description' | 'time' | 'pass-rule' | 'thread-toggle' | 'thread-name' | 'single' | 'anonymous' | 'publish' | 'cancel',
 ): string => `poll-builder:${action}`;
 export const pollBuilderModalCustomId = (
-  field: 'question' | 'choices' | 'description' | 'time' | 'pass-rule',
+  field: 'question' | 'choices' | 'description' | 'time' | 'pass-rule' | 'thread-name',
 ): string => `poll-builder:modal:${field}`;
 
 const renderChoiceLine = (
@@ -256,6 +256,7 @@ const getDraftSummary = (draft: PollDraft): string =>
     `**Mode** ${draft.singleSelect ? 'Single select buttons' : 'Multi select menu'}`,
     `**Visibility** ${draft.anonymous ? 'Anonymous identities hidden' : 'Public vote totals'}`,
     `**Pass Rule** ${getPassRuleLabel(draft.passThreshold, draft.passOptionIndex, draft.choices.map((label) => ({ label })))}`,
+    `**Discussion** ${draft.createThread ? `Thread opens as **${resolvePollThreadName(draft.question, draft.threadName)}**` : 'No thread will be created'}`,
     `**Duration** ${draft.durationText}`,
   ].join('\n');
 
@@ -264,7 +265,7 @@ export const buildPollBuilderPreview = (
   error?: string,
 ): {
   embeds: [EmbedBuilder];
-  components: [ActionRowBuilder<ButtonBuilder>, ActionRowBuilder<ButtonBuilder>];
+  components: ActionRowBuilder<ButtonBuilder>[];
   allowedMentions: {
     parse: [];
   };
@@ -302,6 +303,14 @@ export const buildPollBuilderPreview = (
 
   const rowTwo = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
+      .setCustomId(pollBuilderButtonCustomId('thread-toggle'))
+      .setLabel(draft.createThread ? 'Thread: On' : 'Thread: Off')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(pollBuilderButtonCustomId('thread-name'))
+      .setLabel('Thread Name')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('single'))
       .setLabel(draft.singleSelect ? 'Single: On' : 'Single: Off')
       .setStyle(ButtonStyle.Secondary),
@@ -309,6 +318,9 @@ export const buildPollBuilderPreview = (
       .setCustomId(pollBuilderButtonCustomId('anonymous'))
       .setLabel(draft.anonymous ? 'Anonymous: On' : 'Anonymous: Off')
       .setStyle(ButtonStyle.Secondary),
+  );
+
+  const rowThree = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('publish'))
       .setLabel('Publish')
@@ -321,7 +333,7 @@ export const buildPollBuilderPreview = (
 
   return {
     embeds: [embed],
-    components: [rowOne, rowTwo],
+    components: [rowOne, rowTwo, rowThree],
     allowedMentions: {
       parse: [],
     },
@@ -329,7 +341,7 @@ export const buildPollBuilderPreview = (
 };
 
 export const buildPollBuilderModal = (
-  field: 'question' | 'choices' | 'description' | 'time' | 'pass-rule',
+  field: 'question' | 'choices' | 'description' | 'time' | 'pass-rule' | 'thread-name',
   draft: PollDraft,
 ): ModalBuilder => {
   const input = new TextInputBuilder().setCustomId('value');
@@ -401,6 +413,15 @@ export const buildPollBuilderModal = (
           new ActionRowBuilder<TextInputBuilder>().addComponents(choiceInput),
         );
     }
+    case 'thread-name':
+      input
+        .setLabel('Thread Name')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false)
+        .setValue(draft.threadName)
+        .setPlaceholder('Leave blank to use the poll question')
+        .setMaxLength(100);
+      break;
   }
 
   return new ModalBuilder()

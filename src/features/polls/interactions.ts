@@ -17,7 +17,7 @@ import { logger } from '../../app/logger.js';
 import { redis } from '../../lib/redis.js';
 import { deletePollDraft, getPollDraft, savePollDraft } from './draft-store.js';
 import { parseChoicesCsv, parsePassChoiceIndex, parsePassThreshold, parsePollFormInput, resolvePassRule } from './parser.js';
-import { normalizeQuestionFromMessage } from './present.js';
+import { normalizeQuestionFromMessage, resolvePollThreadName } from './present.js';
 import {
   buildPollCloseModal,
   buildPollAuditEmbed,
@@ -55,9 +55,11 @@ const publishPoll = async (
     anonymous: boolean;
     passThreshold?: number | null;
     passOptionIndex?: number | null;
+    createThread: boolean;
+    threadName: string;
     durationMs: number;
   },
-): Promise<void> => {
+): Promise<{ messageId: string; threadCreated: boolean; threadRequested: boolean }> => {
   if (!interaction.inGuild() || !interaction.channelId) {
     throw new Error('Polls can only be created in guild text channels.');
   }
@@ -79,7 +81,10 @@ const publishPoll = async (
   });
 
   try {
-    await hydratePollMessage(interaction.channelId, client, poll);
+    return await hydratePollMessage(interaction.channelId, client, poll, {
+      createThread: draft.createThread,
+      threadName: resolvePollThreadName(draft.question, draft.threadName),
+    });
   } catch (error) {
     await deletePollRecord(poll.id);
     throw error;
@@ -105,15 +110,26 @@ export const handlePollCommand = async (
   );
   const passRule = resolvePassRule(passThreshold, passChoiceIndex);
 
-  await publishPoll(client, interaction, {
+  const published = await publishPoll(client, interaction, {
     ...parsed,
     singleSelect: interaction.options.getBoolean('single_select') ?? true,
     anonymous: interaction.options.getBoolean('anonymous') ?? false,
+    createThread: interaction.options.getBoolean('create_thread') ?? true,
+    threadName: interaction.options.getString('thread_name') ?? '',
     ...passRule,
   });
 
   await interaction.editReply({
-    embeds: [buildFeedbackEmbed('Poll Published', 'Your poll is now live in this channel.')],
+    embeds: [
+      buildFeedbackEmbed(
+        'Poll Published',
+        published.threadRequested
+          ? published.threadCreated
+            ? 'Your poll is live in this channel and a discussion thread was created.'
+            : 'Your poll is live in this channel, but the discussion thread could not be created.'
+          : 'Your poll is now live in this channel.',
+      ),
+    ],
   });
 };
 
@@ -150,6 +166,8 @@ export const handlePollFromMessageContext = async (
     anonymous: false,
     passThreshold: null,
     passOptionIndex: null,
+    createThread: true,
+    threadName: '',
     durationText: '24h',
   };
 
@@ -321,6 +339,14 @@ export const handlePollBuilderButton = async (
     case pollBuilderButtonCustomId('pass-rule'):
       await interaction.showModal(buildPollBuilderModal('pass-rule', draft));
       return;
+    case pollBuilderButtonCustomId('thread-toggle'):
+      draft.createThread = !draft.createThread;
+      await savePollDraft(redis, interaction.guildId, interaction.user.id, draft);
+      await updatePollBuilderPreview(interaction);
+      return;
+    case pollBuilderButtonCustomId('thread-name'):
+      await interaction.showModal(buildPollBuilderModal('thread-name', draft));
+      return;
     case pollBuilderButtonCustomId('single'):
       draft.singleSelect = !draft.singleSelect;
       await savePollDraft(redis, interaction.guildId, interaction.user.id, draft);
@@ -341,17 +367,28 @@ export const handlePollBuilderButton = async (
         durationText: draft.durationText,
       });
 
-      await publishPoll(client, interaction, {
+      const published = await publishPoll(client, interaction, {
         ...parsed,
         singleSelect: draft.singleSelect,
         anonymous: draft.anonymous,
         passThreshold: draft.passThreshold,
         passOptionIndex: draft.passOptionIndex,
+        createThread: draft.createThread,
+        threadName: draft.threadName,
       });
 
       await deletePollDraft(redis, interaction.guildId, interaction.user.id);
       await interaction.editReply({
-        embeds: [buildFeedbackEmbed('Poll Published', 'Your poll is now live in this channel.')],
+        embeds: [
+          buildFeedbackEmbed(
+            'Poll Published',
+            published.threadRequested
+              ? published.threadCreated
+                ? 'Your poll is live in this channel and a discussion thread was created.'
+                : 'Your poll is live in this channel, but the discussion thread could not be created.'
+              : 'Your poll is now live in this channel.',
+          ),
+        ],
         components: [],
       });
       return;
@@ -392,6 +429,9 @@ export const handlePollBuilderModal = async (
       break;
     case pollBuilderModalCustomId('time'):
       draft.durationText = interaction.fields.getTextInputValue('value').trim();
+      break;
+    case pollBuilderModalCustomId('thread-name'):
+      draft.threadName = interaction.fields.getTextInputValue('value').trim();
       break;
     case pollBuilderModalCustomId('pass-rule'): {
       const passThreshold = parsePassThreshold(interaction.fields.getTextInputValue('threshold'));
@@ -547,9 +587,8 @@ export const handlePollCloseContext = async (
     throw new Error('Poll not found.');
   }
 
-  const canManageGuild = interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
-  if (!isPollManager(poll, interaction.user.id, canManageGuild)) {
-    throw new Error('Only the poll creator or a server manager can close this poll.');
+  if (poll.authorId !== interaction.user.id) {
+    throw new Error('Only the poll creator can close this poll.');
   }
 
   await interaction.showModal(buildPollCloseModal(poll.id, poll.question));
@@ -559,7 +598,7 @@ export const handlePollCloseModal = async (
   client: Client,
   interaction: ModalSubmitInteraction,
 ): Promise<void> => {
-  const pollId = interaction.customId.split(':')[3];
+  const pollId = interaction.customId.split(':')[2];
 
   if (!pollId || !interaction.inGuild()) {
     throw new Error('Invalid poll identifier.');
@@ -575,9 +614,8 @@ export const handlePollCloseModal = async (
     throw new Error('Poll not found.');
   }
 
-  const canManageGuild = interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
-  if (!isPollManager(poll, interaction.user.id, canManageGuild)) {
-    throw new Error('Only the poll creator or a server manager can close this poll.');
+  if (poll.authorId !== interaction.user.id) {
+    throw new Error('Only the poll creator can close this poll.');
   }
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });

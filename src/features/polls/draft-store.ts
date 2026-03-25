@@ -14,6 +14,8 @@ export const createDefaultDraft = (): PollDraft => ({
   anonymous: false,
   passThreshold: null,
   passOptionIndex: null,
+  createThread: true,
+  threadName: '',
   durationText: '24h',
 });
 

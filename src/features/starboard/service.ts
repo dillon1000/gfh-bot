@@ -28,6 +28,11 @@ type ActiveGuildConfig = GuildConfig & {
   starboardChannelId: string;
 };
 
+type ReactionBreakdownEntry = {
+  display: string;
+  count: number;
+};
+
 const getConfiguredStarboardEmojis = (config: GuildConfig): string[] => {
   if (config.starboardEmojis.length > 0) {
     return config.starboardEmojis;
@@ -102,85 +107,83 @@ export const getStarboardConfig = async (guildId: string): Promise<GuildConfig |
     },
   });
 
-const buildStarboardEmbed = (
-  config: ActiveGuildConfig,
-  message: Message,
-  reactionCount: number,
-): EmbedBuilder => {
+const buildStarboardEmbed = (input: {
+  message: Message;
+  authorName: string;
+  content: string | null;
+  imageUrl: string | null;
+}): EmbedBuilder => {
+  const createdAtLabel = new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(input.message.createdAt);
+
   const embed = new EmbedBuilder()
     .setAuthor({
-      name: message.author?.tag ?? 'Unknown user',
-      iconURL: message.author?.displayAvatarURL() ?? undefined,
+      name: input.authorName,
+      iconURL: input.message.author?.displayAvatarURL() ?? undefined,
     })
-    .setColor(0xf59e0b)
-    .setDescription(message.content || '*No message content*')
-    .addFields(
-      {
-        name: 'Source',
-        value: `[Jump to message](${message.url})`,
-      },
-      {
-        name: 'Reactions',
-        value: String(reactionCount),
-        inline: true,
-      },
-      {
-        name: 'Channel',
-        value: `<#${message.channelId}>`,
-        inline: true,
-      },
-      {
-        name: 'Tracked Emojis',
-        value: formatStoredEmojiList(getConfiguredStarboardEmojis(config)),
-      },
-    )
-    .setTimestamp(message.createdAt)
+    .setColor(0xf4d35e)
+    .setDescription(input.content || '*No message content*')
+    .addFields({
+      name: 'Source',
+      value: `[Jump!](${input.message.url})`,
+    })
     .setFooter({
-      text: `Message ID: ${message.id}`,
+      text: `${input.message.id} • ${createdAtLabel}`,
     });
 
-  const image = message.attachments.find((attachment) => attachment.contentType?.startsWith('image/'));
-  if (image) {
-    embed.setImage(image.url);
+  if (input.imageUrl) {
+    embed.setImage(input.imageUrl);
   }
 
   return embed;
 };
 
-const countEligibleReactions = async (
+const countTrackedReactions = async (
   message: Message,
   configuredEmojis: string[],
-  messageAuthorId: string | undefined,
-): Promise<number> => {
-  const matchedUsers = new Set<string>();
+): Promise<{ totalCount: number; breakdown: ReactionBreakdownEntry[] }> => {
+  const configuredEmojiMap = new Map(
+    configuredEmojis.map((value) => {
+      const emoji = deserializeStoredEmoji(value);
+      return [serializeNormalizedEmoji(emoji), emoji];
+    }),
+  );
+  const counts = new Map<string, number>();
 
   for (const reaction of message.reactions.cache.values()) {
-    const isTracked = reactionMatchesAnyEmoji(
-      reaction.emoji,
-      configuredEmojis.map((value) => {
-        const emoji = deserializeStoredEmoji(value);
-        return {
-          id: emoji.id,
-          name: emoji.name,
-        };
-      }),
+    const matchedEmoji = [...configuredEmojiMap.values()].find((emoji) =>
+      reactionMatchesAnyEmoji(reaction.emoji, [{ id: emoji.id, name: emoji.name }]),
     );
-
-    if (!isTracked) {
+    if (!matchedEmoji) {
       continue;
     }
 
     const users = await reaction.users.fetch();
-
-    for (const matchedUser of users.values()) {
-      if (!matchedUser.bot && matchedUser.id !== messageAuthorId) {
-        matchedUsers.add(matchedUser.id);
-      }
-    }
+    const nonBotCount = [...users.values()].filter((matchedUser) => !matchedUser.bot).length;
+    const key = serializeNormalizedEmoji(matchedEmoji);
+    counts.set(key, nonBotCount);
   }
 
-  return matchedUsers.size;
+  const breakdown = configuredEmojis
+    .map((value) => {
+      const emoji = configuredEmojiMap.get(value) ?? deserializeStoredEmoji(value);
+      return {
+        display: emoji.display,
+        count: counts.get(value) ?? 0,
+      };
+    })
+    .filter((entry) => entry.count > 0);
+
+  return {
+    totalCount: breakdown.reduce((sum, entry) => sum + entry.count, 0),
+    breakdown,
+  };
 };
+
+export const formatReactionBreakdown = (breakdown: ReactionBreakdownEntry[]): string =>
+  breakdown.map((entry) => `${entry.display} ${entry.count}`).join(' ');
 
 const getExistingStarboardEntry = async (sourceMessageId: string): Promise<StarboardEntry | null> =>
   prisma.starboardEntry.findUnique({
@@ -213,6 +216,7 @@ const upsertStarboardMessage = async (
   config: ActiveGuildConfig,
   message: Message,
   reactionCount: number,
+  reactionBreakdown: ReactionBreakdownEntry[],
 ): Promise<void> => {
   const boardChannel = await client.channels.fetch(config.starboardChannelId).catch(() => null);
   if (!boardChannel?.isTextBased() || !('send' in boardChannel) || !('messages' in boardChannel)) {
@@ -220,9 +224,18 @@ const upsertStarboardMessage = async (
   }
 
   const entry = await getExistingStarboardEntry(message.id);
-  const embed = buildStarboardEmbed(config, message, reactionCount);
-  const configuredEmojis = getConfiguredStarboardEmojis(config);
-  const primaryEmoji = deserializeStoredEmoji(configuredEmojis[0] ?? '⭐');
+  const authorMember = message.author?.id
+    ? message.member ?? await message.guild?.members.fetch(message.author.id).catch(() => null)
+    : null;
+  const liveAuthorName =
+    authorMember?.displayName ??
+    message.author?.globalName ??
+    message.author?.username ??
+    message.author?.tag ??
+    'Unknown user';
+  const liveImageUrl =
+    message.attachments.find((attachment) => attachment.contentType?.startsWith('image/'))?.url ?? null;
+  const header = `${formatReactionBreakdown(reactionBreakdown)} <#${message.channelId}>`;
 
   if (entry) {
     const boardMessage = await boardChannel.messages.fetch(entry.boardMessageId).catch(() => null);
@@ -233,7 +246,14 @@ const upsertStarboardMessage = async (
         },
       });
     } else {
+      const embed = buildStarboardEmbed({
+        message,
+        authorName: liveAuthorName || entry.sourceAuthorName || boardMessage.embeds[0]?.author?.name || 'Unknown user',
+        content: message.content || entry.sourceContent || boardMessage.embeds[0]?.description || null,
+        imageUrl: liveImageUrl || entry.sourceImageUrl || boardMessage.embeds[0]?.image?.url || null,
+      });
       await boardMessage.edit({
+        content: header,
         embeds: [embed],
         allowedMentions: {
           parse: [],
@@ -246,13 +266,23 @@ const upsertStarboardMessage = async (
         },
         data: {
           reactionCount,
+          sourceAuthorName: liveAuthorName,
+          sourceContent: message.content || entry.sourceContent,
+          sourceImageUrl: liveImageUrl || entry.sourceImageUrl,
         },
       });
       return;
     }
   }
 
+  const embed = buildStarboardEmbed({
+    message,
+    authorName: liveAuthorName,
+    content: message.content || null,
+    imageUrl: liveImageUrl,
+  });
   const created = await boardChannel.send({
+    content: header,
     embeds: [embed],
     allowedMentions: {
       parse: [],
@@ -267,6 +297,9 @@ const upsertStarboardMessage = async (
       boardMessageId: created.id,
       boardChannelId: created.channelId,
       authorId: message.author?.id ?? 'unknown',
+      sourceAuthorName: liveAuthorName,
+      sourceContent: message.content || null,
+      sourceImageUrl: liveImageUrl,
       reactionCount,
     },
   });
@@ -314,7 +347,7 @@ export const syncStarboardForReaction = async (
   }
 
   await withRedisLock(redis, `lock:starboard:${message.guildId}:${message.id}`, 10_000, async () => {
-    const reactionCount = await countEligibleReactions(message, configuredEmojis, message.author?.id);
+    const { totalCount: reactionCount, breakdown } = await countTrackedReactions(message, configuredEmojis);
     const entry = await getExistingStarboardEntry(message.id);
 
     if (!isStarboardPromotionEligible(reactionCount, config.starboardThreshold)) {
@@ -324,7 +357,7 @@ export const syncStarboardForReaction = async (
       return;
     }
 
-    await upsertStarboardMessage(client, config, message, reactionCount);
+    await upsertStarboardMessage(client, config, message, reactionCount, breakdown);
   });
 };
 

@@ -83,6 +83,17 @@ export const attachPollMessage = async (pollId: string, messageId: string): Prom
   });
 };
 
+export const attachPollThread = async (pollId: string, threadId: string): Promise<void> => {
+  await prisma.poll.update({
+    where: {
+      id: pollId,
+    },
+    data: {
+      threadId,
+    },
+  });
+};
+
 export const getPollById = async (pollId: string): Promise<PollWithRelations | null> =>
   prisma.poll.findUnique({
     where: {
@@ -586,7 +597,11 @@ export const hydratePollMessage = async (
   channelId: string,
   client: Client,
   poll: PollWithRelations,
-): Promise<string> => {
+  threadConfig?: {
+    createThread: boolean;
+    threadName: string;
+  },
+): Promise<{ messageId: string; threadCreated: boolean; threadRequested: boolean }> => {
   const channel = await client.channels.fetch(channelId);
   if (!channel?.isTextBased() || !('send' in channel)) {
     throw new Error('Polls can only be published in text-based channels.');
@@ -595,12 +610,31 @@ export const hydratePollMessage = async (
   const results = computePollResults(poll);
   const message = await channel.send(buildPollMessage(poll, results));
   const attachedPoll = await attachPollMessage(poll.id, message.id);
+  let threadCreated = false;
+
+  if (threadConfig?.createThread) {
+    try {
+      const thread = await message.startThread({
+        name: threadConfig.threadName,
+        autoArchiveDuration: 1440,
+      });
+      await attachPollThread(poll.id, thread.id);
+      threadCreated = true;
+    } catch (error) {
+      logger.warn({ err: error, pollId: poll.id }, 'Could not create poll discussion thread');
+    }
+  }
+
   await Promise.all([
     schedulePollClose(attachedPoll),
     schedulePollReminder(attachedPoll),
   ]);
 
-  return message.id;
+  return {
+    messageId: message.id,
+    threadCreated,
+    threadRequested: threadConfig?.createThread ?? false,
+  };
 };
 
 export const deletePollRecord = async (pollId: string): Promise<void> => {

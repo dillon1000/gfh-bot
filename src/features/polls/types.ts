@@ -33,6 +33,8 @@ export type PollDraft = {
   anonymous: boolean;
   passThreshold: number | null;
   passOptionIndex: number | null;
+  createThread: boolean;
+  threadName: string;
   durationText: string;
 };
 

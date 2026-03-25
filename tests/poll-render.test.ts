@@ -9,6 +9,7 @@ const basePoll = {
   guildId: 'guild_1',
   channelId: 'channel_1',
   messageId: 'message_1',
+  threadId: null,
   authorId: 'user_1',
   question: 'Ship it?',
   description: null,

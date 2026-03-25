@@ -26,6 +26,7 @@ model Poll {
   guildId        String
   channelId      String
   messageId      String?         @unique
+  threadId       String?         @unique
   authorId       String
   question       String
   description    String?
@@ -93,6 +94,9 @@ model StarboardEntry {
   boardMessageId  String      @unique
   boardChannelId  String
   authorId        String
+  sourceAuthorName String
+  sourceContent   String?
+  sourceImageUrl  String?
   reactionCount   Int         @default(0)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt

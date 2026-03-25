@@ -8,6 +8,7 @@ const poll = {
   guildId: 'guild_1',
   channelId: 'channel_1',
   messageId: 'message_1',
+  threadId: null,
   authorId: 'user_1',
   question: 'Pick one',
   description: null,

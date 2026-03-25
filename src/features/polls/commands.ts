@@ -33,6 +33,19 @@ export const pollCommand = new SlashCommandBuilder()
       .setDescription('Hide voter identities in public output')
       .setRequired(false),
   )
+  .addBooleanOption((option) =>
+    option
+      .setName('create_thread')
+      .setDescription('Automatically create a discussion thread on the poll message')
+      .setRequired(false),
+  )
+  .addStringOption((option) =>
+    option
+      .setName('thread_name')
+      .setDescription('Optional discussion thread name')
+      .setRequired(false)
+      .setMaxLength(100),
+  )
   .addStringOption((option) =>
     option
       .setName('time')

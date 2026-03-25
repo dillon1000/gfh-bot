@@ -19,3 +19,10 @@ export const normalizeQuestionFromMessage = (value: string): string => {
   const sliced = trimmed.length > 180 ? `${trimmed.slice(0, 177)}...` : trimmed;
   return /[?!.]$/.test(sliced) ? sliced : `${sliced}?`;
 };
+
+export const resolvePollThreadName = (question: string, override?: string | null): string => {
+  const base = (override ?? '').trim() || question.trim() || 'Poll discussion';
+  const normalized = base.replace(/\s+/g, ' ');
+
+  return normalized.length > 100 ? normalized.slice(0, 100) : normalized;
+};
