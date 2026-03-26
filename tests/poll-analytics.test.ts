@@ -41,9 +41,11 @@ const buildPoll = (
   passThreshold: null,
   passOptionIndex: null,
   reminderRoleId: null,
+  durationMinutes: 1440,
   reminders: [],
   closesAt: new Date('2026-03-30T12:00:00.000Z'),
   closedAt: null,
+  closedReason: null,
   createdAt: new Date(options.createdAt),
   updatedAt: new Date(options.createdAt),
   options: [

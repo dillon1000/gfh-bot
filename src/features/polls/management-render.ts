@@ -62,7 +62,7 @@ export const buildPollReopenModal = (
     .setLabel('New duration')
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
-    .setValue(formatDurationFromMinutes(poll.durationMinutes ?? 60))
+    .setValue(formatDurationFromMinutes(poll.durationMinutes))
     .setPlaceholder('24h')
     .setMaxLength(20);
 

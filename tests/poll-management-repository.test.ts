@@ -58,7 +58,7 @@ const {
     }
 
     if ('closedReason' in data) {
-      state.poll.closedReason = data.closedReason as PollWithRelations['closedReason'];
+      state.poll.closedReason = (data.closedReason ?? null) as PollWithRelations['closedReason'];
     }
 
     if ('closesAt' in data) {

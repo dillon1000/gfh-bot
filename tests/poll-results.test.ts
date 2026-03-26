@@ -22,9 +22,11 @@ const poll = {
   passThreshold: 60,
   passOptionIndex: 1,
   reminderRoleId: null,
+  durationMinutes: 1440,
   reminders: [],
   closesAt: new Date('2026-03-24T00:00:00.000Z'),
   closedAt: null,
+  closedReason: null,
   createdAt: new Date('2026-03-24T00:00:00.000Z'),
   updatedAt: new Date('2026-03-24T00:00:00.000Z'),
   options: [

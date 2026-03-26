@@ -17,6 +17,7 @@ import {
   buildPollReopenModal,
 } from './management-render.js';
 import { parseChoicesCsv, sanitizeQuestion } from './parser.js';
+import { getPollDurationMinutes } from './poll-state.js';
 import { buildFeedbackEmbed } from './poll-embeds.js';
 import { buildPollBuilderPreview } from './poll-builder-render.js';
 import { refreshPollMessage, isPollManager } from './service-lifecycle.js';
@@ -30,11 +31,6 @@ import {
   reopenPollRecord,
 } from './service-repository.js';
 import type { PollDraft, PollWithRelations } from './types.js';
-
-const minuteMs = 60_000;
-
-const getDurationMinutes = (poll: Pick<PollWithRelations, 'durationMinutes' | 'closesAt' | 'createdAt'>): number =>
-  poll.durationMinutes ?? Math.max(1, Math.round((poll.closesAt.getTime() - poll.createdAt.getTime()) / minuteMs));
 
 const assertPollManagementAccess = (
   poll: Pick<PollWithRelations, 'authorId'>,
@@ -79,7 +75,7 @@ const buildDraftFromPoll = (poll: PollWithRelations): PollDraft => ({
   threadName: '',
   reminderRoleId: poll.reminderRoleId ?? null,
   reminderOffsets: poll.reminders.map((reminder) => reminder.offsetMinutes),
-  durationText: formatDurationFromMinutes(getDurationMinutes(poll)),
+  durationText: formatDurationFromMinutes(getPollDurationMinutes(poll)),
 });
 
 const seedDuplicateDraft = async (

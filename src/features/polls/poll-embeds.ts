@@ -2,6 +2,7 @@ import type { PollVoteEvent } from '@prisma/client';
 import { EmbedBuilder } from 'discord.js';
 
 import { getPollChoiceEmojiDisplay, renderPollBar } from './present.js';
+import { POLL_CANCELLED_STATUS_DETAIL } from './poll-state.js';
 import { createFallbackPollSnapshot } from './service-governance.js';
 import {
   buildRoundEliminationLabel,
@@ -116,7 +117,7 @@ const buildCompactDetailsLines = (snapshot: EvaluatedPollSnapshot): string[] => 
   const statusParts = [
     getTimingLabel(poll),
     isPollCancelled(poll)
-      ? 'Poll cancelled before the scheduled close'
+      ? POLL_CANCELLED_STATUS_DETAIL
       : poll.mode === 'ranked' && results.kind === 'ranked'
       ? getRankedStatusLabel(poll, results, outcome)
       : `Pass rule ${getPassRuleLabel(poll.mode, poll.passThreshold, poll.passOptionIndex, poll.options)}`,
