@@ -19,6 +19,7 @@ const shouldAttachPollDiagram = (
 ): boolean => poll.mode !== 'ranked' || poll.closedAt !== null || poll.closesAt.getTime() <= Date.now();
 
 const buildPollComponents = (poll: PollWithRelations) => {
+  const votingDisabled = isPollClosedOrExpired(poll);
   const controls = new ActionRowBuilder<ButtonBuilder>().addComponents(
     ...(poll.mode === 'ranked'
       ? [
@@ -26,7 +27,7 @@ const buildPollComponents = (poll: PollWithRelations) => {
             .setCustomId(pollRankOpenCustomId(poll.id))
             .setLabel('Rank Choices')
             .setStyle(ButtonStyle.Primary)
-            .setDisabled(isPollClosedOrExpired(poll)),
+            .setDisabled(votingDisabled),
         ]
       : []),
     new ButtonBuilder()
@@ -46,7 +47,7 @@ const buildPollComponents = (poll: PollWithRelations) => {
                 .setLabel(option.label)
                 .setEmoji(getPollChoiceComponentEmoji(option.emoji, index))
                 .setStyle(ButtonStyle.Secondary)
-                .setDisabled(Boolean(poll.closedAt)),
+                .setDisabled(votingDisabled),
             ),
           ),
           controls,
@@ -55,8 +56,8 @@ const buildPollComponents = (poll: PollWithRelations) => {
           new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
             new StringSelectMenuBuilder()
               .setCustomId(pollVoteCustomId(poll.id))
-              .setPlaceholder(poll.closedAt ? 'Poll closed' : 'Choose one or more options')
-              .setDisabled(Boolean(poll.closedAt))
+              .setPlaceholder(votingDisabled ? 'Poll closed' : 'Choose one or more options')
+              .setDisabled(votingDisabled)
               .setMinValues(1)
               .setMaxValues(poll.options.length)
               .addOptions(

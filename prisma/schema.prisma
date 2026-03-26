@@ -13,6 +13,11 @@ enum PollMode {
   ranked
 }
 
+enum PollClosedReason {
+  closed
+  cancelled
+}
+
 model GuildConfig {
   id                 String           @id @default(cuid())
   guildId            String           @unique
@@ -47,8 +52,10 @@ model Poll {
   passThreshold  Int?
   passOptionIndex Int?
   reminderRoleId String?
+  durationMinutes Int
   closesAt       DateTime
   closedAt       DateTime?
+  closedReason   PollClosedReason?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   options        PollOption[]

@@ -21,6 +21,15 @@ import {
 } from '../features/polls/builder-interactions.js';
 import { handlePollInteractionError } from '../features/polls/interaction-errors.js';
 import {
+  handlePollCancelContext,
+  handlePollDuplicateContext,
+  handlePollEditContext,
+  handlePollExtendContext,
+  handlePollManageCommand,
+  handlePollManageModal,
+  handlePollReopenContext,
+} from '../features/polls/management-interactions.js';
+import {
   handlePollAuditCommand,
   handlePollAuditContext,
   handlePollCloseContext,
@@ -84,6 +93,9 @@ export const registerInteractionRouter = (client: Client): void => {
           case 'poll-audit':
             await handlePollAuditCommand(interaction);
             return;
+          case 'poll-manage':
+            await handlePollManageCommand(interaction);
+            return;
           case 'poll-analytics':
             await handlePollAnalyticsCommand(client, interaction);
             return;
@@ -124,6 +136,31 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.commandName === 'Close Poll') {
           await handlePollCloseContext(interaction);
+          return;
+        }
+
+        if (interaction.commandName === 'Edit Poll') {
+          await handlePollEditContext(interaction);
+          return;
+        }
+
+        if (interaction.commandName === 'Cancel Poll') {
+          await handlePollCancelContext(interaction);
+          return;
+        }
+
+        if (interaction.commandName === 'Reopen Poll') {
+          await handlePollReopenContext(interaction);
+          return;
+        }
+
+        if (interaction.commandName === 'Extend Poll') {
+          await handlePollExtendContext(interaction);
+          return;
+        }
+
+        if (interaction.commandName === 'Duplicate Poll') {
+          await handlePollDuplicateContext(interaction);
           return;
         }
         return;
@@ -222,6 +259,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('poll:close-modal:')) {
           await handlePollCloseModal(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:manage-modal:')) {
+          await handlePollManageModal(client, interaction);
         }
       }
     } catch (error) {

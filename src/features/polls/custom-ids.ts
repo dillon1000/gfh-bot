@@ -23,6 +23,8 @@ export type PollBuilderModalField =
   | 'pass-rule'
   | 'thread-name';
 
+export type PollManageAction = 'edit' | 'cancel' | 'reopen' | 'extend';
+
 export const pollVoteCustomId = (pollId: string): string => `poll:vote:${pollId}`;
 export const pollChoiceCustomId = (pollId: string, optionId: string): string => `poll:choice:${pollId}:${optionId}`;
 export const pollResultsCustomId = (pollId: string): string => `poll:results:${pollId}`;
@@ -32,5 +34,6 @@ export const pollRankUndoCustomId = (pollId: string): string => `poll:rank:undo:
 export const pollRankClearCustomId = (pollId: string): string => `poll:rank:clear:${pollId}`;
 export const pollRankSubmitCustomId = (pollId: string): string => `poll:rank:submit:${pollId}`;
 export const pollCloseModalCustomId = (pollId: string): string => `poll:close-modal:${pollId}`;
+export const pollManageModalCustomId = (action: PollManageAction, pollId: string): string => `poll:manage-modal:${action}:${pollId}`;
 export const pollBuilderButtonCustomId = (action: PollBuilderAction): string => `poll-builder:${action}`;
 export const pollBuilderModalCustomId = (field: PollBuilderModalField): string => `poll-builder:modal:${field}`;
