@@ -1,4 +1,4 @@
-import { ApplicationCommandType, SlashCommandBuilder } from 'discord.js';
+import { ApplicationCommandType, ChannelType, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 
 export const pollCommand = new SlashCommandBuilder()
   .setName('poll')
@@ -138,6 +138,40 @@ export const pollAuditCommand = new SlashCommandBuilder()
       .setName('query')
       .setDescription('Discord message link, raw message ID, or poll ID')
       .setRequired(true),
+  );
+
+export const pollAnalyticsCommand = new SlashCommandBuilder()
+  .setName('poll-analytics')
+  .setDescription('Show recent poll participation analytics for this server.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .addChannelOption((option) =>
+    option
+      .setName('channel')
+      .setDescription('Optional channel to limit analytics to')
+      .addChannelTypes(
+        ChannelType.GuildAnnouncement,
+        ChannelType.GuildText,
+        ChannelType.PublicThread,
+        ChannelType.PrivateThread,
+        ChannelType.AnnouncementThread,
+      )
+      .setRequired(false),
+  )
+  .addIntegerOption((option) =>
+    option
+      .setName('days')
+      .setDescription('Look back this many days')
+      .setRequired(false)
+      .setMinValue(1)
+      .setMaxValue(90),
+  )
+  .addIntegerOption((option) =>
+    option
+      .setName('limit')
+      .setDescription('Rows to show in each leaderboard')
+      .setRequired(false)
+      .setMinValue(3)
+      .setMaxValue(10),
   );
 
 export const pollFromMessageCommand = {

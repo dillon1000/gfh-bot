@@ -142,3 +142,52 @@ export type EvaluatedPollSnapshot = {
   outcome: PollOutcome;
   electorate: PollElectorateEvaluation;
 };
+
+export type PollAnalyticsFilters = {
+  guildId: string;
+  channelId: string | null;
+  days: number;
+  limit: number;
+  since: Date;
+  asOf: Date;
+};
+
+export type PollAnalyticsTurnoutEntry = {
+  pollId: string;
+  question: string;
+  channelId: string;
+  createdAt: Date;
+  voterCount: number;
+  turnoutPercent: number | null;
+  eligibleVoterCount: number | null;
+  anonymous: boolean;
+};
+
+export type PollAnalyticsVoterEntry = {
+  userId: string;
+  pollsParticipated: number;
+};
+
+export type PollAnalyticsChannelEntry = {
+  channelId: string;
+  pollCount: number;
+  participantCount: number;
+};
+
+export type PollAnalyticsVisibilityEntry = {
+  pollCount: number;
+  percentage: number;
+  participantCount: number;
+};
+
+export type PollAnalyticsSnapshot = {
+  filters: PollAnalyticsFilters;
+  totalPolls: number;
+  turnoutByPoll: PollAnalyticsTurnoutEntry[];
+  mostActiveVoters: PollAnalyticsVoterEntry[];
+  channelActivity: PollAnalyticsChannelEntry[];
+  visibilityBreakdown: {
+    anonymous: PollAnalyticsVisibilityEntry;
+    named: PollAnalyticsVisibilityEntry;
+  };
+};
