@@ -9,6 +9,11 @@ type PrismaPollWithRelations = Prisma.PollGetPayload<{
         sortOrder: 'asc';
       };
     };
+    reminders: {
+      orderBy: {
+        offsetMinutes: 'desc';
+      };
+    };
     votes: true;
   };
 }>;
@@ -36,6 +41,8 @@ export type PollCreationInput = {
   eligibleChannelIds: string[];
   passThreshold?: number | null;
   passOptionIndex?: number | null;
+  reminderRoleId?: string | null;
+  reminderOffsets: number[];
   durationMs: number;
 };
 
@@ -54,6 +61,8 @@ export type PollDraft = {
   passOptionIndex: number | null;
   createThread: boolean;
   threadName: string;
+  reminderRoleId: string | null;
+  reminderOffsets: number[];
   durationText: string;
 };
 

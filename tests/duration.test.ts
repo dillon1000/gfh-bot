@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseDurationToMs } from '../src/lib/duration.js';
+import { formatDurationFromMinutes, parseDurationToMs } from '../src/lib/duration.js';
 
 describe('parseDurationToMs', () => {
   it('parses hours correctly', () => {
@@ -21,5 +21,13 @@ describe('parseDurationToMs', () => {
 
   it('rejects durations that are too short', () => {
     expect(() => parseDurationToMs('1m')).toThrow(/at least 5 minutes/);
+  });
+});
+
+describe('formatDurationFromMinutes', () => {
+  it('formats reminder durations compactly', () => {
+    expect(formatDurationFromMinutes(10)).toBe('10m');
+    expect(formatDurationFromMinutes(60)).toBe('1h');
+    expect(formatDurationFromMinutes((24 * 60) + 90)).toBe('1d 1h 30m');
   });
 });

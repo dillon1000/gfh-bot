@@ -2,6 +2,7 @@ import type { Poll, PollVoteEvent } from '@prisma/client';
 import { EmbedBuilder, type Client } from 'discord.js';
 
 import { logger } from '../../app/logger.js';
+import { formatDurationFromMinutes } from '../../lib/duration.js';
 import { withRedisLock } from '../../lib/locks.js';
 import { prisma } from '../../lib/prisma.js';
 import { redis } from '../../lib/redis.js';
@@ -16,13 +17,11 @@ import {
   getPollByQuery,
   pollInclude,
   schedulePollClose,
-  schedulePollReminder,
+  schedulePollReminders,
 } from './service-repository.js';
 import { closePoll } from './service-voting.js';
 import type { EvaluatedPollSnapshot, PollOutcome, PollWithRelations } from './types.js';
 import { buildPollResultDiagram } from './visualize.js';
-
-const oneHourMs = 60 * 60 * 1000;
 
 const evaluatePollSnapshotForLifecycle = async (
   client: Client,
@@ -54,21 +53,38 @@ export const recoverExpiredPolls = async (client: Client): Promise<void> => {
 };
 
 export const recoverMissedPollReminders = async (client: Client): Promise<void> => {
-  const polls = await prisma.poll.findMany({
+  const reminders = await prisma.pollReminder.findMany({
     where: {
-      closedAt: null,
-      reminderSentAt: null,
-      closesAt: {
-        gt: new Date(),
-        lte: new Date(Date.now() + oneHourMs),
+      sentAt: null,
+      remindAt: {
+        lte: new Date(),
+      },
+      poll: {
+        closedAt: null,
+        closesAt: {
+          gt: new Date(),
+        },
       },
     },
     select: {
       id: true,
+      pollId: true,
     },
+    orderBy: [
+      {
+        pollId: 'asc',
+      },
+      {
+        remindAt: 'desc',
+      },
+    ],
   });
 
-  await Promise.all(polls.map((poll) => sendPollReminder(client, poll.id)));
+  const latestDueReminders = reminders.filter((reminder, index, entries) =>
+    index === 0 || reminder.pollId !== entries[index - 1]?.pollId,
+  );
+
+  await Promise.all(latestDueReminders.map((reminder) => sendPollReminder(client, reminder.id)));
 };
 
 export const refreshPollMessage = async (client: Client, pollId: string): Promise<void> => {
@@ -171,48 +187,57 @@ const sendPollCloseAnnouncement = async (
   });
 };
 
-export const sendPollReminder = async (client: Client, pollId: string): Promise<void> => {
-  await withRedisLock(redis, `lock:poll-reminder:${pollId}`, 10_000, async () => {
-    const poll = await prisma.poll.findUnique({
+export const sendPollReminder = async (client: Client, reminderId: string): Promise<void> => {
+  await withRedisLock(redis, `lock:poll-reminder:${reminderId}`, 10_000, async () => {
+    const reminder = await prisma.pollReminder.findUnique({
       where: {
-        id: pollId,
+        id: reminderId,
       },
-      include: pollInclude,
+      include: {
+        poll: {
+          include: pollInclude,
+        },
+      },
     });
 
-    if (!poll || poll.closedAt || poll.reminderSentAt || !poll.messageId) {
+    if (!reminder || reminder.sentAt || reminder.poll.closedAt || !reminder.poll.messageId) {
       return;
     }
 
-    const channel = await client.channels.fetch(poll.channelId).catch(() => null);
+    const channel = await client.channels.fetch(reminder.poll.channelId).catch(() => null);
     if (!channel?.isTextBased() || !('messages' in channel)) {
       return;
     }
 
-    const originalMessage = await channel.messages.fetch(poll.messageId).catch(() => null);
+    const originalMessage = await channel.messages.fetch(reminder.poll.messageId).catch(() => null);
     if (!originalMessage) {
       return;
     }
 
     await originalMessage.reply({
+      ...(reminder.poll.reminderRoleId ? { content: `<@&${reminder.poll.reminderRoleId}>` } : {}),
       embeds: [
         new EmbedBuilder()
           .setTitle('Poll Closing Soon')
-          .setDescription(`Voting on **${poll.question}** closes in 1 hour. Cast your vote before it ends.`)
-          .setColor(0xf59e0b),
+          .setDescription(`Voting on **${reminder.poll.question}** closes <t:${Math.floor(reminder.poll.closesAt.getTime() / 1000)}:R>. Cast your vote before it ends.`)
+          .setColor(0xf59e0b)
+          .setFooter({
+            text: `Reminder: ${formatDurationFromMinutes(reminder.offsetMinutes)} before close`,
+          }),
       ],
       allowedMentions: {
         parse: [],
+        ...(reminder.poll.reminderRoleId ? { roles: [reminder.poll.reminderRoleId] } : {}),
         repliedUser: false,
       },
     });
 
-    await prisma.poll.update({
+    await prisma.pollReminder.update({
       where: {
-        id: poll.id,
+        id: reminder.id,
       },
       data: {
-        reminderSentAt: new Date(),
+        sentAt: new Date(),
       },
     });
   });
@@ -326,7 +351,7 @@ export const hydratePollMessage = async (
 
   await Promise.all([
     schedulePollClose(attachedPoll),
-    schedulePollReminder(attachedPoll),
+    schedulePollReminders(attachedPoll.reminders),
   ]);
 
   return {

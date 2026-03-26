@@ -11,6 +11,7 @@ import {
 import { redis } from '../../lib/redis.js';
 import { deletePollDraft, getPollDraft, savePollDraft } from './draft-store.js';
 import {
+  defaultReminderOffsetsMinutes,
   parseChoiceEmojisCsv,
   parseChoicesCsv,
   parseGovernanceChannelTargets,
@@ -19,6 +20,8 @@ import {
   parsePassThreshold,
   parsePollFormInput,
   parseQuorumPercent,
+  parseReminderOffsets,
+  parseReminderRoleTarget,
   resolvePassRule,
 } from './parser.js';
 import { normalizeQuestionFromMessage, resolvePollThreadName } from './present.js';
@@ -42,6 +45,8 @@ type PublishDraft = {
   eligibleChannelIds: string[];
   passThreshold?: number | null;
   passOptionIndex?: number | null;
+  reminderRoleId: string | null;
+  reminderOffsets: number[];
   createThread: boolean;
   threadName: string;
   durationMs: number;
@@ -50,7 +55,7 @@ type PublishDraft = {
 const validateDraftGovernance = async (
   client: Client,
   guild: Guild,
-  draft: Pick<PublishDraft, 'quorumPercent' | 'allowedRoleIds' | 'blockedRoleIds' | 'eligibleChannelIds'>,
+  draft: Pick<PublishDraft, 'quorumPercent' | 'allowedRoleIds' | 'blockedRoleIds' | 'eligibleChannelIds' | 'reminderRoleId'>,
 ): Promise<void> => {
   await validatePollGovernanceConfig(client, guild.id, draft);
 };
@@ -90,6 +95,8 @@ const publishPoll = async (
     ...(draft.passThreshold !== null && draft.passOptionIndex !== null
       ? { passOptionIndex: draft.passOptionIndex }
       : {}),
+    reminderRoleId: draft.reminderRoleId,
+    reminderOffsets: draft.reminderOffsets,
     durationMs: draft.durationMs,
   });
 
@@ -137,6 +144,12 @@ export const handlePollCommand = async (
   );
   const quorumPercent = parseQuorumPercent(interaction.options.getInteger('quorum_percent'));
   const passRule = resolvePassRule(parsed.mode, passThreshold, passChoiceIndex);
+  const reminderOffsets = parseReminderOffsets(
+    interaction.options.getString('reminders') === null
+      ? [...defaultReminderOffsetsMinutes]
+      : interaction.options.getString('reminders'),
+    parsed.durationMs,
+  );
 
   const published = await publishPoll(client, interaction, {
     ...parsed,
@@ -147,6 +160,8 @@ export const handlePollCommand = async (
     eligibleChannelIds: parseGovernanceChannelTargets(interaction.options.getString('eligible_channels')),
     createThread: interaction.options.getBoolean('create_thread') ?? true,
     threadName: interaction.options.getString('thread_name') ?? '',
+    reminderRoleId: parseReminderRoleTarget(interaction.options.getString('reminder_role')),
+    reminderOffsets,
     ...passRule,
   });
 
@@ -200,6 +215,8 @@ export const handlePollFromMessageContext = async (
     passOptionIndex: null,
     createThread: true,
     threadName: '',
+    reminderRoleId: null,
+    reminderOffsets: [...defaultReminderOffsetsMinutes],
     durationText: '24h',
   };
 
@@ -308,6 +325,8 @@ export const handlePollBuilderButton = async (
         passOptionIndex: draft.passOptionIndex,
         createThread: draft.createThread,
         threadName: draft.threadName,
+        reminderRoleId: draft.reminderRoleId,
+        reminderOffsets: parseReminderOffsets(draft.reminderOffsets, parsed.durationMs),
       });
 
       await deletePollDraft(redis, interaction.guildId, interaction.user.id);
@@ -361,7 +380,18 @@ export const handlePollBuilderModal = async (
       draft.description = interaction.fields.getTextInputValue('value').trim();
       break;
     case pollBuilderModalCustomId('time'):
-      draft.durationText = interaction.fields.getTextInputValue('value').trim();
+      draft.durationText = interaction.fields.getTextInputValue('duration').trim();
+      draft.reminderOffsets = parseReminderOffsets(
+        interaction.fields.getTextInputValue('reminders'),
+        parsePollFormInput({
+          question: draft.question,
+          description: draft.description,
+          mode: draft.mode,
+          choices: draft.choices,
+          choiceEmojis: draft.choiceEmojis,
+          durationText: draft.durationText,
+        }).durationMs,
+      );
       break;
     case pollBuilderModalCustomId('thread-name'):
       draft.threadName = interaction.fields.getTextInputValue('value').trim();
@@ -371,6 +401,7 @@ export const handlePollBuilderModal = async (
       draft.allowedRoleIds = parseGovernanceRoleTargets(interaction.fields.getTextInputValue('allowed-roles'));
       draft.blockedRoleIds = parseGovernanceRoleTargets(interaction.fields.getTextInputValue('blocked-roles'));
       draft.eligibleChannelIds = parseGovernanceChannelTargets(interaction.fields.getTextInputValue('eligible-channels'));
+      draft.reminderRoleId = parseReminderRoleTarget(interaction.fields.getTextInputValue('reminder-role'));
       break;
     case pollBuilderModalCustomId('pass-rule'): {
       const passThreshold = parsePassThreshold(interaction.fields.getTextInputValue('threshold'));

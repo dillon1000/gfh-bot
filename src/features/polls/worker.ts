@@ -24,11 +24,11 @@ export const startPollWorker = (client: Client): Worker<{ pollId: string }, void
   return worker;
 };
 
-export const startPollReminderWorker = (client: Client): Worker<{ pollId: string }, void, 'remind'> => {
-  const worker = new Worker<{ pollId: string }, void, 'remind'>(
+export const startPollReminderWorker = (client: Client): Worker<{ reminderId: string }, void, 'remind'> => {
+  const worker = new Worker<{ reminderId: string }, void, 'remind'>(
     pollReminderQueueName,
     async (job) => {
-      await sendPollReminder(client, job.data.pollId);
+      await sendPollReminder(client, job.data.reminderId);
     },
     {
       connection: getBullConnectionOptions(),

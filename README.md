@@ -11,7 +11,7 @@ Supports single-choice polls, multi-choice polls, ranked-choice voting, governan
 - Governance guardrails for polls
 - Persistent poll lookup
 - Poll participation analytics
-- Poll reminders one hour before close
+- Configurable poll reminders with optional role pings
 - Poll CSV export with optional R2 upload
 - Message context-menu poll seeding
 - Starboard
@@ -106,12 +106,10 @@ docker compose --profile autoupdate up -d
 
 `watchtower` checks for a newer `bot` image every 5 minutes by default and restarts only containers labeled for updates.
 
-If the package is private, authenticate the host with `docker login ghcr.io` first and mount the correct Docker auth file into the `watchtower` container.
-
 ## Commands
 
 - `/ping`
-- `/poll question:... choices:... description:... mode:single anonymous:false quorum_percent:60 allowed_roles:"<@&...>" blocked_roles:"<@&...>" eligible_channels:"<#...>" time:24h`
+- `/poll question:... choices:... description:... mode:single anonymous:false quorum_percent:60 allowed_roles:"<@&...>" blocked_roles:"<@&...>" eligible_channels:"<#...>" time:24h reminders:"1d,1h,10m" reminder_role:"<@&...>"`
 - `/poll-builder`
 - `/poll-results query:<message link|message id|poll id>`
 - `/poll-export query:<message link|message id|poll id>`

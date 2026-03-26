@@ -4,6 +4,8 @@ const hour = 60 * minute;
 const day = 24 * hour;
 const maxDurationMs = 32 * day;
 const minDurationMs = 5 * minute;
+const minutePerHour = 60;
+const minutePerDay = 24 * minutePerHour;
 
 export const parseDurationToMs = (value: string): number => {
   const normalized = value.trim().replace(/\s+/g, '').toLowerCase();
@@ -55,4 +57,25 @@ export const formatDurationFromHours = (hours: number): string => {
   }
 
   return `${hours}h`;
+};
+
+export const formatDurationFromMinutes = (minutes: number): string => {
+  if (!Number.isInteger(minutes) || minutes < 0) {
+    throw new Error('Minutes must be a non-negative integer.');
+  }
+
+  if (minutes === 0) {
+    return '0m';
+  }
+
+  const days = Math.floor(minutes / minutePerDay);
+  const hours = Math.floor((minutes % minutePerDay) / minutePerHour);
+  const remainingMinutes = minutes % minutePerHour;
+  const parts = [
+    days > 0 ? `${days}d` : null,
+    hours > 0 ? `${hours}h` : null,
+    remainingMinutes > 0 ? `${remainingMinutes}m` : null,
+  ].filter(Boolean);
+
+  return parts.join(' ');
 };

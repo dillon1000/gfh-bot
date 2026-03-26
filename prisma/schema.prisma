@@ -46,17 +46,32 @@ model Poll {
   eligibleChannelIds String[]    @default([])
   passThreshold  Int?
   passOptionIndex Int?
-  reminderSentAt DateTime?
+  reminderRoleId String?
   closesAt       DateTime
   closedAt       DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   options        PollOption[]
+  reminders      PollReminder[]
   votes          PollVote[]
   voteEvents     PollVoteEvent[]
 
   @@index([guildId, channelId])
   @@index([closesAt, closedAt])
+}
+
+model PollReminder {
+  id            String   @id @default(cuid())
+  pollId        String
+  offsetMinutes Int
+  remindAt      DateTime
+  sentAt        DateTime?
+  createdAt     DateTime @default(now())
+  poll          Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, offsetMinutes])
+  @@index([pollId])
+  @@index([remindAt, sentAt])
 }
 
 model PollOption {

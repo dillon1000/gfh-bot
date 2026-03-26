@@ -1,4 +1,4 @@
-import type { Poll } from '@prisma/client';
+import type { Poll, PollReminder } from '@prisma/client';
 
 import { env } from '../../app/config.js';
 import { assertWithinRateLimit } from '../../lib/rate-limit.js';
@@ -14,10 +14,24 @@ export const pollInclude = {
       sortOrder: 'asc',
     },
   },
+  reminders: {
+    orderBy: {
+      offsetMinutes: 'desc',
+    },
+  },
   votes: true,
 } as const;
 
-const oneHourMs = 60 * 60 * 1000;
+const minuteMs = 60_000;
+
+export const buildPollReminderRecords = (
+  closesAt: Date,
+  reminderOffsets: number[],
+): Array<{ offsetMinutes: number; remindAt: Date }> =>
+  reminderOffsets.map((offsetMinutes) => ({
+    offsetMinutes,
+    remindAt: new Date(closesAt.getTime() - offsetMinutes * minuteMs),
+  }));
 
 export const createPollRecord = async (input: PollCreationInput): Promise<PollWithRelations> => {
   await assertWithinRateLimit(
@@ -45,6 +59,7 @@ export const createPollRecord = async (input: PollCreationInput): Promise<PollWi
       eligibleChannelIds: input.eligibleChannelIds,
       passThreshold: input.passThreshold ?? null,
       passOptionIndex: input.passOptionIndex ?? null,
+      reminderRoleId: input.reminderRoleId ?? null,
       closesAt,
       options: {
         create: input.choices.map((choice, index) => ({
@@ -52,6 +67,9 @@ export const createPollRecord = async (input: PollCreationInput): Promise<PollWi
           emoji: choice.emoji ?? null,
           sortOrder: index,
         })),
+      },
+      reminders: {
+        create: buildPollReminderRecords(closesAt, input.reminderOffsets),
       },
     },
   });
@@ -156,14 +174,13 @@ export const schedulePollClose = async (poll: Pick<Poll, 'id' | 'closesAt'>): Pr
 };
 
 export const schedulePollReminder = async (
-  poll: Pick<Poll, 'id' | 'closesAt' | 'closedAt' | 'reminderSentAt'>,
+  reminder: Pick<PollReminder, 'id' | 'remindAt' | 'sentAt'>,
 ): Promise<void> => {
-  if (poll.closedAt || poll.reminderSentAt) {
+  if (reminder.sentAt) {
     return;
   }
 
-  const reminderAt = poll.closesAt.getTime() - oneHourMs;
-  const delay = reminderAt - Date.now();
+  const delay = reminder.remindAt.getTime() - Date.now();
 
   if (delay <= 0) {
     return;
@@ -171,12 +188,18 @@ export const schedulePollReminder = async (
 
   await pollReminderQueue.add(
     'remind',
-    { pollId: poll.id },
+    { reminderId: reminder.id },
     {
-      jobId: poll.id,
+      jobId: reminder.id,
       delay,
     },
   );
+};
+
+export const schedulePollReminders = async (
+  reminders: Array<Pick<PollReminder, 'id' | 'remindAt' | 'sentAt'>>,
+): Promise<void> => {
+  await Promise.all(reminders.map((reminder) => schedulePollReminder(reminder)));
 };
 
 export const syncOpenPollCloseJobs = async (): Promise<void> => {
@@ -197,23 +220,24 @@ export const syncOpenPollCloseJobs = async (): Promise<void> => {
 };
 
 export const syncOpenPollReminderJobs = async (): Promise<void> => {
-  const polls = await prisma.poll.findMany({
+  const reminders = await prisma.pollReminder.findMany({
     where: {
-      closedAt: null,
-      reminderSentAt: null,
-      closesAt: {
-        gt: new Date(Date.now() + oneHourMs),
+      sentAt: null,
+      remindAt: {
+        gt: new Date(),
+      },
+      poll: {
+        closedAt: null,
       },
     },
     select: {
       id: true,
-      closesAt: true,
-      closedAt: true,
-      reminderSentAt: true,
+      remindAt: true,
+      sentAt: true,
     },
   });
 
-  await Promise.all(polls.map((poll) => schedulePollReminder(poll)));
+  await schedulePollReminders(reminders);
 };
 
 export const deletePollRecord = async (pollId: string): Promise<void> => {
