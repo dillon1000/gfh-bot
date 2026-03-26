@@ -174,6 +174,7 @@ export const closePoll = async (
         },
         data: {
           closedAt: new Date(),
+          closedReason: 'closed',
         },
       });
 

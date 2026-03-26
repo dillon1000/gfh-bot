@@ -298,8 +298,9 @@ export const handlePollCloseContext = async (
     throw new Error('Poll not found.');
   }
 
-  if (poll.authorId !== interaction.user.id) {
-    throw new Error('Only the poll creator can close this poll.');
+  const canManageGuild = interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
+  if (!isPollManager(poll, interaction.user.id, canManageGuild)) {
+    throw new Error('Only the poll creator or a server manager can close this poll.');
   }
 
   await interaction.showModal(buildPollCloseModal(poll.id, poll.question));
@@ -325,8 +326,9 @@ export const handlePollCloseModal = async (
     throw new Error('Poll not found.');
   }
 
-  if (poll.authorId !== interaction.user.id) {
-    throw new Error('Only the poll creator can close this poll.');
+  const canManageGuild = interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
+  if (!isPollManager(poll, interaction.user.id, canManageGuild)) {
+    throw new Error('Only the poll creator or a server manager can close this poll.');
   }
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });

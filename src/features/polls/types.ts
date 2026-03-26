@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 
 export type PollMode = 'single' | 'multi' | 'ranked';
+export type PollClosedReason = 'closed' | 'cancelled';
 
 type PrismaPollWithRelations = Prisma.PollGetPayload<{
   include: {
@@ -18,8 +19,10 @@ type PrismaPollWithRelations = Prisma.PollGetPayload<{
   };
 }>;
 
-export type PollWithRelations = Omit<PrismaPollWithRelations, 'mode' | 'votes'> & {
+export type PollWithRelations = Omit<PrismaPollWithRelations, 'mode' | 'votes' | 'closedReason' | 'durationMinutes'> & {
   mode: PollMode;
+  closedReason?: PollClosedReason | null;
+  durationMinutes?: number;
   votes: Array<PrismaPollWithRelations['votes'][number] & { rank: number | null }>;
 };
 

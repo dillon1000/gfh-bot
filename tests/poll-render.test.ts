@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildPollMessageEmbed, buildPollResultsEmbed } from '../src/features/polls/poll-embeds.js';
+import { buildPollMessage } from '../src/features/polls/poll-responses.js';
 import type { PollWithRelations } from '../src/features/polls/types.js';
 import { computePollResults } from '../src/features/polls/results.js';
 import { createFallbackPollSnapshot } from '../src/features/polls/service-governance.js';
@@ -24,9 +25,11 @@ const basePoll = {
   passThreshold: null,
   passOptionIndex: null,
   reminderRoleId: null,
+  durationMinutes: 1440,
   reminders: [],
   closesAt: new Date('2026-03-24T00:00:00.000Z'),
   closedAt: null,
+  closedReason: null,
   createdAt: new Date('2026-03-24T00:00:00.000Z'),
   updatedAt: new Date('2026-03-24T00:00:00.000Z'),
   options: [
@@ -106,6 +109,33 @@ describe('buildPollMessageEmbed', () => {
     const details = embed.fields?.find((field) => field.name === 'Details')?.value ?? '';
 
     expect(details).toContain('**Reminders** 1d • 1h • Ping <@&role_1>');
+  });
+
+  it('renders cancelled polls as cancelled without a normal outcome line', () => {
+    const embed = buildPollMessageEmbed(createFallbackPollSnapshot({
+      ...basePoll,
+      closedAt: new Date('2026-03-24T01:00:00.000Z'),
+      closedReason: 'cancelled',
+    })).toJSON();
+    const details = embed.fields?.find((field) => field.name === 'Details')?.value ?? '';
+
+    expect(embed.color).toBe(0xf59e0b);
+    expect(embed.fields?.[0]?.name).toBe('Results at Cancellation');
+    expect(details).toContain('Cancelled');
+    expect(details).not.toContain('**Outcome** Passed');
+    expect(details).not.toContain('**Outcome** Failed');
+  });
+
+  it('re-enables voting controls for reopened polls', () => {
+    const message = buildPollMessage(createFallbackPollSnapshot({
+      ...basePoll,
+      closedAt: null,
+      closedReason: null,
+      closesAt: new Date('2099-03-24T00:00:00.000Z'),
+    }));
+    const componentJson = message.components.map((component) => component.toJSON());
+
+    expect(componentJson[0]?.components[0]?.disabled).toBe(false);
   });
 });
 

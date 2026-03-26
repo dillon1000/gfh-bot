@@ -152,6 +152,65 @@ export const pollAuditCommand = new SlashCommandBuilder()
       .setRequired(true),
   );
 
+export const pollManageCommand = new SlashCommandBuilder()
+  .setName('poll-manage')
+  .setDescription('Manage an existing poll.')
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('edit')
+      .setDescription('Edit a poll before the first vote is cast.')
+      .addStringOption((option) =>
+        option
+          .setName('query')
+          .setDescription('Discord message link, raw message ID, or poll ID')
+          .setRequired(true),
+      ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('cancel')
+      .setDescription('Cancel an open poll.')
+      .addStringOption((option) =>
+        option
+          .setName('query')
+          .setDescription('Discord message link, raw message ID, or poll ID')
+          .setRequired(true),
+      ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('reopen')
+      .setDescription('Reopen a closed or expired poll.')
+      .addStringOption((option) =>
+        option
+          .setName('query')
+          .setDescription('Discord message link, raw message ID, or poll ID')
+          .setRequired(true),
+      ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('extend')
+      .setDescription('Extend the closing time for an open poll.')
+      .addStringOption((option) =>
+        option
+          .setName('query')
+          .setDescription('Discord message link, raw message ID, or poll ID')
+          .setRequired(true),
+      ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('duplicate')
+      .setDescription('Copy an existing poll into a new draft.')
+      .addStringOption((option) =>
+        option
+          .setName('query')
+          .setDescription('Discord message link, raw message ID, or poll ID')
+          .setRequired(true),
+      ),
+  );
+
 export const pollAnalyticsCommand = new SlashCommandBuilder()
   .setName('poll-analytics')
   .setDescription('Show recent poll participation analytics for this server.')
@@ -208,5 +267,30 @@ export const pollAuditFromMessageCommand = {
 
 export const pollCloseFromMessageCommand = {
   name: 'Close Poll',
+  type: ApplicationCommandType.Message,
+} as const;
+
+export const pollEditFromMessageCommand = {
+  name: 'Edit Poll',
+  type: ApplicationCommandType.Message,
+} as const;
+
+export const pollCancelFromMessageCommand = {
+  name: 'Cancel Poll',
+  type: ApplicationCommandType.Message,
+} as const;
+
+export const pollReopenFromMessageCommand = {
+  name: 'Reopen Poll',
+  type: ApplicationCommandType.Message,
+} as const;
+
+export const pollExtendFromMessageCommand = {
+  name: 'Extend Poll',
+  type: ApplicationCommandType.Message,
+} as const;
+
+export const pollDuplicateFromMessageCommand = {
+  name: 'Duplicate Poll',
   type: ApplicationCommandType.Message,
 } as const;

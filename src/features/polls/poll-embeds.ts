@@ -9,7 +9,9 @@ import {
   getGovernanceLabel,
   getModeLabel,
   getPassRuleLabel,
+  getPollStatusLabel,
   getReminderLabel,
+  isPollCancelled,
   renderChoiceLine,
   shouldRevealRankedResults,
 } from './render-helpers.js';
@@ -54,10 +56,35 @@ const getCompactModeLabel = (mode: PollWithRelations['mode']): string => getMode
 const getVisibilitySummaryLabel = (poll: Pick<PollWithRelations, 'anonymous'>): string =>
   poll.anonymous ? 'anonymous' : 'public';
 
-const getTimingLabel = (poll: Pick<PollWithRelations, 'closedAt' | 'closesAt'>): string =>
-  poll.closedAt
-    ? `Closed <t:${Math.floor(poll.closedAt.getTime() / 1000)}:R>`
-    : `Closes <t:${Math.floor(poll.closesAt.getTime() / 1000)}:R>`;
+const getPollStatusText = (
+  poll: Pick<PollWithRelations, 'closedAt' | 'closedReason' | 'closesAt'>,
+): string => {
+  switch (getPollStatusLabel(poll)) {
+    case 'cancelled':
+      return 'Cancelled';
+    case 'closed':
+      return 'Closed';
+    case 'expired':
+      return 'Expired';
+    default:
+      return 'Open';
+  }
+};
+
+const getPollColor = (
+  poll: Pick<PollWithRelations, 'closedAt' | 'closedReason'>,
+): number => isPollCancelled(poll)
+  ? 0xf59e0b
+  : poll.closedAt
+    ? 0xef4444
+    : 0x5eead4;
+
+const getTimingLabel = (poll: Pick<PollWithRelations, 'closedAt' | 'closedReason' | 'closesAt'>): string =>
+  isPollCancelled(poll) && poll.closedAt
+    ? `Cancelled <t:${Math.floor(poll.closedAt.getTime() / 1000)}:R>`
+    : poll.closedAt
+      ? `Closed <t:${Math.floor(poll.closedAt.getTime() / 1000)}:R>`
+      : `Closes <t:${Math.floor(poll.closesAt.getTime() / 1000)}:R>`;
 
 const getRankedStatusLabel = (
   poll: PollWithRelations,
@@ -88,7 +115,9 @@ const buildCompactDetailsLines = (snapshot: EvaluatedPollSnapshot): string[] => 
   ];
   const statusParts = [
     getTimingLabel(poll),
-    poll.mode === 'ranked' && results.kind === 'ranked'
+    isPollCancelled(poll)
+      ? 'Poll cancelled before the scheduled close'
+      : poll.mode === 'ranked' && results.kind === 'ranked'
       ? getRankedStatusLabel(poll, results, outcome)
       : `Pass rule ${getPassRuleLabel(poll.mode, poll.passThreshold, poll.passOptionIndex, poll.options)}`,
   ];
@@ -169,7 +198,7 @@ export const buildPollMessageEmbed = (
 
   const embed = new EmbedBuilder()
     .setTitle(poll.question)
-    .setColor(poll.closedAt ? 0xef4444 : 0x5eead4)
+    .setColor(getPollColor(poll))
     .setDescription(poll.description || null);
 
   if (results.kind === 'ranked') {
@@ -184,7 +213,11 @@ export const buildPollMessageEmbed = (
 
     embed.addFields(
       {
-        name: revealRankedResults ? 'Final Ranked Rounds' : 'Ranked Choice Status',
+        name: isPollCancelled(poll)
+          ? 'Ranked Choice Snapshot'
+          : revealRankedResults
+            ? 'Final Ranked Rounds'
+            : 'Ranked Choice Status',
         value: clampFieldValue(revealRankedResults
           ? results.rounds.length === 0
             ? 'No ballots yet.'
@@ -208,14 +241,18 @@ export const buildPollMessageEmbed = (
   } else {
     embed.addFields(
       {
-        name: poll.closedAt ? 'Final Results' : 'Live Results',
+        name: isPollCancelled(poll)
+          ? 'Results at Cancellation'
+          : poll.closedAt
+            ? 'Final Results'
+            : 'Live Results',
         value: clampFieldValue(results.choices.map((choice, index) => renderPollChoiceLine(choice, index)).join('\n\n')),
       },
       {
         name: 'Details',
         value: clampFieldValue([
           ...details,
-          outcome.kind === 'standard' && outcome.status !== 'quorum-failed' && poll.closedAt
+          outcome.kind === 'standard' && outcome.status !== 'quorum-failed' && poll.closedAt && !isPollCancelled(poll)
             ? `**Outcome** ${outcome.status === 'passed' ? 'Passed' : outcome.status === 'failed' ? 'Failed' : 'No pass threshold'}`
             : null,
         ]
@@ -250,7 +287,7 @@ export function buildPollResultsEmbed(
   const revealRankedResults = shouldRevealRankedResults(poll);
   const embed = new EmbedBuilder()
     .setTitle(`Results: ${poll.question}`)
-    .setColor(poll.closedAt ? 0xef4444 : 0x5eead4)
+    .setColor(getPollColor(poll))
     .setFooter({
       text: `Poll ID: ${poll.id}`,
     });
@@ -262,12 +299,14 @@ export function buildPollResultsEmbed(
 
     embed.setDescription(
       [
-        `Status: ${poll.closedAt ? 'Closed' : 'Open'}`,
+        `Status: ${getPollStatusText(poll)}`,
         `Mode: Ranked choice`,
         `Ballots: ${results.totalVoters}`,
         ...(revealRankedResults ? [`Exhausted ballots: ${results.exhaustedVotes}`] : []),
         ...buildElectorateLines(snapshot).map(toPlainLine),
-        revealRankedResults
+        isPollCancelled(poll)
+          ? 'Outcome: Poll cancelled'
+          : revealRankedResults
           ? outcome.kind === 'ranked' && outcome.status === 'quorum-failed'
             ? 'Outcome: Quorum not met'
             : winnerLabel
@@ -305,10 +344,11 @@ export function buildPollResultsEmbed(
 
   embed.setDescription(
     [
-      `Status: ${poll.closedAt ? 'Closed' : 'Open'}`,
+      `Status: ${getPollStatusText(poll)}`,
       `Total voters: ${results.totalVoters}`,
       `Pass rule: ${getPassRuleLabel(poll.mode, poll.passThreshold, poll.passOptionIndex, poll.options)}`,
       ...buildElectorateLines(snapshot).map(toPlainLine),
+      isPollCancelled(poll) ? 'Outcome: Poll cancelled' : null,
       outcome.kind === 'standard' && outcome.status === 'quorum-failed' ? 'Outcome: Quorum not met' : null,
       poll.anonymous
         ? 'Anonymous poll: voter identities are shown below, but option selections remain private.'
@@ -362,7 +402,7 @@ export const buildPollAuditEmbed = (
     .setColor(0xf59e0b)
     .setDescription(
       [
-        `Status: ${poll.closedAt ? 'Closed' : 'Open'}`,
+        `Status: ${getPollStatusText(poll)}`,
         `Mode: ${getModeLabel(poll.mode)}`,
         `Audit events: ${events.length}`,
         'Most recent changes are shown below.',

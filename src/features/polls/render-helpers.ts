@@ -16,6 +16,28 @@ export const chunkButtons = (buttons: ButtonBuilder[]): ActionRowBuilder<ButtonB
 export const isPollClosedOrExpired = (poll: Pick<PollWithRelations, 'closedAt' | 'closesAt'>): boolean =>
   Boolean(poll.closedAt) || poll.closesAt.getTime() <= Date.now();
 
+export const isPollCancelled = (
+  poll: Pick<PollWithRelations, 'closedReason'>,
+): boolean => poll.closedReason === 'cancelled';
+
+export const getPollStatusLabel = (
+  poll: Pick<PollWithRelations, 'closedAt' | 'closedReason' | 'closesAt'>,
+): 'open' | 'closed' | 'cancelled' | 'expired' => {
+  if (isPollCancelled(poll)) {
+    return 'cancelled';
+  }
+
+  if (poll.closedAt) {
+    return 'closed';
+  }
+
+  if (poll.closesAt.getTime() <= Date.now()) {
+    return 'expired';
+  }
+
+  return 'open';
+};
+
 export const clampFieldValue = (value: string, maxLength = 1024): string =>
   value.length <= maxLength ? value : `${value.slice(0, Math.max(0, maxLength - 3))}...`;
 
