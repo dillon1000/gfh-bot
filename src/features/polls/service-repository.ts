@@ -69,6 +69,11 @@ export const buildPollReminderRecords = (
     remindAt: new Date(closesAt.getTime() - offsetMinutes * minuteMs),
   }));
 
+const filterReminderOffsetsForDuration = (
+  reminderOffsets: number[],
+  durationMs: number,
+): number[] => reminderOffsets.filter((offsetMinutes) => (offsetMinutes * minuteMs) < durationMs);
+
 export const createPollRecord = async (input: PollCreationInput): Promise<PollWithRelations> => {
   await assertWithinRateLimit(
     redis,
@@ -410,6 +415,10 @@ export const reopenPollRecord = async (
     assertPollIsNotOpen(existingPoll, 'reopened');
     const closesAt = new Date(Date.now() + durationMs);
     const previousReminderIds = existingPoll.reminders.map((reminder) => reminder.id);
+    const reminderOffsets = filterReminderOffsetsForDuration(
+      existingPoll.reminders.map((reminder) => reminder.offsetMinutes),
+      durationMs,
+    );
 
     await tx.poll.update({
       where: {
@@ -422,7 +431,7 @@ export const reopenPollRecord = async (
         durationMinutes: durationMsToMinutes(durationMs),
         reminders: {
           deleteMany: {},
-          create: buildPollReminderRecords(closesAt, existingPoll.reminders.map((reminder) => reminder.offsetMinutes)),
+          create: buildPollReminderRecords(closesAt, reminderOffsets),
         },
       },
     });
