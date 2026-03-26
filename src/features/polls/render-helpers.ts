@@ -51,6 +51,30 @@ export const getPassRuleLabel = (
   return `${measuredChoice?.label ?? 'Choice 1'} at ${passThreshold}%`;
 };
 
+const formatRoleMentions = (roleIds: string[]): string =>
+  roleIds.length > 0 ? roleIds.map((roleId) => `<@&${roleId}>`).join(', ') : 'None';
+
+const formatChannelMentions = (channelIds: string[]): string =>
+  channelIds.length > 0 ? channelIds.map((channelId) => `<#${channelId}>`).join(', ') : 'None';
+
+export const getGovernanceLabel = (
+  settings: {
+    quorumPercent: number | null;
+    allowedRoleIds: string[];
+    blockedRoleIds: string[];
+    eligibleChannelIds: string[];
+  },
+): string => {
+  const labels = [
+    settings.quorumPercent !== null ? `Quorum ${settings.quorumPercent}%` : null,
+    settings.allowedRoleIds.length > 0 ? `Allowed ${formatRoleMentions(settings.allowedRoleIds)}` : null,
+    settings.blockedRoleIds.length > 0 ? `Blocked ${formatRoleMentions(settings.blockedRoleIds)}` : null,
+    settings.eligibleChannelIds.length > 0 ? `Channels ${formatChannelMentions(settings.eligibleChannelIds)}` : null,
+  ].filter(Boolean);
+
+  return labels.length > 0 ? labels.join(' • ') : 'Disabled';
+};
+
 export const buildRoundEliminationLabel = (poll: PollWithRelations, round: RankedPollRound): string =>
   round.eliminatedOptionIds.length === 0
     ? 'No elimination'
@@ -86,6 +110,7 @@ export const getDraftSummary = (
       : 'Default numbered emoji'}`,
     `**Mode** ${getModeLabel(draft.mode)}`,
     `**Visibility** ${draft.anonymous ? 'Anonymous option selections' : 'Public vote totals'}`,
+    `**Governance** ${getGovernanceLabel(draft)}`,
     `**Pass Rule** ${getPassRuleLabel(draft.mode, draft.passThreshold, draft.passOptionIndex, draft.choices.map((label) => ({ label })))}`,
     `**Discussion** ${draft.createThread ? `Thread opens as **${resolvePollThreadName(draft.question, draft.threadName)}**` : 'No thread will be created'}`,
     `**Duration** ${draft.durationText}`,

@@ -1,4 +1,5 @@
 import {
+  type Guild,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type Client,
@@ -12,15 +13,19 @@ import { deletePollDraft, getPollDraft, savePollDraft } from './draft-store.js';
 import {
   parseChoiceEmojisCsv,
   parseChoicesCsv,
+  parseGovernanceChannelTargets,
+  parseGovernanceRoleTargets,
   parsePassChoiceIndex,
   parsePassThreshold,
   parsePollFormInput,
+  parseQuorumPercent,
   resolvePassRule,
 } from './parser.js';
 import { normalizeQuestionFromMessage, resolvePollThreadName } from './present.js';
 import { pollBuilderButtonCustomId, pollBuilderModalCustomId } from './custom-ids.js';
 import { buildFeedbackEmbed } from './poll-embeds.js';
 import { buildPollBuilderModal, buildPollBuilderPreview } from './poll-builder-render.js';
+import { validatePollGovernanceConfig } from './service-governance.js';
 import { hydratePollMessage } from './service-lifecycle.js';
 import { createPollRecord, deletePollRecord } from './service-repository.js';
 
@@ -31,11 +36,23 @@ type PublishDraft = {
   choiceEmojis: Array<string | null>;
   mode: 'single' | 'multi' | 'ranked';
   anonymous: boolean;
+  quorumPercent: number | null;
+  allowedRoleIds: string[];
+  blockedRoleIds: string[];
+  eligibleChannelIds: string[];
   passThreshold?: number | null;
   passOptionIndex?: number | null;
   createThread: boolean;
   threadName: string;
   durationMs: number;
+};
+
+const validateDraftGovernance = async (
+  client: Client,
+  guild: Guild,
+  draft: Pick<PublishDraft, 'quorumPercent' | 'allowedRoleIds' | 'blockedRoleIds' | 'eligibleChannelIds'>,
+): Promise<void> => {
+  await validatePollGovernanceConfig(client, guild.id, draft);
 };
 
 const publishPoll = async (
@@ -46,6 +63,12 @@ const publishPoll = async (
   if (!interaction.inGuild() || !interaction.channelId) {
     throw new Error('Polls can only be created in guild text channels.');
   }
+
+  if (!interaction.guild) {
+    throw new Error('Polls can only be created in guild text channels.');
+  }
+
+  await validateDraftGovernance(client, interaction.guild, draft);
 
   const poll = await createPollRecord({
     guildId: interaction.guildId,
@@ -59,6 +82,10 @@ const publishPoll = async (
     })),
     mode: draft.mode,
     anonymous: draft.anonymous,
+    quorumPercent: draft.quorumPercent,
+    allowedRoleIds: draft.allowedRoleIds,
+    blockedRoleIds: draft.blockedRoleIds,
+    eligibleChannelIds: draft.eligibleChannelIds,
     ...(draft.passThreshold ? { passThreshold: draft.passThreshold } : {}),
     ...(draft.passThreshold !== null && draft.passOptionIndex !== null
       ? { passOptionIndex: draft.passOptionIndex }
@@ -108,11 +135,16 @@ export const handlePollCommand = async (
     interaction.options.getInteger('pass_choice'),
     parsed.choices.length,
   );
+  const quorumPercent = parseQuorumPercent(interaction.options.getInteger('quorum_percent'));
   const passRule = resolvePassRule(parsed.mode, passThreshold, passChoiceIndex);
 
   const published = await publishPoll(client, interaction, {
     ...parsed,
     anonymous: interaction.options.getBoolean('anonymous') ?? false,
+    quorumPercent,
+    allowedRoleIds: parseGovernanceRoleTargets(interaction.options.getString('allowed_roles')),
+    blockedRoleIds: parseGovernanceRoleTargets(interaction.options.getString('blocked_roles')),
+    eligibleChannelIds: parseGovernanceChannelTargets(interaction.options.getString('eligible_channels')),
     createThread: interaction.options.getBoolean('create_thread') ?? true,
     threadName: interaction.options.getString('thread_name') ?? '',
     ...passRule,
@@ -160,6 +192,10 @@ export const handlePollFromMessageContext = async (
     choices: ['Yes', 'No'],
     choiceEmojis: [null, null],
     anonymous: false,
+    quorumPercent: null,
+    allowedRoleIds: [],
+    blockedRoleIds: [],
+    eligibleChannelIds: [],
     passThreshold: null,
     passOptionIndex: null,
     createThread: true,
@@ -223,6 +259,7 @@ export const handlePollBuilderButton = async (
     case pollBuilderButtonCustomId('description'):
     case pollBuilderButtonCustomId('emojis'):
     case pollBuilderButtonCustomId('time'):
+    case pollBuilderButtonCustomId('governance'):
     case pollBuilderButtonCustomId('pass-rule'):
     case pollBuilderButtonCustomId('thread-name'): {
       const field = interaction.customId.split(':').at(-1) as Parameters<typeof buildPollBuilderModal>[0];
@@ -263,6 +300,10 @@ export const handlePollBuilderButton = async (
       const published = await publishPoll(client, interaction, {
         ...parsed,
         anonymous: draft.anonymous,
+        quorumPercent: draft.quorumPercent,
+        allowedRoleIds: draft.allowedRoleIds,
+        blockedRoleIds: draft.blockedRoleIds,
+        eligibleChannelIds: draft.eligibleChannelIds,
         passThreshold: draft.passThreshold,
         passOptionIndex: draft.passOptionIndex,
         createThread: draft.createThread,
@@ -324,6 +365,12 @@ export const handlePollBuilderModal = async (
       break;
     case pollBuilderModalCustomId('thread-name'):
       draft.threadName = interaction.fields.getTextInputValue('value').trim();
+      break;
+    case pollBuilderModalCustomId('governance'):
+      draft.quorumPercent = parseQuorumPercent(interaction.fields.getTextInputValue('quorum'));
+      draft.allowedRoleIds = parseGovernanceRoleTargets(interaction.fields.getTextInputValue('allowed-roles'));
+      draft.blockedRoleIds = parseGovernanceRoleTargets(interaction.fields.getTextInputValue('blocked-roles'));
+      draft.eligibleChannelIds = parseGovernanceChannelTargets(interaction.fields.getTextInputValue('eligible-channels'));
       break;
     case pollBuilderModalCustomId('pass-rule'): {
       const passThreshold = parsePassThreshold(interaction.fields.getTextInputValue('threshold'));

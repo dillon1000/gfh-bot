@@ -44,6 +44,32 @@ export const pollCommand = new SlashCommandBuilder()
       .setDescription('Hide voter identities in public output')
       .setRequired(false),
   )
+  .addIntegerOption((option) =>
+    option
+      .setName('quorum_percent')
+      .setDescription('Optional minimum eligible turnout percentage from 1 to 100')
+      .setRequired(false)
+      .setMinValue(1)
+      .setMaxValue(100),
+  )
+  .addStringOption((option) =>
+    option
+      .setName('allowed_roles')
+      .setDescription('Optional comma-separated role mentions or IDs allowed to vote')
+      .setRequired(false),
+  )
+  .addStringOption((option) =>
+    option
+      .setName('blocked_roles')
+      .setDescription('Optional comma-separated role mentions or IDs blocked from voting')
+      .setRequired(false),
+  )
+  .addStringOption((option) =>
+    option
+      .setName('eligible_channels')
+      .setDescription('Optional comma-separated channel mentions or IDs voters must be able to view')
+      .setRequired(false),
+  )
   .addBooleanOption((option) =>
     option
       .setName('create_thread')

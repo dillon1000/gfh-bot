@@ -9,6 +9,7 @@ import { redis } from '../../lib/redis.js';
 import { deletePollRankDraft, getPollRankDraft, savePollRankDraft } from './rank-draft-store.js';
 import { buildFeedbackEmbed } from './poll-embeds.js';
 import { buildRankedChoiceEditor } from './ranked-editor.js';
+import { assertUserCanVoteInPoll } from './service-governance.js';
 import { refreshPollMessage } from './service-lifecycle.js';
 import { getPollById } from './service-repository.js';
 import { clearPollVotes, getPollRankingForUser, setPollVotes } from './service-voting.js';
@@ -26,6 +27,12 @@ export const handlePollVoteSelect = async (
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
+  const poll = await getPollById(pollId);
+  if (!poll) {
+    throw new Error('Poll not found.');
+  }
+
+  await assertUserCanVoteInPoll(client, poll, interaction.user.id);
   await setPollVotes(pollId, interaction.user.id, interaction.values);
   await refreshPollMessage(client, pollId);
 
@@ -50,6 +57,7 @@ export const handlePollChoiceButton = async (
     throw new Error('Poll not found.');
   }
 
+  await assertUserCanVoteInPoll(client, poll, interaction.user.id);
   const currentOptionIds = poll.votes
     .filter((vote) => vote.userId === interaction.user.id)
     .map((vote) => vote.optionId)
@@ -127,6 +135,7 @@ export const handlePollRankOpenButton = async (
   }
 
   const poll = await getValidatedRankedPoll(pollId, { requireOpen: true });
+  await assertUserCanVoteInPoll(interaction.client, poll, interaction.user.id);
   const ranking = await getRankedDraftOrCurrentRanking(pollId, interaction.user.id) ?? [];
 
   await interaction.reply({
@@ -145,6 +154,7 @@ export const handlePollRankAddButton = async (
   }
 
   const poll = await getValidatedRankedPoll(pollId, { requireOpen: true });
+  await assertUserCanVoteInPoll(interaction.client, poll, interaction.user.id);
   const currentRanking = await getRankedDraftOrCurrentRanking(pollId, interaction.user.id) ?? [];
 
   if (!poll.options.some((option) => option.id === optionId)) {
@@ -168,7 +178,8 @@ export const handlePollRankUndoButton = async (
     throw new Error('Invalid poll identifier.');
   }
 
-  await getValidatedRankedPoll(pollId, { requireOpen: true });
+  const poll = await getValidatedRankedPoll(pollId, { requireOpen: true });
+  await assertUserCanVoteInPoll(interaction.client, poll, interaction.user.id);
   const ranking = await getRankedDraftOrCurrentRanking(pollId, interaction.user.id) ?? [];
   await savePollRankDraft(redis, pollId, interaction.user.id, ranking.slice(0, -1));
   await updateRankedChoiceEditor(interaction, pollId);
@@ -202,6 +213,7 @@ export const handlePollRankSubmitButton = async (
   }
 
   const poll = await getValidatedRankedPoll(pollId, { requireOpen: true });
+  await assertUserCanVoteInPoll(client, poll, interaction.user.id);
   const ranking = await getRankedDraftOrCurrentRanking(pollId, interaction.user.id) ?? [];
 
   if (ranking.length !== poll.options.length) {

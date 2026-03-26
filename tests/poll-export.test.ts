@@ -15,6 +15,10 @@ const poll = {
   mode: 'single',
   singleSelect: true,
   anonymous: false,
+  quorumPercent: null,
+  allowedRoleIds: [],
+  blockedRoleIds: [],
+  eligibleChannelIds: [],
   passThreshold: 60,
   passOptionIndex: 0,
   reminderSentAt: null,
@@ -56,7 +60,7 @@ describe('buildPollExportCsv', () => {
   it('includes vote counts and voter mentions for non-anonymous polls', () => {
     const csv = buildPollExportCsv(poll);
 
-    expect(csv).toContain('poll_id,question,option_label,vote_count,percentage,total_voters,anonymous,pass_threshold,outcome,all_voters,voters');
+    expect(csv).toContain('poll_id,question,option_label,vote_count,percentage,total_voters,anonymous,pass_threshold,outcome,quorum_percent');
     expect(csv).toContain('<@user_a>');
     expect(csv).toContain('"passed"');
   });

@@ -4,6 +4,7 @@ export type PollBuilderAction =
   | 'emojis'
   | 'description'
   | 'time'
+  | 'governance'
   | 'pass-rule'
   | 'thread-toggle'
   | 'thread-name'
@@ -18,6 +19,7 @@ export type PollBuilderModalField =
   | 'emojis'
   | 'description'
   | 'time'
+  | 'governance'
   | 'pass-rule'
   | 'thread-name';
 

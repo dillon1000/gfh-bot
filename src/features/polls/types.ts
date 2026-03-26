@@ -30,6 +30,10 @@ export type PollCreationInput = {
     emoji?: string | null;
   }>;
   anonymous: boolean;
+  quorumPercent?: number | null;
+  allowedRoleIds: string[];
+  blockedRoleIds: string[];
+  eligibleChannelIds: string[];
   passThreshold?: number | null;
   passOptionIndex?: number | null;
   durationMs: number;
@@ -42,6 +46,10 @@ export type PollDraft = {
   choices: string[];
   choiceEmojis: Array<string | null>;
   anonymous: boolean;
+  quorumPercent: number | null;
+  allowedRoleIds: string[];
+  blockedRoleIds: string[];
+  eligibleChannelIds: string[];
   passThreshold: number | null;
   passOptionIndex: number | null;
   createThread: boolean;
@@ -97,7 +105,7 @@ export type PollComputedResults = StandardPollComputedResults | RankedPollComput
 
 export type StandardPollOutcome = {
   kind: 'standard';
-  status: 'passed' | 'failed' | 'no-threshold';
+  status: 'passed' | 'failed' | 'no-threshold' | 'quorum-failed';
   passThreshold: number | null;
   measuredChoiceLabel: string;
   measuredPercentage: number;
@@ -105,10 +113,32 @@ export type StandardPollOutcome = {
 
 export type RankedPollOutcome = {
   kind: 'ranked';
-  status: 'winner' | 'tied' | 'inconclusive';
+  status: 'winner' | 'tied' | 'inconclusive' | 'quorum-failed';
   winnerLabel: string | null;
   rounds: number;
   exhaustedVotes: number;
 };
 
 export type PollOutcome = StandardPollOutcome | RankedPollOutcome;
+
+export type PollElectorateEvaluation = {
+  hasElectorateRules: boolean;
+  quorumPercent: number | null;
+  eligibleVoterCount: number | null;
+  participatingEligibleVoterCount: number;
+  turnoutPercent: number | null;
+  quorumMet: boolean | null;
+  allowedRoleIds: string[];
+  blockedRoleIds: string[];
+  eligibleChannelIds: string[];
+  excludedVoteCount: number;
+  excludedVoterCount: number;
+};
+
+export type EvaluatedPollSnapshot = {
+  poll: PollWithRelations;
+  evaluatedPoll: PollWithRelations;
+  results: PollComputedResults;
+  outcome: PollOutcome;
+  electorate: PollElectorateEvaluation;
+};

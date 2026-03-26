@@ -1,5 +1,7 @@
 import { parseDurationToMs } from '../../lib/duration.js';
 import { normalizeEmojiInput } from '../../lib/emoji.js';
+import { parseRoleTargets } from '../reaction-roles/parser.js';
+import { parseChannelIdBlacklist } from '../starboard/parser.js';
 import type { PollMode } from './types.js';
 
 const minChoices = 2;
@@ -36,6 +38,40 @@ export const parsePassThreshold = (value: string): number | null => {
 
   return threshold;
 };
+
+export const parseQuorumPercent = (
+  value: number | string | null | undefined,
+): number | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === 'string' && !value.trim()) {
+    return null;
+  }
+
+  const normalized = typeof value === 'number' ? value : Number(value.trim());
+
+  if (!Number.isInteger(normalized) || normalized < 1 || normalized > 100) {
+    throw new Error('Quorum percent must be an integer from 1 to 100.');
+  }
+
+  return normalized;
+};
+
+export const parseGovernanceRoleTargets = (
+  value: string | null | undefined,
+): string[] => {
+  if (!value?.trim()) {
+    return [];
+  }
+
+  return parseRoleTargets(value);
+};
+
+export const parseGovernanceChannelTargets = (
+  value: string | null | undefined,
+): string[] => parseChannelIdBlacklist(value);
 
 export const parsePassChoiceIndex = (
   value: number | string | null | undefined,

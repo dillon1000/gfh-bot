@@ -11,7 +11,8 @@ import {
 import { buildPollMessageEmbed, buildPollResultsEmbed } from './poll-embeds.js';
 import { getPollChoiceComponentEmoji } from './present.js';
 import { chunkButtons, isPollClosedOrExpired } from './render-helpers.js';
-import type { PollComputedResults, PollWithRelations } from './types.js';
+import { createFallbackPollSnapshot } from './service-governance.js';
+import type { EvaluatedPollSnapshot, PollComputedResults, PollWithRelations } from './types.js';
 
 const shouldAttachPollDiagram = (
   poll: Pick<PollWithRelations, 'mode' | 'closedAt' | 'closesAt'>,
@@ -71,48 +72,69 @@ const buildPollComponents = (poll: PollWithRelations) => {
 };
 
 const maybeBuildDiagram = async (
-  poll: PollWithRelations,
-  results: PollComputedResults,
+  snapshot: EvaluatedPollSnapshot,
   warningMessage: string,
 ): Promise<{ files?: AttachmentBuilder[]; imageUrl?: string }> => {
-  if (!shouldAttachPollDiagram(poll)) {
+  if (!shouldAttachPollDiagram(snapshot.poll)) {
     return {};
   }
 
   try {
-    const diagram = await buildPollResultDiagram(poll, results);
+    const diagram = await buildPollResultDiagram(snapshot);
 
     return {
       files: [diagram.attachment],
       imageUrl: `attachment://${diagram.fileName}`,
     };
   } catch (error) {
-    logger.warn({ err: error, pollId: poll.id }, warningMessage);
+    logger.warn({ err: error, pollId: snapshot.poll.id }, warningMessage);
     return {};
   }
 };
 
-export const buildPollMessage = (
+export function buildPollMessage(snapshot: EvaluatedPollSnapshot): {
+  embeds: ReturnType<typeof buildPollMessageEmbed>[];
+  components: ReturnType<typeof buildPollComponents>;
+  allowedMentions: {
+    parse: [];
+  };
+};
+export function buildPollMessage(
   poll: PollWithRelations,
   results: PollComputedResults,
-) => ({
-  embeds: [buildPollMessageEmbed(poll, results)],
-  components: buildPollComponents(poll),
+): {
+  embeds: ReturnType<typeof buildPollMessageEmbed>[];
+  components: ReturnType<typeof buildPollComponents>;
   allowedMentions: {
-    parse: [],
-  },
-});
+    parse: [];
+  };
+};
+export function buildPollMessage(
+  snapshotOrPoll: EvaluatedPollSnapshot | PollWithRelations,
+  results?: PollComputedResults,
+) {
+  const snapshot = 'poll' in snapshotOrPoll
+    ? snapshotOrPoll
+    : createFallbackPollSnapshot(snapshotOrPoll, results);
+
+  return {
+    embeds: [buildPollMessageEmbed(snapshot)],
+    components: buildPollComponents(snapshot.poll),
+    allowedMentions: {
+      parse: [],
+    },
+  };
+}
 
 export const buildLivePollMessagePayload = async (
-  poll: PollWithRelations,
-  results: PollComputedResults,
+  snapshot: EvaluatedPollSnapshot,
   options?: {
     replaceAttachments?: boolean;
   },
 ) => {
-  const payload = buildPollMessage(poll, results);
+  const payload = buildPollMessage(snapshot);
 
-  const diagram = await maybeBuildDiagram(poll, results, 'Could not generate live poll diagram');
+  const diagram = await maybeBuildDiagram(snapshot, 'Could not generate live poll diagram');
   if (diagram.imageUrl) {
     payload.embeds[0]?.setImage(diagram.imageUrl);
   }
@@ -125,8 +147,7 @@ export const buildLivePollMessagePayload = async (
 };
 
 export const buildPollResultsResponse = async (
-  poll: PollWithRelations,
-  results: PollComputedResults,
+  snapshot: EvaluatedPollSnapshot,
 ): Promise<{
   embeds: ReturnType<typeof buildPollResultsEmbed>[];
   files?: AttachmentBuilder[];
@@ -134,8 +155,8 @@ export const buildPollResultsResponse = async (
     parse: [];
   };
 }> => {
-  const embed = buildPollResultsEmbed(poll, results);
-  const diagram = await maybeBuildDiagram(poll, results, 'Could not generate poll result diagram');
+  const embed = buildPollResultsEmbed(snapshot);
+  const diagram = await maybeBuildDiagram(snapshot, 'Could not generate poll result diagram');
 
   if (diagram.imageUrl) {
     embed.setImage(diagram.imageUrl);

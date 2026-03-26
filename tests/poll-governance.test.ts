@@ -1,0 +1,335 @@
+import { Collection, type Client, type Guild, type GuildMember } from 'discord.js';
+import { describe, expect, it, vi } from 'vitest';
+
+import { buildPollExportCsv } from '../src/features/polls/export.js';
+import { buildPollResultsEmbed } from '../src/features/polls/poll-embeds.js';
+import {
+  evaluatePollAgainstElectorate,
+  evaluatePollForResults,
+  isElectorateMemberEligible,
+  type PollElectorateMember,
+} from '../src/features/polls/service-governance.js';
+import type { PollWithRelations } from '../src/features/polls/types.js';
+
+const governedPoll = {
+  id: 'poll_governed_1',
+  guildId: 'guild_1',
+  channelId: 'channel_1',
+  messageId: 'message_1',
+  threadId: null,
+  authorId: 'user_admin',
+  question: 'Adopt the proposal?',
+  description: null,
+  mode: 'single',
+  singleSelect: true,
+  anonymous: false,
+  quorumPercent: 60,
+  allowedRoleIds: ['role_allowed'],
+  blockedRoleIds: ['role_blocked'],
+  eligibleChannelIds: ['channel_a', 'channel_b'],
+  passThreshold: 50,
+  passOptionIndex: 0,
+  reminderSentAt: null,
+  closesAt: new Date('2026-03-24T00:00:00.000Z'),
+  closedAt: new Date('2026-03-24T01:00:00.000Z'),
+  createdAt: new Date('2026-03-24T00:00:00.000Z'),
+  updatedAt: new Date('2026-03-24T00:00:00.000Z'),
+  options: [
+    {
+      id: 'option_yes',
+      pollId: 'poll_governed_1',
+      label: 'Yes',
+      emoji: null,
+      sortOrder: 0,
+      createdAt: new Date('2026-03-24T00:00:00.000Z'),
+    },
+    {
+      id: 'option_no',
+      pollId: 'poll_governed_1',
+      label: 'No',
+      emoji: null,
+      sortOrder: 1,
+      createdAt: new Date('2026-03-24T00:00:00.000Z'),
+    },
+  ],
+  votes: [
+    {
+      id: 'vote_1',
+      pollId: 'poll_governed_1',
+      optionId: 'option_yes',
+      userId: 'user_allowed',
+      rank: null,
+      createdAt: new Date('2026-03-24T00:00:00.000Z'),
+    },
+    {
+      id: 'vote_2',
+      pollId: 'poll_governed_1',
+      optionId: 'option_no',
+      userId: 'user_blocked',
+      rank: null,
+      createdAt: new Date('2026-03-24T00:00:00.000Z'),
+    },
+    {
+      id: 'vote_3',
+      pollId: 'poll_governed_1',
+      optionId: 'option_no',
+      userId: 'user_channelless',
+      rank: null,
+      createdAt: new Date('2026-03-24T00:00:00.000Z'),
+    },
+  ],
+} satisfies PollWithRelations;
+
+const electorate: PollElectorateMember[] = [
+  {
+    userId: 'user_allowed',
+    isBot: false,
+    roleIds: ['role_allowed'],
+    viewableChannelIds: ['channel_a'],
+  },
+  {
+    userId: 'user_blocked',
+    isBot: false,
+    roleIds: ['role_allowed', 'role_blocked'],
+    viewableChannelIds: ['channel_a'],
+  },
+  {
+    userId: 'user_channelless',
+    isBot: false,
+    roleIds: ['role_allowed'],
+    viewableChannelIds: [],
+  },
+  {
+    userId: 'user_alt_channel',
+    isBot: false,
+    roleIds: ['role_allowed'],
+    viewableChannelIds: ['channel_b'],
+  },
+  {
+    userId: 'bot_user',
+    isBot: true,
+    roleIds: ['role_allowed'],
+    viewableChannelIds: ['channel_a'],
+  },
+];
+
+const createMockMember = (
+  userId: string,
+  roleIds: string[],
+  options?: {
+    isBot?: boolean;
+  },
+): GuildMember => ({
+  id: userId,
+  user: {
+    bot: options?.isBot ?? false,
+  },
+  roles: {
+    cache: new Collection(roleIds.map((roleId) => [roleId, { id: roleId }])),
+  },
+} as unknown as GuildMember);
+
+const createMockClient = (guild: Guild): Client => ({
+  guilds: {
+    cache: new Collection([[guild.id, guild]]),
+    fetch: vi.fn(async () => guild),
+  },
+} as unknown as Client);
+
+describe('poll governance evaluation', () => {
+  it('applies blocked-role precedence and channel OR rules', () => {
+    expect(isElectorateMemberEligible(governedPoll, electorate[0]!)).toBe(true);
+    expect(isElectorateMemberEligible(governedPoll, electorate[1]!)).toBe(false);
+    expect(isElectorateMemberEligible(governedPoll, electorate[2]!)).toBe(false);
+    expect(isElectorateMemberEligible(governedPoll, electorate[3]!)).toBe(true);
+    expect(isElectorateMemberEligible(governedPoll, electorate[4]!)).toBe(false);
+  });
+
+  it('filters ineligible ballots and fails quorum against the eligible electorate', () => {
+    const snapshot = evaluatePollAgainstElectorate(governedPoll, electorate);
+
+    expect(snapshot.results.kind).toBe('standard');
+    expect(snapshot.results.totalVoters).toBe(1);
+    expect(snapshot.electorate.eligibleVoterCount).toBe(2);
+    expect(snapshot.electorate.participatingEligibleVoterCount).toBe(1);
+    expect(snapshot.electorate.turnoutPercent).toBe(50);
+    expect(snapshot.electorate.quorumMet).toBe(false);
+    expect(snapshot.electorate.excludedVoteCount).toBe(2);
+    expect(snapshot.outcome.kind).toBe('standard');
+    if (snapshot.outcome.kind === 'standard') {
+      expect(snapshot.outcome.status).toBe('quorum-failed');
+    }
+  });
+
+  it('counts excluded ballots by voter even for ranked-choice polls', () => {
+    const rankedPoll = {
+      ...governedPoll,
+      id: 'poll_governed_ranked',
+      mode: 'ranked' as const,
+      singleSelect: false,
+      passThreshold: null,
+      passOptionIndex: null,
+      options: [
+        {
+          id: 'option_a',
+          pollId: 'poll_governed_ranked',
+          label: 'Option A',
+          emoji: null,
+          sortOrder: 0,
+          createdAt: new Date('2026-03-24T00:00:00.000Z'),
+        },
+        {
+          id: 'option_b',
+          pollId: 'poll_governed_ranked',
+          label: 'Option B',
+          emoji: null,
+          sortOrder: 1,
+          createdAt: new Date('2026-03-24T00:00:00.000Z'),
+        },
+        {
+          id: 'option_c',
+          pollId: 'poll_governed_ranked',
+          label: 'Option C',
+          emoji: null,
+          sortOrder: 2,
+          createdAt: new Date('2026-03-24T00:00:00.000Z'),
+        },
+      ],
+      votes: [
+        {
+          id: 'vote_allowed_1',
+          pollId: 'poll_governed_ranked',
+          optionId: 'option_a',
+          userId: 'user_allowed',
+          rank: 1,
+          createdAt: new Date('2026-03-24T00:00:00.000Z'),
+        },
+        {
+          id: 'vote_allowed_2',
+          pollId: 'poll_governed_ranked',
+          optionId: 'option_b',
+          userId: 'user_allowed',
+          rank: 2,
+          createdAt: new Date('2026-03-24T00:00:00.000Z'),
+        },
+        {
+          id: 'vote_allowed_3',
+          pollId: 'poll_governed_ranked',
+          optionId: 'option_c',
+          userId: 'user_allowed',
+          rank: 3,
+          createdAt: new Date('2026-03-24T00:00:00.000Z'),
+        },
+        {
+          id: 'vote_blocked_1',
+          pollId: 'poll_governed_ranked',
+          optionId: 'option_a',
+          userId: 'user_blocked',
+          rank: 1,
+          createdAt: new Date('2026-03-24T00:00:00.000Z'),
+        },
+        {
+          id: 'vote_blocked_2',
+          pollId: 'poll_governed_ranked',
+          optionId: 'option_b',
+          userId: 'user_blocked',
+          rank: 2,
+          createdAt: new Date('2026-03-24T00:00:00.000Z'),
+        },
+        {
+          id: 'vote_blocked_3',
+          pollId: 'poll_governed_ranked',
+          optionId: 'option_c',
+          userId: 'user_blocked',
+          rank: 3,
+          createdAt: new Date('2026-03-24T00:00:00.000Z'),
+        },
+      ],
+    } satisfies PollWithRelations;
+
+    const snapshot = evaluatePollAgainstElectorate(rankedPoll, electorate);
+
+    expect(snapshot.electorate.excludedVoteCount).toBe(1);
+    expect(snapshot.electorate.excludedVoterCount).toBe(1);
+  });
+
+  it('surfaces turnout and quorum metadata in embeds and exports', () => {
+    const snapshot = evaluatePollAgainstElectorate(governedPoll, electorate);
+    const embed = buildPollResultsEmbed(snapshot).toJSON();
+    const csv = buildPollExportCsv(snapshot);
+
+    expect(embed.description).toContain('Turnout 1/2 eligible voters (50.0%)');
+    expect(embed.description).toContain('Quorum 60% not met');
+    expect(embed.description).toContain('Outcome: Quorum not met');
+    expect(csv).toContain('eligible_voter_count');
+    expect(csv).toContain(',2,1,50.0,false,2,2,');
+  });
+
+  it('evaluates non-quorum governance rules against participating voters only', async () => {
+    const poll = {
+      ...governedPoll,
+      id: 'poll_governed_no_quorum',
+      guildId: 'guild_no_quorum',
+      quorumPercent: null,
+      eligibleChannelIds: [],
+      votes: governedPoll.votes.slice(0, 2),
+    } satisfies PollWithRelations;
+    const fetchMember = vi.fn(async (userId?: string) => {
+      if (!userId) {
+        throw new Error('full member fetch should not be used for non-quorum governance');
+      }
+
+      if (userId === 'user_allowed') {
+        return createMockMember('user_allowed', ['role_allowed']);
+      }
+
+      if (userId === 'user_blocked') {
+        return createMockMember('user_blocked', ['role_allowed', 'role_blocked']);
+      }
+
+      return null;
+    });
+    const guild = {
+      id: poll.guildId,
+      members: {
+        fetch: fetchMember,
+      },
+    } as unknown as Guild;
+
+    const snapshot = await evaluatePollForResults(createMockClient(guild), poll);
+
+    expect(snapshot.results.totalVoters).toBe(1);
+    expect(snapshot.electorate.eligibleVoterCount).toBeNull();
+    expect(snapshot.electorate.participatingEligibleVoterCount).toBe(1);
+    expect(snapshot.electorate.excludedVoteCount).toBe(1);
+    expect(fetchMember).toHaveBeenCalledTimes(2);
+    expect(fetchMember).not.toHaveBeenCalledWith();
+  });
+
+  it('reuses a cached electorate for repeated quorum evaluations', async () => {
+    const poll = {
+      ...governedPoll,
+      id: 'poll_governed_cached',
+      guildId: 'guild_cached',
+      eligibleChannelIds: [],
+      blockedRoleIds: [],
+      votes: [governedPoll.votes[0]!],
+    } satisfies PollWithRelations;
+    const fetchMembers = vi.fn(async () => new Collection([
+      ['user_allowed', createMockMember('user_allowed', ['role_allowed'])],
+      ['user_alt_channel', createMockMember('user_alt_channel', ['role_allowed'])],
+    ]));
+    const guild = {
+      id: poll.guildId,
+      members: {
+        fetch: fetchMembers,
+      },
+    } as unknown as Guild;
+    const client = createMockClient(guild);
+
+    await evaluatePollForResults(client, poll);
+    await evaluatePollForResults(client, poll);
+
+    expect(fetchMembers).toHaveBeenCalledTimes(1);
+  });
+});
