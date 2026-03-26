@@ -10,7 +10,7 @@ import {
 
 import { pollBuilderButtonCustomId, pollBuilderModalCustomId, type PollBuilderModalField } from './custom-ids.js';
 import { getPollChoiceEmojiDisplay, resolvePollThreadName } from './present.js';
-import { getDraftSummary, getModeLabel } from './render-helpers.js';
+import { getDraftSummary, getGovernanceLabel, getModeLabel } from './render-helpers.js';
 import type { PollDraft } from './types.js';
 
 export const buildPollBuilderPreview = (
@@ -56,6 +56,10 @@ export const buildPollBuilderPreview = (
 
   const rowTwo = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
+      .setCustomId(pollBuilderButtonCustomId('governance'))
+      .setLabel('Governance')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('pass-rule'))
       .setLabel('Pass Rule')
       .setStyle(ButtonStyle.Secondary)
@@ -69,16 +73,16 @@ export const buildPollBuilderPreview = (
       .setLabel('Thread Name')
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
-      .setCustomId(pollBuilderButtonCustomId('mode'))
-      .setLabel(`Mode: ${getModeLabel(draft.mode)}`)
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('anonymous'))
       .setLabel(draft.anonymous ? 'Anonymous: On' : 'Anonymous: Off')
       .setStyle(ButtonStyle.Secondary),
   );
 
   const rowThree = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(pollBuilderButtonCustomId('mode'))
+      .setLabel(`Mode: ${getModeLabel(draft.mode)}`)
+      .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('publish'))
       .setLabel('Publish')
@@ -178,6 +182,50 @@ export const buildPollBuilderModal = (
         .addComponents(
           new ActionRowBuilder<TextInputBuilder>().addComponents(thresholdInput),
           new ActionRowBuilder<TextInputBuilder>().addComponents(choiceInput),
+        );
+    }
+    case 'governance': {
+      const quorumInput = new TextInputBuilder()
+        .setCustomId('quorum')
+        .setLabel('Quorum Percent')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false)
+        .setValue(draft.quorumPercent !== null ? String(draft.quorumPercent) : '')
+        .setPlaceholder('Leave blank to disable')
+        .setMaxLength(3);
+      const allowedRolesInput = new TextInputBuilder()
+        .setCustomId('allowed-roles')
+        .setLabel('Allowed Roles')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(false)
+        .setValue(draft.allowedRoleIds.map((roleId) => `<@&${roleId}>`).join(', '))
+        .setPlaceholder('Comma-separated role mentions or IDs')
+        .setMaxLength(500);
+      const blockedRolesInput = new TextInputBuilder()
+        .setCustomId('blocked-roles')
+        .setLabel('Blocked Roles')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(false)
+        .setValue(draft.blockedRoleIds.map((roleId) => `<@&${roleId}>`).join(', '))
+        .setPlaceholder('Comma-separated role mentions or IDs')
+        .setMaxLength(500);
+      const channelInput = new TextInputBuilder()
+        .setCustomId('eligible-channels')
+        .setLabel('Eligible Channels')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(false)
+        .setValue(draft.eligibleChannelIds.map((channelId) => `<#${channelId}>`).join(', '))
+        .setPlaceholder('Comma-separated channel mentions or IDs')
+        .setMaxLength(500);
+
+      return new ModalBuilder()
+        .setCustomId(pollBuilderModalCustomId(field))
+        .setTitle('Edit governance')
+        .addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(quorumInput),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(allowedRolesInput),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(blockedRolesInput),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(channelInput),
         );
     }
     case 'thread-name':

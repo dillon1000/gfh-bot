@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseChoiceEmojisCsv, parseChoicesCsv, parsePassChoiceIndex, parsePassThreshold, parsePollFormInput, resolvePassRule } from '../src/features/polls/parser.js';
+import {
+  parseChoiceEmojisCsv,
+  parseChoicesCsv,
+  parseGovernanceChannelTargets,
+  parseGovernanceRoleTargets,
+  parsePassChoiceIndex,
+  parsePassThreshold,
+  parsePollFormInput,
+  parseQuorumPercent,
+  resolvePassRule,
+} from '../src/features/polls/parser.js';
 
 describe('parseChoicesCsv', () => {
   it('parses comma-separated choices', () => {
@@ -61,6 +71,39 @@ describe('parsePassThreshold', () => {
 
   it('rejects invalid thresholds', () => {
     expect(() => parsePassThreshold('101')).toThrow(/1 to 100/);
+  });
+});
+
+describe('parseQuorumPercent', () => {
+  it('returns null for blank or missing quorum input', () => {
+    expect(parseQuorumPercent(null)).toBeNull();
+    expect(parseQuorumPercent('')).toBeNull();
+  });
+
+  it('parses a valid integer quorum percent', () => {
+    expect(parseQuorumPercent('60')).toBe(60);
+  });
+
+  it('rejects invalid quorum values', () => {
+    expect(() => parseQuorumPercent('0')).toThrow(/1 to 100/);
+  });
+});
+
+describe('governance target parsers', () => {
+  it('parses role targets and channel targets', () => {
+    expect(parseGovernanceRoleTargets('<@&123456789012345678>, 987654321098765432')).toEqual([
+      '123456789012345678',
+      '987654321098765432',
+    ]);
+    expect(parseGovernanceChannelTargets('<#123456789012345678>, 987654321098765432')).toEqual([
+      '123456789012345678',
+      '987654321098765432',
+    ]);
+  });
+
+  it('returns empty arrays for blank governance target input', () => {
+    expect(parseGovernanceRoleTargets('')).toEqual([]);
+    expect(parseGovernanceChannelTargets('')).toEqual([]);
   });
 });
 

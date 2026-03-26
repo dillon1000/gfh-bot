@@ -78,6 +78,7 @@ const buildAuditUserMentions = (userIds: string[]): string | undefined =>
     : undefined;
 
 export const handlePollResultsCommand = async (
+  client: Client,
   interaction: ChatInputCommandInteraction,
 ): Promise<void> => {
   if (!interaction.inGuild()) {
@@ -85,7 +86,7 @@ export const handlePollResultsCommand = async (
   }
 
   const query = interaction.options.getString('query', true);
-  const snapshot = await getPollResultsSnapshotByQuery(query, interaction.guildId);
+  const snapshot = await getPollResultsSnapshotByQuery(client, query, interaction.guildId);
 
   if (!snapshot) {
     throw new Error('Poll not found.');
@@ -93,29 +94,33 @@ export const handlePollResultsCommand = async (
 
   await interaction.reply({
     flags: MessageFlags.Ephemeral,
-    ...(await buildPollResultsResponse(snapshot.poll, snapshot.results)),
+    ...(await buildPollResultsResponse(snapshot)),
   });
 };
 
-export const handlePollResultsButton = async (interaction: ButtonInteraction): Promise<void> => {
+export const handlePollResultsButton = async (
+  client: Client,
+  interaction: ButtonInteraction,
+): Promise<void> => {
   const pollId = interaction.customId.split(':')[2];
 
   if (!pollId) {
     throw new Error('Invalid poll identifier.');
   }
 
-  const snapshot = await getPollResultsSnapshot(pollId);
+  const snapshot = await getPollResultsSnapshot(client, pollId);
   if (!snapshot) {
     throw new Error('Poll not found.');
   }
 
   await interaction.reply({
     flags: MessageFlags.Ephemeral,
-    ...(await buildPollResultsResponse(snapshot.poll, snapshot.results)),
+    ...(await buildPollResultsResponse(snapshot)),
   });
 };
 
 export const handlePollResultsContext = async (
+  client: Client,
   interaction: MessageContextMenuCommandInteraction,
 ): Promise<void> => {
   if (!interaction.inGuild()) {
@@ -127,18 +132,19 @@ export const handlePollResultsContext = async (
     throw new Error('Poll not found.');
   }
 
-  const snapshot = await getPollResultsSnapshot(poll.id);
+  const snapshot = await getPollResultsSnapshot(client, poll.id);
   if (!snapshot) {
     throw new Error('Poll not found.');
   }
 
   await interaction.reply({
     flags: MessageFlags.Ephemeral,
-    ...(await buildPollResultsResponse(snapshot.poll, snapshot.results)),
+    ...(await buildPollResultsResponse(snapshot)),
   });
 };
 
 export const handlePollExportCommand = async (
+  client: Client,
   interaction: ChatInputCommandInteraction,
 ): Promise<void> => {
   if (!interaction.inGuild()) {
@@ -148,16 +154,17 @@ export const handlePollExportCommand = async (
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const query = interaction.options.getString('query', true);
-  const snapshot = await getPollResultsSnapshotByQuery(query, interaction.guildId);
+  const snapshot = await getPollResultsSnapshotByQuery(client, query, interaction.guildId);
 
   if (!snapshot) {
     throw new Error('Poll not found.');
   }
 
-  await replyWithPollExport(interaction, snapshot.poll.question, await exportPollToCsv(snapshot.poll));
+  await replyWithPollExport(interaction, snapshot.poll.question, await exportPollToCsv(snapshot));
 };
 
 export const handlePollExportContext = async (
+  client: Client,
   interaction: MessageContextMenuCommandInteraction,
 ): Promise<void> => {
   if (!interaction.inGuild()) {
@@ -170,7 +177,12 @@ export const handlePollExportContext = async (
     throw new Error('Poll not found.');
   }
 
-  await replyWithPollExport(interaction, poll.question, await exportPollToCsv(poll));
+  const snapshot = await getPollResultsSnapshot(client, poll.id);
+  if (!snapshot) {
+    throw new Error('Poll not found.');
+  }
+
+  await replyWithPollExport(interaction, poll.question, await exportPollToCsv(snapshot));
 };
 
 export const handlePollAuditCommand = async (

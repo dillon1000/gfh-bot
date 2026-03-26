@@ -8,7 +8,7 @@ import { redis } from '../../lib/redis.js';
 import { isR2Configured, uploadCsvToR2 } from '../../lib/r2.js';
 import { buildPollExportCsv } from './export.js';
 import { buildLivePollMessagePayload } from './poll-responses.js';
-import { computePollOutcome, computePollResults } from './results.js';
+import { evaluatePollForResults } from './service-governance.js';
 import {
   attachPollMessage,
   attachPollThread,
@@ -19,7 +19,7 @@ import {
   schedulePollReminder,
 } from './service-repository.js';
 import { closePoll } from './service-voting.js';
-import type { PollComputedResults, PollOutcome, PollWithRelations } from './types.js';
+import type { EvaluatedPollSnapshot, PollOutcome, PollWithRelations } from './types.js';
 import { buildPollResultDiagram } from './visualize.js';
 
 const oneHourMs = 60 * 60 * 1000;
@@ -76,12 +76,21 @@ export const refreshPollMessage = async (client: Client, pollId: string): Promis
     return;
   }
 
-  const results = computePollResults(poll);
-  await message.edit(await buildLivePollMessagePayload(poll, results, { replaceAttachments: true }));
+  const snapshot = await evaluatePollForResults(client, poll);
+  await message.edit(await buildLivePollMessagePayload(snapshot, { replaceAttachments: true }));
 };
 
-export const describePollOutcome = (outcome: PollOutcome): string => {
+export const describePollOutcome = (
+  outcome: PollOutcome,
+  snapshot?: Pick<EvaluatedPollSnapshot, 'electorate'>,
+): string => {
+  const electorate = snapshot?.electorate;
+
   if (outcome.kind === 'ranked') {
+    if (outcome.status === 'quorum-failed' && electorate && electorate.quorumPercent !== null && electorate.turnoutPercent !== null) {
+      return `Quorum not met: turnout reached ${electorate.turnoutPercent.toFixed(1)}% against a ${electorate.quorumPercent}% requirement.`;
+    }
+
     if (outcome.status === 'winner' && outcome.winnerLabel) {
       return `${outcome.winnerLabel} won after ${outcome.rounds} round${outcome.rounds === 1 ? '' : 's'}, with ${outcome.exhaustedVotes} exhausted ballot${outcome.exhaustedVotes === 1 ? '' : 's'}.`;
     }
@@ -93,15 +102,19 @@ export const describePollOutcome = (outcome: PollOutcome): string => {
     return `No pass threshold was configured. ${outcome.measuredChoiceLabel} finished at ${outcome.measuredPercentage.toFixed(1)}%.`;
   }
 
+  if (outcome.status === 'quorum-failed' && electorate && electorate.quorumPercent !== null && electorate.turnoutPercent !== null) {
+    return `Quorum not met: turnout reached ${electorate.turnoutPercent.toFixed(1)}% against a ${electorate.quorumPercent}% requirement.`;
+  }
+
   return `${outcome.status === 'passed' ? 'Passed' : 'Failed'}: ${outcome.measuredChoiceLabel} reached ${outcome.measuredPercentage.toFixed(1)}% against a ${outcome.passThreshold}% threshold.`;
 };
 
 const sendPollCloseAnnouncement = async (
   client: Client,
-  poll: PollWithRelations,
-  outcome: PollOutcome,
+  snapshot: EvaluatedPollSnapshot,
   closedByUserId?: string,
 ): Promise<void> => {
+  const { poll, outcome } = snapshot;
   const channel = await client.channels.fetch(poll.channelId).catch(() => null);
   if (!channel?.isTextBased() || !('send' in channel)) {
     return;
@@ -115,7 +128,7 @@ const sendPollCloseAnnouncement = async (
         closedByUserId
           ? `<@${closedByUserId}> closed **${poll.question}**.`
           : `**${poll.question}** closed automatically.`,
-        describePollOutcome(outcome),
+        describePollOutcome(outcome, snapshot),
       ].join('\n\n'),
     )
     .setFooter({
@@ -124,8 +137,7 @@ const sendPollCloseAnnouncement = async (
 
   let files: Array<Awaited<ReturnType<typeof buildPollResultDiagram>>['attachment']> | undefined;
   try {
-    const results = computePollResults(poll);
-    const diagram = await buildPollResultDiagram(poll, results);
+    const diagram = await buildPollResultDiagram(snapshot);
     embed.setImage(`attachment://${diagram.fileName}`);
     files = [diagram.attachment];
   } catch (error) {
@@ -206,39 +218,35 @@ export const closePollAndRefresh = async (
   await refreshPollMessage(client, poll.id);
 
   if (didClose) {
-    await sendPollCloseAnnouncement(client, poll, computePollOutcome(poll, computePollResults(poll)), closedByUserId);
+    await sendPollCloseAnnouncement(client, await evaluatePollForResults(client, poll), closedByUserId);
   }
 };
 
 export const getPollResultsSnapshot = async (
+  client: Client,
   pollId: string,
-): Promise<{ poll: PollWithRelations; results: PollComputedResults } | null> => {
+): Promise<EvaluatedPollSnapshot | null> => {
   const poll = await getPollById(pollId);
 
   if (!poll) {
     return null;
   }
 
-  return {
-    poll,
-    results: computePollResults(poll),
-  };
+  return evaluatePollForResults(client, poll);
 };
 
 export const getPollResultsSnapshotByQuery = async (
+  client: Client,
   query: string,
   guildId?: string,
-): Promise<{ poll: PollWithRelations; results: PollComputedResults } | null> => {
+): Promise<EvaluatedPollSnapshot | null> => {
   const poll = await getPollByQuery(query, guildId);
 
   if (!poll) {
     return null;
   }
 
-  return {
-    poll,
-    results: computePollResults(poll),
-  };
+  return evaluatePollForResults(client, poll);
 };
 
 export const getPollVoteAuditSnapshotByQuery = async (
@@ -286,8 +294,7 @@ export const hydratePollMessage = async (
     throw new Error('Polls can only be published in text-based channels.');
   }
 
-  const results = computePollResults(poll);
-  const message = await channel.send(await buildLivePollMessagePayload(poll, results));
+  const message = await channel.send(await buildLivePollMessagePayload(await evaluatePollForResults(client, poll)));
   const attachedPoll = await attachPollMessage(poll.id, message.id);
   let threadCreated = false;
 
@@ -317,13 +324,13 @@ export const hydratePollMessage = async (
 };
 
 export const exportPollToCsv = async (
-  poll: PollWithRelations,
+  snapshot: EvaluatedPollSnapshot,
 ): Promise<
   | { kind: 'r2'; url: string; fileName: string }
   | { kind: 'attachment'; buffer: Buffer; fileName: string }
 > => {
-  const fileName = `poll-${poll.id}.csv`;
-  const csv = buildPollExportCsv(poll);
+  const fileName = `poll-${snapshot.poll.id}.csv`;
+  const csv = buildPollExportCsv(snapshot);
 
   if (isR2Configured()) {
     const url = await uploadCsvToR2(`poll-exports/${fileName}`, csv);

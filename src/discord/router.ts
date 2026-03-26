@@ -73,10 +73,10 @@ export const registerInteractionRouter = (client: Client): void => {
             await handlePollBuilderCommand(interaction);
             return;
           case 'poll-results':
-            await handlePollResultsCommand(interaction);
+            await handlePollResultsCommand(client, interaction);
             return;
           case 'poll-export':
-            await handlePollExportCommand(interaction);
+            await handlePollExportCommand(client, interaction);
             return;
           case 'poll-audit':
             await handlePollAuditCommand(interaction);
@@ -102,12 +102,12 @@ export const registerInteractionRouter = (client: Client): void => {
         }
 
         if (interaction.commandName === 'View Poll Results') {
-          await handlePollResultsContext(interaction);
+          await handlePollResultsContext(client, interaction);
           return;
         }
 
         if (interaction.commandName === 'Export Poll CSV') {
-          await handlePollExportContext(interaction);
+          await handlePollExportContext(client, interaction);
           return;
         }
 
@@ -180,7 +180,7 @@ export const registerInteractionRouter = (client: Client): void => {
         }
 
         if (interaction.customId.startsWith('poll:results:')) {
-          await handlePollResultsButton(interaction);
+          await handlePollResultsButton(client, interaction);
           return;
         }
 

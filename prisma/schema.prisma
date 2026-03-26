@@ -40,6 +40,10 @@ model Poll {
   mode           PollMode        @default(single)
   singleSelect   Boolean         @default(true)
   anonymous      Boolean         @default(false)
+  quorumPercent  Int?
+  allowedRoleIds String[]        @default([])
+  blockedRoleIds String[]        @default([])
+  eligibleChannelIds String[]    @default([])
   passThreshold  Int?
   passOptionIndex Int?
   reminderSentAt DateTime?

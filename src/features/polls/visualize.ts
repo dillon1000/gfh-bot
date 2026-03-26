@@ -3,8 +3,9 @@ import { arc, linkHorizontal, pie, scaleOrdinal, schemeTableau10 } from 'd3';
 import type { PieArcDatum } from 'd3';
 import sharp from 'sharp';
 
-import { computePollOutcome, getRankedBallots } from './results.js';
-import type { PollComputedResults, PollOutcome, PollWithRelations } from './types.js';
+import { getRankedBallots } from './results.js';
+import { createFallbackPollSnapshot } from './service-governance.js';
+import type { EvaluatedPollSnapshot, PollComputedResults, PollOutcome, PollWithRelations } from './types.js';
 
 const background = '#2b2d31';
 const panel = '#23272a';
@@ -128,6 +129,14 @@ const buildStandardSummary = (
       subline: leaders.length > 1
         ? `${leaders.length} options tied at ${formatPercent(leader?.percentage ?? 0)}`
         : `${formatPercent(leader?.percentage ?? 0)} of votes`,
+    };
+  }
+
+  if (outcome.status === 'quorum-failed') {
+    return {
+      headline: 'No Quorum',
+      accent: danger,
+      subline: `${formatPercent(outcome.measuredPercentage)} recorded`,
     };
   }
 
@@ -310,6 +319,7 @@ const buildRankedTransferPaths = (
 const buildRankedPollSvg = (
   poll: PollWithRelations,
   results: Extract<PollComputedResults, { kind: 'ranked' }>,
+  outcome: PollOutcome,
 ): string => {
   const colorScale = createColorScale(poll);
   const rounds = results.rounds;
@@ -368,7 +378,9 @@ const buildRankedPollSvg = (
     { width, height },
     `
       ${renderText(60, 56, truncate(poll.question, 56), { fontSize: 34, fontWeight: 700 })}
-      ${renderText(60, 86, `${winnerLabel
+      ${renderText(60, 86, `${outcome.kind === 'ranked' && outcome.status === 'quorum-failed'
+        ? 'Outcome: Quorum not met'
+        : winnerLabel
         ? `Winner: ${winnerLabel}`
         : `Outcome: ${results.status === 'tied' ? 'Tied / inconclusive' : 'No winner yet'}`} · ${results.totalVoters} ballot${results.totalVoters === 1 ? '' : 's'} · ${results.exhaustedVotes} exhausted`, { color: muted })}
       ${buildRankedTransferPaths(assignments, boxLayout)}
@@ -377,14 +389,24 @@ const buildRankedPollSvg = (
   );
 };
 
-export const buildPollResultDiagram = async (
+export async function buildPollResultDiagram(
+  snapshot: EvaluatedPollSnapshot,
+): Promise<DiagramPayload>;
+export async function buildPollResultDiagram(
   poll: PollWithRelations,
   results: PollComputedResults,
-): Promise<DiagramPayload> => {
+): Promise<DiagramPayload>;
+export async function buildPollResultDiagram(
+  snapshotOrPoll: EvaluatedPollSnapshot | PollWithRelations,
+  providedResults?: PollComputedResults,
+): Promise<DiagramPayload> {
+  const snapshot = 'poll' in snapshotOrPoll
+    ? snapshotOrPoll
+    : createFallbackPollSnapshot(snapshotOrPoll, providedResults);
+  const { poll, results, outcome } = snapshot;
   const fileName = `poll-result-${poll.id}.png`;
-  const outcome = computePollOutcome(poll, results);
   const svg = results.kind === 'ranked'
-    ? buildRankedPollSvg(poll, results)
+    ? buildRankedPollSvg(poll, results, outcome)
     : buildStandardPollSvg(poll, results, outcome);
 
   const buffer = await sharp(Buffer.from(svg))
@@ -395,4 +417,4 @@ export const buildPollResultDiagram = async (
     fileName,
     attachment: new AttachmentBuilder(buffer, { name: fileName }),
   };
-};
+}

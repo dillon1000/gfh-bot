@@ -2,12 +2,13 @@
 
 The most powerful polling and voting bot.
 
-Supports single-choice polls, multi-choice polls, ranked-choice voting, starboard, exports, builders, and utility commands.
+Supports single-choice polls, multi-choice polls, ranked-choice voting, governance guardrails, starboard, exports, builders, and utility commands.
 
 ## Features
 
 - Polls
 - Interactive poll builder
+- Governance guardrails for polls
 - Persistent poll lookup
 - Poll reminders one hour before close
 - Poll CSV export with optional R2 upload
@@ -70,6 +71,8 @@ Copy `.env.example` to `.env` and fill in:
 
 For local development on your machine, use `localhost` in `DATABASE_URL` and `REDIS_URL`.
 
+Poll governance guardrails require the `Guild Members` privileged intent to be enabled for the bot in the Discord Developer Portal.
+
 ## Development
 
 ```bash
@@ -107,7 +110,7 @@ If the package is private, authenticate the host with `docker login ghcr.io` fir
 ## Commands
 
 - `/ping`
-- `/poll question:... choices:... description:... mode:single anonymous:false time:24h`
+- `/poll question:... choices:... description:... mode:single anonymous:false quorum_percent:60 allowed_roles:"<@&...>" blocked_roles:"<@&...>" eligible_channels:"<#...>" time:24h`
 - `/poll-builder`
 - `/poll-results query:<message link|message id|poll id>`
 - `/poll-export query:<message link|message id|poll id>`

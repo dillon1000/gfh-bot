@@ -2,8 +2,17 @@ import type { PollVoteEvent } from '@prisma/client';
 import { EmbedBuilder } from 'discord.js';
 
 import { getPollChoiceEmojiDisplay, renderPollBar } from './present.js';
-import { buildRoundEliminationLabel, clampFieldValue, getModeLabel, getPassRuleLabel, renderChoiceLine, shouldRevealRankedResults } from './render-helpers.js';
-import type { PollComputedResults, PollWithRelations } from './types.js';
+import { createFallbackPollSnapshot } from './service-governance.js';
+import {
+  buildRoundEliminationLabel,
+  clampFieldValue,
+  getGovernanceLabel,
+  getModeLabel,
+  getPassRuleLabel,
+  renderChoiceLine,
+  shouldRevealRankedResults,
+} from './render-helpers.js';
+import type { EvaluatedPollSnapshot, PollComputedResults, PollWithRelations } from './types.js';
 
 const buildVoterMentionsByOption = (poll: PollWithRelations): Map<string, string[]> => {
   const votersByOption = new Map<string, string[]>();
@@ -38,25 +47,58 @@ export const buildFeedbackEmbed = (
 const renderPollChoiceLine = (choice: PollComputedResults['choices'][number], index: number): string =>
   renderChoiceLine(choice, index, renderPollBar, getPollChoiceEmojiDisplay);
 
+const toPlainLine = (value: string): string => value.replaceAll('**', '');
+
+const buildElectorateLines = (snapshot: EvaluatedPollSnapshot): string[] => {
+  const lines = [`**Governance** ${getGovernanceLabel(snapshot.poll)}`];
+
+  if (!snapshot.electorate.hasElectorateRules) {
+    return lines;
+  }
+
+  if (snapshot.electorate.eligibleVoterCount !== null && snapshot.electorate.turnoutPercent !== null) {
+    lines.push(
+      `**Turnout** ${snapshot.electorate.participatingEligibleVoterCount}/${snapshot.electorate.eligibleVoterCount} eligible voters (${snapshot.electorate.turnoutPercent.toFixed(1)}%)`,
+    );
+  }
+
+  if (snapshot.electorate.quorumPercent !== null) {
+    lines.push(
+      `**Quorum** ${snapshot.electorate.quorumPercent}% ${snapshot.electorate.quorumMet ? 'met' : 'not met'}`,
+    );
+  }
+
+  if (snapshot.electorate.excludedVoteCount > 0) {
+    lines.push(
+      `**Excluded Ballots** ${snapshot.electorate.excludedVoteCount} from ${snapshot.electorate.excludedVoterCount} ineligible voter${snapshot.electorate.excludedVoterCount === 1 ? '' : 's'}`,
+    );
+  }
+
+  return lines;
+};
+
 export const buildPollMessageEmbed = (
-  poll: PollWithRelations,
-  results: PollComputedResults,
-) => {
+  snapshot: EvaluatedPollSnapshot,
+): EmbedBuilder => {
+  const { poll, results, outcome } = snapshot;
   const revealRankedResults = shouldRevealRankedResults(poll);
   const details = [
     `**Mode** ${getModeLabel(poll.mode)}`,
     `**Visibility** ${poll.anonymous ? 'Anonymous option selections' : 'Public vote totals'}`,
     poll.mode === 'ranked'
-      ? `**Status** ${revealRankedResults && results.kind === 'ranked' && results.status === 'winner'
-        ? `Winner: ${poll.options.find((option) => option.id === results.winnerOptionId)?.label ?? 'Unknown'}`
-        : revealRankedResults
-          ? 'Final rounds available below'
-          : 'Round totals hidden until voting closes'}`
+      ? `**Status** ${outcome.kind === 'ranked' && outcome.status === 'quorum-failed'
+        ? 'Quorum not met'
+        : revealRankedResults && results.kind === 'ranked' && results.status === 'winner'
+          ? `Winner: ${poll.options.find((option) => option.id === results.winnerOptionId)?.label ?? 'Unknown'}`
+          : revealRankedResults
+            ? 'Final rounds available below'
+            : 'Round totals hidden until voting closes'}`
       : `**Pass Rule** ${getPassRuleLabel(poll.mode, poll.passThreshold, poll.passOptionIndex, poll.options)}`,
     `**Timing** ${poll.closedAt
       ? `Closed <t:${Math.floor(poll.closedAt.getTime() / 1000)}:R>`
       : `Closes <t:${Math.floor(poll.closesAt.getTime() / 1000)}:R>`}`,
     `**Started By** <@${poll.authorId}>`,
+    ...buildElectorateLines(snapshot),
   ];
 
   const embed = new EmbedBuilder()
@@ -105,7 +147,13 @@ export const buildPollMessageEmbed = (
       },
       {
         name: 'Details',
-        value: clampFieldValue([...details, `**Voters** ${results.totalVoters}`].join('\n')),
+        value: clampFieldValue([
+          ...details,
+          outcome.kind === 'standard' && outcome.status === 'quorum-failed' ? '**Outcome** Quorum not met' : null,
+          `**Voters** ${results.totalVoters}`,
+        ]
+          .filter(Boolean)
+          .join('\n')),
       },
     );
   }
@@ -117,12 +165,21 @@ export const buildPollMessageEmbed = (
   return embed;
 };
 
-export const buildPollResultsEmbed = (
+export function buildPollResultsEmbed(snapshot: EvaluatedPollSnapshot): EmbedBuilder;
+export function buildPollResultsEmbed(
   poll: PollWithRelations,
   results: PollComputedResults,
-): EmbedBuilder => {
-  const votersByOption = buildVoterMentionsByOption(poll);
-  const uniqueVoterMentions = buildUniqueVoterMentions(poll);
+): EmbedBuilder;
+export function buildPollResultsEmbed(
+  snapshotOrPoll: EvaluatedPollSnapshot | PollWithRelations,
+  providedResults?: PollComputedResults,
+): EmbedBuilder {
+  const snapshot = 'poll' in snapshotOrPoll
+    ? snapshotOrPoll
+    : createFallbackPollSnapshot(snapshotOrPoll, providedResults);
+  const { poll, evaluatedPoll, results, outcome } = snapshot;
+  const votersByOption = buildVoterMentionsByOption(evaluatedPoll);
+  const uniqueVoterMentions = buildUniqueVoterMentions(evaluatedPoll);
   const revealRankedResults = shouldRevealRankedResults(poll);
   const embed = new EmbedBuilder()
     .setTitle(`Results: ${poll.question}`)
@@ -142,10 +199,13 @@ export const buildPollResultsEmbed = (
         `Mode: Ranked choice`,
         `Ballots: ${results.totalVoters}`,
         ...(revealRankedResults ? [`Exhausted ballots: ${results.exhaustedVotes}`] : []),
+        ...buildElectorateLines(snapshot).map(toPlainLine),
         revealRankedResults
-          ? winnerLabel
-            ? `Winner: ${winnerLabel}`
-            : `Outcome: ${results.status === 'tied' ? 'Tied / inconclusive' : 'No winner yet'}`
+          ? outcome.kind === 'ranked' && outcome.status === 'quorum-failed'
+            ? 'Outcome: Quorum not met'
+            : winnerLabel
+              ? `Winner: ${winnerLabel}`
+              : `Outcome: ${results.status === 'tied' ? 'Tied / inconclusive' : 'No winner yet'}`
           : 'Round-by-round ranked results stay hidden until voting closes.',
         poll.anonymous
           ? 'Anonymous poll: voters may be listed overall, but ballot rankings stay private.'
@@ -181,10 +241,14 @@ export const buildPollResultsEmbed = (
       `Status: ${poll.closedAt ? 'Closed' : 'Open'}`,
       `Total voters: ${results.totalVoters}`,
       `Pass rule: ${getPassRuleLabel(poll.mode, poll.passThreshold, poll.passOptionIndex, poll.options)}`,
+      ...buildElectorateLines(snapshot).map(toPlainLine),
+      outcome.kind === 'standard' && outcome.status === 'quorum-failed' ? 'Outcome: Quorum not met' : null,
       poll.anonymous
         ? 'Anonymous poll: voter identities are shown below, but option selections remain private.'
         : 'Non-anonymous poll: voter identities are shown below.',
-    ].join('\n'),
+    ]
+      .filter(Boolean)
+      .join('\n'),
   );
 
   for (const [index, choice] of results.choices.entries()) {
@@ -206,12 +270,12 @@ export const buildPollResultsEmbed = (
   if (poll.anonymous) {
     embed.addFields({
       name: 'Voters',
-      value: uniqueVoterMentions.join(', ') || 'No votes yet',
+      value: uniqueVoterMentions.join(', ') || 'No ballots yet',
     });
   }
 
   return embed;
-};
+}
 
 const formatAuditSelection = (
   optionLabels: Map<string, string>,
