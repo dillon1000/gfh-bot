@@ -23,7 +23,8 @@ const basePoll = {
   eligibleChannelIds: [],
   passThreshold: null,
   passOptionIndex: null,
-  reminderSentAt: null,
+  reminderRoleId: null,
+  reminders: [],
   closesAt: new Date('2026-03-24T00:00:00.000Z'),
   closedAt: null,
   createdAt: new Date('2026-03-24T00:00:00.000Z'),
@@ -77,6 +78,34 @@ describe('buildPollMessageEmbed', () => {
     expect(details).not.toContain('**Started By**');
     expect(details).not.toContain('**Visibility**');
     expect(details).not.toContain('**Voters**');
+  });
+
+  it('shows reminder summaries when configured', () => {
+    const embed = buildPollMessageEmbed(createFallbackPollSnapshot({
+      ...basePoll,
+      reminderRoleId: 'role_1',
+      reminders: [
+        {
+          id: 'reminder_1',
+          pollId: 'poll_1',
+          offsetMinutes: 24 * 60,
+          remindAt: new Date('2026-03-23T00:00:00.000Z'),
+          sentAt: null,
+          createdAt: new Date('2026-03-22T00:00:00.000Z'),
+        },
+        {
+          id: 'reminder_2',
+          pollId: 'poll_1',
+          offsetMinutes: 60,
+          remindAt: new Date('2026-03-23T23:00:00.000Z'),
+          sentAt: null,
+          createdAt: new Date('2026-03-22T00:00:00.000Z'),
+        },
+      ],
+    })).toJSON();
+    const details = embed.fields?.find((field) => field.name === 'Details')?.value ?? '';
+
+    expect(details).toContain('**Reminders** 1d • 1h • Ping <@&role_1>');
   });
 });
 

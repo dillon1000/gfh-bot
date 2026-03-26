@@ -13,7 +13,7 @@ export const pollCloseQueue = new Queue<{ pollId: string }, void, 'close'>(pollC
   },
 });
 
-export const pollReminderQueue = new Queue<{ pollId: string }, void, 'remind'>(pollReminderQueueName, {
+export const pollReminderQueue = new Queue<{ reminderId: string }, void, 'remind'>(pollReminderQueueName, {
   connection: getBullConnectionOptions(),
   defaultJobOptions: {
     removeOnComplete: true,

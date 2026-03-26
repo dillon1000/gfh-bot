@@ -9,6 +9,8 @@ import {
   parsePassThreshold,
   parsePollFormInput,
   parseQuorumPercent,
+  parseReminderOffsets,
+  parseReminderRoleTarget,
   resolvePassRule,
 } from '../src/features/polls/parser.js';
 
@@ -109,6 +111,38 @@ describe('governance target parsers', () => {
   it('surfaces poll-specific governance parser errors', () => {
     expect(() => parseGovernanceRoleTargets('not-a-role')).toThrow(/Governance roles/);
     expect(() => parseGovernanceChannelTargets('not-a-channel')).toThrow(/Eligible channels/);
+  });
+});
+
+describe('reminder parsers', () => {
+  it('parses reminder offsets, dedupes them, and sorts them longest-first', () => {
+    expect(parseReminderOffsets('10m, 1h, 10m, 1d', 2 * 24 * 60 * 60 * 1000)).toEqual([
+      24 * 60,
+      60,
+      10,
+    ]);
+  });
+
+  it('treats blank and none as no reminders', () => {
+    expect(parseReminderOffsets('', 24 * 60 * 60 * 1000)).toEqual([]);
+    expect(parseReminderOffsets('none', 24 * 60 * 60 * 1000)).toEqual([]);
+  });
+
+  it('rejects reminders that are not earlier than the poll close time', () => {
+    expect(() => parseReminderOffsets('1h', 60 * 60 * 1000)).toThrow(/earlier than the poll closing time/);
+  });
+
+  it('also validates array-based reminder defaults against the poll close time', () => {
+    expect(() => parseReminderOffsets([60], 30 * 60 * 1000)).toThrow(/earlier than the poll closing time/);
+  });
+
+  it('parses a single reminder role target', () => {
+    expect(parseReminderRoleTarget('<@&123456789012345678>')).toBe('123456789012345678');
+    expect(parseReminderRoleTarget('')).toBeNull();
+  });
+
+  it('rejects invalid reminder role input', () => {
+    expect(() => parseReminderRoleTarget('mods')).toThrow(/Reminder role/);
   });
 });
 

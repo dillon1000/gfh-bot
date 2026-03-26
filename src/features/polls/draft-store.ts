@@ -1,5 +1,6 @@
 import type { Redis } from 'ioredis';
 
+import { defaultReminderOffsetsMinutes } from './parser.js';
 import type { PollDraft } from './types.js';
 
 const ttlSeconds = 60 * 60 * 24;
@@ -21,6 +22,8 @@ export const createDefaultDraft = (): PollDraft => ({
   passOptionIndex: null,
   createThread: true,
   threadName: '',
+  reminderRoleId: null,
+  reminderOffsets: [...defaultReminderOffsetsMinutes],
   durationText: '24h',
 });
 

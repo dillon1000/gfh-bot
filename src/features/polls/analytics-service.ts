@@ -43,6 +43,11 @@ const pollAnalyticsInclude = {
       sortOrder: 'asc',
     },
   },
+  reminders: {
+    orderBy: {
+      offsetMinutes: 'desc',
+    },
+  },
   votes: true,
 } satisfies Prisma.PollInclude;
 

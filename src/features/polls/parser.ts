@@ -8,8 +8,11 @@ const maxQuestionLength = 200;
 const maxDescriptionLength = 1_000;
 const maxChoiceLength = 80;
 const maxGovernanceTargets = 25;
+const minuteMs = 60_000;
+const noneReminderValue = 'none';
 const roleMentionPattern = /^<@&(?<id>\d{16,25})>$/;
 const channelIdPattern = /^(?:<#)?(?<id>\d{16,25})>?$/;
+export const defaultReminderOffsetsMinutes = [60] as const;
 
 const parseGovernanceTargets = (
   value: string,
@@ -117,6 +120,59 @@ export const parseGovernanceChannelTargets = (
     limitMessage: `You can configure at most ${maxGovernanceTargets} channels in one governance rule.`,
     resolveId: (part) => channelIdPattern.exec(part)?.groups?.id ?? null,
   });
+};
+
+export const parseReminderRoleTarget = (
+  value: string | null | undefined,
+): string | null => {
+  if (!value?.trim()) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  const roleId = roleMentionPattern.exec(trimmed)?.groups?.id ?? (/^\d{16,25}$/.test(trimmed) ? trimmed : null);
+
+  if (!roleId) {
+    throw new Error('Reminder role must be provided as a role mention or raw role ID.');
+  }
+
+  return roleId;
+};
+
+export const parseReminderOffsets = (
+  value: string | number[] | null | undefined,
+  pollDurationMs: number,
+): number[] => {
+  const offsets = Array.isArray(value)
+    ? value
+    : (() => {
+        const trimmed = (value ?? '').trim();
+        if (!trimmed || trimmed.toLowerCase() === noneReminderValue) {
+          return [];
+        }
+
+        return trimmed
+          .split(',')
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .map((part) => parseDurationToMs(part) / minuteMs);
+      })();
+
+  const normalized = new Set<number>();
+
+  for (const offsetMinutes of offsets) {
+    if (!Number.isInteger(offsetMinutes) || offsetMinutes <= 0) {
+      throw new Error('Reminder times must be whole-minute durations like 10m, 1h, or 1d.');
+    }
+
+    if (offsetMinutes * minuteMs >= pollDurationMs) {
+      throw new Error('Reminder times must be earlier than the poll closing time.');
+    }
+
+    normalized.add(offsetMinutes);
+  }
+
+  return [...normalized].sort((left, right) => right - left);
 };
 
 export const parsePassChoiceIndex = (

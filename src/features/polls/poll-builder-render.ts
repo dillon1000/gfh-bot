@@ -8,6 +8,7 @@ import {
   TextInputStyle,
 } from 'discord.js';
 
+import { formatDurationFromMinutes } from '../../lib/duration.js';
 import { pollBuilderButtonCustomId, pollBuilderModalCustomId, type PollBuilderModalField } from './custom-ids.js';
 import { getPollChoiceEmojiDisplay, resolvePollThreadName } from './present.js';
 import { getDraftSummary, getModeLabel } from './render-helpers.js';
@@ -144,16 +145,28 @@ export const buildPollBuilderModal = (
       break;
     case 'time':
       input
+        .setCustomId('duration')
         .setLabel('Duration')
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
         .setValue(draft.durationText || '24h')
         .setPlaceholder('1d 12h 15m')
         .setMaxLength(20);
+      const remindersInput = new TextInputBuilder()
+        .setCustomId('reminders')
+        .setLabel('Reminders')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false)
+        .setValue(draft.reminderOffsets.map((offsetMinutes) => formatDurationFromMinutes(offsetMinutes)).join(', '))
+        .setPlaceholder('1d, 1h, 10m or none')
+        .setMaxLength(100);
       return new ModalBuilder()
         .setCustomId(pollBuilderModalCustomId(field))
         .setTitle('Edit time')
-        .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input));
+        .addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(input),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(remindersInput),
+        );
     case 'pass-rule': {
       const thresholdInput = new TextInputBuilder()
         .setCustomId('threshold')
@@ -217,6 +230,14 @@ export const buildPollBuilderModal = (
         .setValue(draft.eligibleChannelIds.map((channelId) => `<#${channelId}>`).join(', '))
         .setPlaceholder('Comma-separated channel mentions or IDs')
         .setMaxLength(500);
+      const reminderRoleInput = new TextInputBuilder()
+        .setCustomId('reminder-role')
+        .setLabel('Reminder Role')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false)
+        .setValue(draft.reminderRoleId ? `<@&${draft.reminderRoleId}>` : '')
+        .setPlaceholder('Optional role mention or ID to ping')
+        .setMaxLength(100);
 
       return new ModalBuilder()
         .setCustomId(pollBuilderModalCustomId(field))
@@ -226,6 +247,7 @@ export const buildPollBuilderModal = (
           new ActionRowBuilder<TextInputBuilder>().addComponents(allowedRolesInput),
           new ActionRowBuilder<TextInputBuilder>().addComponents(blockedRolesInput),
           new ActionRowBuilder<TextInputBuilder>().addComponents(channelInput),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(reminderRoleInput),
         );
     }
     case 'thread-name':

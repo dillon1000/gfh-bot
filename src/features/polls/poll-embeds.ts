@@ -9,6 +9,7 @@ import {
   getGovernanceLabel,
   getModeLabel,
   getPassRuleLabel,
+  getReminderLabel,
   renderChoiceLine,
   shouldRevealRankedResults,
 } from './render-helpers.js';
@@ -97,6 +98,14 @@ const buildCompactDetailsLines = (snapshot: EvaluatedPollSnapshot): string[] => 
   const governanceLabel = getGovernanceLabel(poll);
   if (governanceLabel !== 'Disabled') {
     lines.push(`**Governance** ${governanceLabel}`);
+  }
+
+  const reminderLabel = getReminderLabel({
+    reminderOffsets: poll.reminders.map((reminder) => reminder.offsetMinutes),
+    reminderRoleId: poll.reminderRoleId,
+  });
+  if (reminderLabel !== 'Disabled') {
+    lines.push(`**Reminders** ${reminderLabel}`);
   }
 
   const participationParts: string[] = [];

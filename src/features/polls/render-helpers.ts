@@ -1,5 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder } from 'discord.js';
 
+import { formatDurationFromMinutes } from '../../lib/duration.js';
 import type { PollComputedResults, PollDraft, PollMode, PollWithRelations, RankedPollRound } from './types.js';
 
 export const chunkButtons = (buttons: ButtonBuilder[]): ActionRowBuilder<ButtonBuilder>[] => {
@@ -75,6 +76,24 @@ export const getGovernanceLabel = (
   return labels.length > 0 ? labels.join(' • ') : 'Disabled';
 };
 
+export const getReminderLabel = (
+  settings: {
+    reminderOffsets: number[];
+    reminderRoleId: string | null | undefined;
+  },
+): string => {
+  if (settings.reminderOffsets.length === 0) {
+    return 'Disabled';
+  }
+
+  return [
+    settings.reminderOffsets.map((offsetMinutes) => formatDurationFromMinutes(offsetMinutes)).join(' • '),
+    settings.reminderRoleId ? `Ping <@&${settings.reminderRoleId}>` : null,
+  ]
+    .filter(Boolean)
+    .join(' • ');
+};
+
 export const buildRoundEliminationLabel = (poll: PollWithRelations, round: RankedPollRound): string =>
   round.eliminatedOptionIds.length === 0
     ? 'No elimination'
@@ -111,6 +130,7 @@ export const getDraftSummary = (
     `**Mode** ${getModeLabel(draft.mode)}`,
     `**Visibility** ${draft.anonymous ? 'Anonymous option selections' : 'Public vote totals'}`,
     `**Governance** ${getGovernanceLabel(draft)}`,
+    `**Reminders** ${getReminderLabel(draft)}`,
     `**Pass Rule** ${getPassRuleLabel(draft.mode, draft.passThreshold, draft.passOptionIndex, draft.choices.map((label) => ({ label })))}`,
     `**Discussion** ${draft.createThread ? `Thread opens as **${resolvePollThreadName(draft.question, draft.threadName)}**` : 'No thread will be created'}`,
     `**Duration** ${draft.durationText}`,

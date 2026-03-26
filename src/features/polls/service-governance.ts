@@ -16,7 +16,7 @@ type PollGovernanceFields = Pick<
 
 type PollCreationGovernanceFields = Pick<
   PollCreationInput,
-  'quorumPercent' | 'allowedRoleIds' | 'blockedRoleIds' | 'eligibleChannelIds'
+  'quorumPercent' | 'allowedRoleIds' | 'blockedRoleIds' | 'eligibleChannelIds' | 'reminderRoleId'
 >;
 
 export type PollElectorateMember = {
@@ -385,7 +385,10 @@ const assertGovernanceTargetsResolve = async (
   guild: Guild,
   config: PollCreationGovernanceFields,
 ): Promise<void> => {
-  const roleChecks = await Promise.all(config.allowedRoleIds.concat(config.blockedRoleIds).map(async (roleId) => {
+  const roleIds = config.allowedRoleIds
+    .concat(config.blockedRoleIds)
+    .concat(config.reminderRoleId ? [config.reminderRoleId] : []);
+  const roleChecks = await Promise.all(roleIds.map(async (roleId) => {
     const role = guild.roles.cache.get(roleId) ?? await guild.roles.fetch(roleId).catch(() => null);
     return { roleId, exists: Boolean(role) };
   }));

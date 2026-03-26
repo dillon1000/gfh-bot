@@ -89,6 +89,18 @@ export const pollCommand = new SlashCommandBuilder()
       .setDescription('Duration, for example 30m, 24h, or 1d 12h 15m')
       .setRequired(false),
   )
+  .addStringOption((option) =>
+    option
+      .setName('reminders')
+      .setDescription('Optional comma-separated reminder offsets like 1d,1h,10m or "none"')
+      .setRequired(false),
+  )
+  .addStringOption((option) =>
+    option
+      .setName('reminder_role')
+      .setDescription('Optional role mention or ID to ping on each reminder')
+      .setRequired(false),
+  )
   .addIntegerOption((option) =>
     option
       .setName('pass_threshold')
