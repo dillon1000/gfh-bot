@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildPollResultsEmbed } from '../src/features/polls/poll-embeds.js';
+import { buildPollMessageEmbed, buildPollResultsEmbed } from '../src/features/polls/poll-embeds.js';
 import type { PollWithRelations } from '../src/features/polls/types.js';
 import { computePollResults } from '../src/features/polls/results.js';
+import { createFallbackPollSnapshot } from '../src/features/polls/service-governance.js';
 
 const basePoll = {
   id: 'poll_1',
@@ -66,6 +67,18 @@ const basePoll = {
 } satisfies PollWithRelations;
 
 describe('buildPollResultsEmbed', () => {
+  it('renders message details as compact summary lines', () => {
+    const embed = buildPollMessageEmbed(createFallbackPollSnapshot(basePoll)).toJSON();
+    const details = embed.fields?.find((field) => field.name === 'Details')?.value ?? '';
+
+    expect(details).toContain('Single-choice public poll started by <@user_1>');
+    expect(details).toContain('Pass rule Disabled');
+    expect(details).not.toContain('**Mode**');
+    expect(details).not.toContain('**Started By**');
+    expect(details).not.toContain('**Visibility**');
+    expect(details).not.toContain('**Voters**');
+  });
+
   it('shows voter identities for non-anonymous polls', () => {
     const embed = buildPollResultsEmbed(basePoll, computePollResults(basePoll)).toJSON();
     expect(embed.fields?.[0]?.name).toContain('✅');
