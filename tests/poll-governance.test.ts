@@ -3,10 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { buildPollExportCsv } from '../src/features/polls/export.js';
 import { buildPollResultsEmbed } from '../src/features/polls/poll-embeds.js';
+import { computePollResults } from '../src/features/polls/results.js';
 import {
   evaluatePollAgainstElectorate,
   evaluatePollForResults,
   isElectorateMemberEligible,
+  validatePollGovernanceConfig,
   type PollElectorateMember,
 } from '../src/features/polls/service-governance.js';
 import type { PollWithRelations } from '../src/features/polls/types.js';
@@ -154,7 +156,7 @@ describe('poll governance evaluation', () => {
     expect(snapshot.electorate.participatingEligibleVoterCount).toBe(1);
     expect(snapshot.electorate.turnoutPercent).toBe(50);
     expect(snapshot.electorate.quorumMet).toBe(false);
-    expect(snapshot.electorate.excludedVoteCount).toBe(2);
+    expect(snapshot.electorate.excludedBallotCount).toBe(2);
     expect(snapshot.outcome.kind).toBe('standard');
     if (snapshot.outcome.kind === 'standard') {
       expect(snapshot.outcome.status).toBe('quorum-failed');
@@ -249,7 +251,7 @@ describe('poll governance evaluation', () => {
 
     const snapshot = evaluatePollAgainstElectorate(rankedPoll, electorate);
 
-    expect(snapshot.electorate.excludedVoteCount).toBe(1);
+    expect(snapshot.electorate.excludedBallotCount).toBe(1);
     expect(snapshot.electorate.excludedVoterCount).toBe(1);
   });
 
@@ -262,7 +264,14 @@ describe('poll governance evaluation', () => {
     expect(embed.description).toContain('Quorum 60% not met');
     expect(embed.description).toContain('Outcome: Quorum not met');
     expect(csv).toContain('eligible_voter_count');
+    expect(csv).toContain('excluded_ballot_count');
     expect(csv).toContain(',2,1,50.0,false,2,2,');
+  });
+
+  it('omits quorum status when fallback snapshots cannot evaluate it', () => {
+    const embed = buildPollResultsEmbed(governedPoll, computePollResults(governedPoll)).toJSON();
+
+    expect(embed.description).not.toContain('Quorum 60% not met');
   });
 
   it('evaluates non-quorum governance rules against participating voters only', async () => {
@@ -301,9 +310,37 @@ describe('poll governance evaluation', () => {
     expect(snapshot.results.totalVoters).toBe(1);
     expect(snapshot.electorate.eligibleVoterCount).toBeNull();
     expect(snapshot.electorate.participatingEligibleVoterCount).toBe(1);
-    expect(snapshot.electorate.excludedVoteCount).toBe(1);
+    expect(snapshot.electorate.excludedBallotCount).toBe(1);
     expect(fetchMember).toHaveBeenCalledTimes(2);
     expect(fetchMember).not.toHaveBeenCalledWith();
+  });
+
+  it('skips full electorate loading during validation when quorum is disabled', async () => {
+    const fetchMembers = vi.fn();
+    const fetchRole = vi.fn(async () => ({ id: 'role_allowed' }));
+    const guild = {
+      id: 'guild_validate',
+      members: {
+        fetch: fetchMembers,
+      },
+      roles: {
+        cache: new Collection<string, { id: string }>(),
+        fetch: fetchRole,
+      },
+      channels: {
+        fetch: vi.fn(),
+      },
+    } as unknown as Guild;
+
+    await validatePollGovernanceConfig(createMockClient(guild), guild.id, {
+      quorumPercent: null,
+      allowedRoleIds: ['role_allowed'],
+      blockedRoleIds: [],
+      eligibleChannelIds: [],
+    });
+
+    expect(fetchRole).toHaveBeenCalledWith('role_allowed');
+    expect(fetchMembers).not.toHaveBeenCalled();
   });
 
   it('reuses a cached electorate for repeated quorum evaluations', async () => {

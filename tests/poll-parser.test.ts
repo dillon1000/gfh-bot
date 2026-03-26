@@ -105,6 +105,11 @@ describe('governance target parsers', () => {
     expect(parseGovernanceRoleTargets('')).toEqual([]);
     expect(parseGovernanceChannelTargets('')).toEqual([]);
   });
+
+  it('surfaces poll-specific governance parser errors', () => {
+    expect(() => parseGovernanceRoleTargets('not-a-role')).toThrow(/Governance roles/);
+    expect(() => parseGovernanceChannelTargets('not-a-channel')).toThrow(/Eligible channels/);
+  });
 });
 
 describe('parsePassChoiceIndex', () => {

@@ -102,6 +102,7 @@ const buildStandardSummary = (
   poll: PollWithRelations,
   results: Extract<PollComputedResults, { kind: 'standard' }>,
   outcome: PollOutcome,
+  electorate?: EvaluatedPollSnapshot['electorate'],
 ): { accent: string; headline: string; subline: string } => {
   if (outcome.kind !== 'standard') {
     return {
@@ -136,7 +137,9 @@ const buildStandardSummary = (
     return {
       headline: 'No Quorum',
       accent: danger,
-      subline: `${formatPercent(outcome.measuredPercentage)} recorded`,
+      subline: electorate?.turnoutPercent != null && electorate.quorumPercent != null
+        ? `Turnout ${formatPercent(electorate.turnoutPercent)} of ${electorate.quorumPercent}% quorum`
+        : 'Turnout below quorum',
     };
   }
 
@@ -219,8 +222,9 @@ const buildStandardPollSvg = (
   poll: PollWithRelations,
   results: Extract<PollComputedResults, { kind: 'standard' }>,
   outcome: PollOutcome,
+  electorate?: EvaluatedPollSnapshot['electorate'],
 ): string => {
-  const summary = buildStandardSummary(poll, results, outcome);
+  const summary = buildStandardSummary(poll, results, outcome, electorate);
   const colorScale = createColorScale(poll);
   const arcCenterX = 410;
   const arcCenterY = 525;
@@ -407,7 +411,7 @@ export async function buildPollResultDiagram(
   const fileName = `poll-result-${poll.id}.png`;
   const svg = results.kind === 'ranked'
     ? buildRankedPollSvg(poll, results, outcome)
-    : buildStandardPollSvg(poll, results, outcome);
+    : buildStandardPollSvg(poll, results, outcome, snapshot.electorate);
 
   const buffer = await sharp(Buffer.from(svg))
     .png()

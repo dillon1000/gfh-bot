@@ -1,7 +1,5 @@
 import { parseDurationToMs } from '../../lib/duration.js';
 import { normalizeEmojiInput } from '../../lib/emoji.js';
-import { parseRoleTargets } from '../reaction-roles/parser.js';
-import { parseChannelIdBlacklist } from '../starboard/parser.js';
 import type { PollMode } from './types.js';
 
 const minChoices = 2;
@@ -9,6 +7,40 @@ const maxChoices = 10;
 const maxQuestionLength = 200;
 const maxDescriptionLength = 1_000;
 const maxChoiceLength = 80;
+const maxGovernanceTargets = 25;
+const roleMentionPattern = /^<@&(?<id>\d{16,25})>$/;
+const channelIdPattern = /^(?:<#)?(?<id>\d{16,25})>?$/;
+
+const parseGovernanceTargets = (
+  value: string,
+  options: {
+    invalidMessage: string;
+    limitMessage: string;
+    resolveId: (part: string) => string | null;
+  },
+): string[] => {
+  const parts = value
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length > maxGovernanceTargets) {
+    throw new Error(options.limitMessage);
+  }
+
+  const unique = new Set<string>();
+
+  for (const part of parts) {
+    const targetId = options.resolveId(part);
+    if (!targetId) {
+      throw new Error(options.invalidMessage);
+    }
+
+    unique.add(targetId);
+  }
+
+  return [...unique];
+};
 
 export const parsePollMode = (value: string | null | undefined): PollMode => {
   const normalized = value ?? 'single';
@@ -66,12 +98,26 @@ export const parseGovernanceRoleTargets = (
     return [];
   }
 
-  return parseRoleTargets(value);
+  return parseGovernanceTargets(value, {
+    invalidMessage: 'Governance roles must be provided as role mentions or raw role IDs, separated by commas.',
+    limitMessage: `You can configure at most ${maxGovernanceTargets} roles in one governance rule.`,
+    resolveId: (part) => roleMentionPattern.exec(part)?.groups?.id ?? (/^\d{16,25}$/.test(part) ? part : null),
+  });
 };
 
 export const parseGovernanceChannelTargets = (
   value: string | null | undefined,
-): string[] => parseChannelIdBlacklist(value);
+): string[] => {
+  if (!value?.trim()) {
+    return [];
+  }
+
+  return parseGovernanceTargets(value, {
+    invalidMessage: 'Eligible channels must be provided as channel mentions or raw channel IDs, separated by commas.',
+    limitMessage: `You can configure at most ${maxGovernanceTargets} channels in one governance rule.`,
+    resolveId: (part) => channelIdPattern.exec(part)?.groups?.id ?? null,
+  });
+};
 
 export const parsePassChoiceIndex = (
   value: number | string | null | undefined,

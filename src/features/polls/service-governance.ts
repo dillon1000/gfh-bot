@@ -118,7 +118,7 @@ const buildElectorateSummary = (
     allowedRoleIds: poll.allowedRoleIds,
     blockedRoleIds: poll.blockedRoleIds,
     eligibleChannelIds: poll.eligibleChannelIds,
-    excludedVoteCount: excludedVoterCount,
+    excludedBallotCount: excludedVoterCount,
     excludedVoterCount,
   };
 };
@@ -160,7 +160,7 @@ export const evaluatePollAgainstElectorate = (
         allowedRoleIds: poll.allowedRoleIds,
         blockedRoleIds: poll.blockedRoleIds,
         eligibleChannelIds: poll.eligibleChannelIds,
-        excludedVoteCount: 0,
+        excludedBallotCount: 0,
         excludedVoterCount: 0,
       },
     };
@@ -238,7 +238,7 @@ export const createFallbackPollSnapshot = (
     allowedRoleIds: poll.allowedRoleIds,
     blockedRoleIds: poll.blockedRoleIds,
     eligibleChannelIds: poll.eligibleChannelIds,
-    excludedVoteCount: 0,
+    excludedBallotCount: 0,
     excludedVoterCount: 0,
   },
 });
@@ -297,8 +297,12 @@ const loadElectorateMembers = async (
 ): Promise<PollElectorateMember[]> => {
   const cacheKey = getElectorateCacheKey(guild.id, poll.eligibleChannelIds);
   const cached = electorateMemberCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.members;
+  if (cached) {
+    if (cached.expiresAt > Date.now()) {
+      return cached.members;
+    }
+
+    electorateMemberCache.delete(cacheKey);
   }
 
   let members;
@@ -386,7 +390,7 @@ export const validatePollGovernanceConfig = async (
   const guild = await getPollGuild(client, guildId);
   await assertGovernanceTargetsResolve(guild, config);
 
-  if (hasPollElectorateRules(config)) {
+  if (config.quorumPercent !== null && config.quorumPercent !== undefined) {
     await loadElectorateMembers(guild, {
       ...config,
       quorumPercent: config.quorumPercent ?? null,
