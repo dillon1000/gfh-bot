@@ -5,6 +5,7 @@ import { latexCommand } from '../../features/meta/latex.js';
 import { meowCommand } from '../../features/meta/meow.js';
 import { pingCommand } from '../../features/meta/ping.js';
 import {
+  pollAnalyticsCommand,
   pollAuditCommand,
   pollAuditFromMessageCommand,
   pollBuilderCommand,
@@ -29,6 +30,7 @@ export const applicationCommands: RESTPostAPIApplicationCommandsJSONBody[] = [
   pollResultsCommand.toJSON(),
   pollExportCommand.toJSON(),
   pollAuditCommand.toJSON(),
+  pollAnalyticsCommand.toJSON(),
   pollFromMessageCommand,
   pollResultsFromMessageCommand,
   pollExportFromMessageCommand,

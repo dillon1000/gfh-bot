@@ -369,4 +369,45 @@ describe('poll governance evaluation', () => {
 
     expect(fetchMembers).toHaveBeenCalledTimes(1);
   });
+
+  it('shares an in-flight electorate load across concurrent quorum evaluations', async () => {
+    const poll = {
+      ...governedPoll,
+      id: 'poll_governed_concurrent',
+      guildId: 'guild_concurrent',
+      eligibleChannelIds: [],
+      blockedRoleIds: [],
+      votes: [governedPoll.votes[0]!],
+    } satisfies PollWithRelations;
+    let resolveFetch: ((value: Collection<string, GuildMember>) => void) | undefined;
+    const fetchMembers = vi.fn(() => new Promise<Collection<string, GuildMember>>((resolve) => {
+      resolveFetch = resolve;
+    }));
+    const guild = {
+      id: poll.guildId,
+      members: {
+        fetch: fetchMembers,
+      },
+    } as unknown as Guild;
+    const client = createMockClient(guild);
+
+    const first = evaluatePollForResults(client, poll);
+    const second = evaluatePollForResults(client, {
+      ...poll,
+      id: 'poll_governed_concurrent_2',
+    });
+
+    await Promise.resolve();
+
+    expect(fetchMembers).toHaveBeenCalledTimes(1);
+
+    resolveFetch?.(new Collection([
+      ['user_allowed', createMockMember('user_allowed', ['role_allowed'])],
+      ['user_alt_channel', createMockMember('user_alt_channel', ['role_allowed'])],
+    ]));
+
+    await Promise.all([first, second]);
+
+    expect(fetchMembers).toHaveBeenCalledTimes(1);
+  });
 });
