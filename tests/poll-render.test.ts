@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildPollResultsEmbed } from '../src/features/polls/render.js';
+import { buildPollResultsEmbed } from '../src/features/polls/poll-embeds.js';
 import type { PollWithRelations } from '../src/features/polls/types.js';
 import { computePollResults } from '../src/features/polls/results.js';
 

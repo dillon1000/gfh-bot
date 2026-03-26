@@ -9,7 +9,7 @@ import {
   TextInputStyle,
 } from 'discord.js';
 
-import { buildFeedbackEmbed } from '../polls/render.js';
+import { buildFeedbackEmbed } from '../polls/poll-embeds.js';
 import type { ReactionRoleDraft } from './draft-store.js';
 import type { ReactionRolePanelWithOptions } from './types.js';
 

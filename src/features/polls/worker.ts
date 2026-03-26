@@ -4,7 +4,7 @@ import type { Client } from 'discord.js';
 import { logger } from '../../app/logger.js';
 import { pollCloseQueueName, pollReminderQueueName } from '../../lib/queue.js';
 import { getBullConnectionOptions } from '../../lib/redis.js';
-import { closePollAndRefresh, sendPollReminder } from './service.js';
+import { closePollAndRefresh, sendPollReminder } from './service-lifecycle.js';
 
 export const startPollWorker = (client: Client): Worker<{ pollId: string }, void, 'close'> => {
   const worker = new Worker<{ pollId: string }, void, 'close'>(

@@ -11,7 +11,7 @@ import {
 import { env } from '../../app/config.js';
 import { assertWithinRateLimit } from '../../lib/rate-limit.js';
 import { redis } from '../../lib/redis.js';
-import { buildFeedbackEmbed } from '../polls/render.js';
+import { buildFeedbackEmbed } from '../polls/poll-embeds.js';
 
 const createRandomCatUrl = (): string => `https://cataas.com/cat?type=medium&ts=${Date.now()}`;
 

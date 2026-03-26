@@ -10,29 +10,33 @@ import { handleLatexCommand } from '../features/meta/latex.js';
 import { handleMeowCommand } from '../features/meta/meow.js';
 import { handlePingCommand } from '../features/meta/ping.js';
 import {
-  handlePollAuditCommand,
-  handlePollAuditContext,
   handlePollBuilderButton,
   handlePollBuilderCommand,
   handlePollBuilderModal,
-  handlePollChoiceButton,
+  handlePollCommand,
+  handlePollFromMessageContext,
+} from '../features/polls/builder-interactions.js';
+import { handlePollInteractionError } from '../features/polls/interaction-errors.js';
+import {
+  handlePollAuditCommand,
+  handlePollAuditContext,
   handlePollCloseContext,
   handlePollCloseModal,
-  handlePollCommand,
   handlePollExportCommand,
   handlePollExportContext,
-  handlePollFromMessageContext,
-  handlePollInteractionError,
+  handlePollResultsCommand,
+  handlePollResultsButton,
+  handlePollResultsContext,
+} from '../features/polls/query-interactions.js';
+import {
+  handlePollChoiceButton,
   handlePollRankAddButton,
   handlePollRankClearButton,
   handlePollRankOpenButton,
   handlePollRankSubmitButton,
   handlePollRankUndoButton,
-  handlePollResultsCommand,
-  handlePollResultsButton,
-  handlePollResultsContext,
   handlePollVoteSelect,
-} from '../features/polls/interactions.js';
+} from '../features/polls/voting-interactions.js';
 import {
   handleReactionRoleClear,
   handleReactionRoleBuilderButton,

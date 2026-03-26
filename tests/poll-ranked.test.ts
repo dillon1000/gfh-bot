@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildPollExportCsv } from '../src/features/polls/export.js';
-import { buildPollMessage, buildPollResultsEmbed } from '../src/features/polls/render.js';
+import { buildPollResultsEmbed } from '../src/features/polls/poll-embeds.js';
+import { buildPollMessage } from '../src/features/polls/poll-responses.js';
 import { computePollResults } from '../src/features/polls/results.js';
 import type { PollWithRelations } from '../src/features/polls/types.js';
 
