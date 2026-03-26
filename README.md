@@ -62,6 +62,10 @@ Copy `.env.example` to `.env` and fill in:
 - `DISCORD_TOKEN`
 - `DISCORD_CLIENT_ID`
 - `DISCORD_GUILD_ID`
+- `DISCORD_PRESENCE_STATUS` optional: `online`, `idle`, `dnd`, or `invisible`
+- `DISCORD_ACTIVITY_TYPE` optional: `playing`, `listening`, `watching`, `competing`, or `streaming`
+- `DISCORD_ACTIVITY_TEXT` optional activity text, for example `help`
+- `DISCORD_ACTIVITY_URL` optional stream URL, only used when the activity type is `streaming`
 - `DATABASE_URL`
 - `REDIS_URL`
 - `R2_ACCOUNT_ID` optional
