@@ -58,14 +58,14 @@ const buildChannelActivityFieldValue = (snapshot: PollAnalyticsSnapshot): string
 
   return snapshot.channelActivity
     .map((entry, index) =>
-      `**${index + 1}.** <#${entry.channelId}> • ${formatPlural(entry.pollCount, 'poll')} • ${formatPlural(entry.participantCount, 'poll participant')}`)
+      `**${index + 1}.** <#${entry.channelId}> • ${formatPlural(entry.pollCount, 'poll')} • ${formatPlural(entry.participationCount, 'poll participation')}`)
     .join('\n');
 };
 
 const buildVisibilityFieldValue = (snapshot: PollAnalyticsSnapshot): string =>
   [
-    `Anonymous: ${formatPlural(snapshot.visibilityBreakdown.anonymous.pollCount, 'poll')} (${snapshot.visibilityBreakdown.anonymous.percentage.toFixed(1)}%) • ${formatPlural(snapshot.visibilityBreakdown.anonymous.participantCount, 'poll participant')}`,
-    `Named: ${formatPlural(snapshot.visibilityBreakdown.named.pollCount, 'poll')} (${snapshot.visibilityBreakdown.named.percentage.toFixed(1)}%) • ${formatPlural(snapshot.visibilityBreakdown.named.participantCount, 'poll participant')}`,
+    `Anonymous: ${formatPlural(snapshot.visibilityBreakdown.anonymous.pollCount, 'poll')} (${snapshot.visibilityBreakdown.anonymous.percentage.toFixed(1)}%) • ${formatPlural(snapshot.visibilityBreakdown.anonymous.participationCount, 'poll participation')}`,
+    `Named: ${formatPlural(snapshot.visibilityBreakdown.named.pollCount, 'poll')} (${snapshot.visibilityBreakdown.named.percentage.toFixed(1)}%) • ${formatPlural(snapshot.visibilityBreakdown.named.participationCount, 'poll participation')}`,
   ].join('\n');
 
 export const buildPollAnalyticsEmbed = (
