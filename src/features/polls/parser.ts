@@ -8,6 +8,7 @@ const maxQuestionLength = 200;
 const maxDescriptionLength = 1_000;
 const maxChoiceLength = 80;
 const maxGovernanceTargets = 25;
+const maxReminderOffsets = 10;
 const minuteMs = 60_000;
 const noneReminderValue = 'none';
 const roleMentionPattern = /^<@&(?<id>\d{16,25})>$/;
@@ -170,6 +171,10 @@ export const parseReminderOffsets = (
     }
 
     normalized.add(offsetMinutes);
+  }
+
+  if (normalized.size > maxReminderOffsets) {
+    throw new Error(`You can configure at most ${maxReminderOffsets} reminder times on one poll.`);
   }
 
   return [...normalized].sort((left, right) => right - left);
