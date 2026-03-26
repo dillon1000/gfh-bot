@@ -5,6 +5,7 @@ import { assertWithinRateLimit } from '../../lib/rate-limit.js';
 import { pollCloseQueue, pollReminderQueue } from '../../lib/queue.js';
 import { prisma } from '../../lib/prisma.js';
 import { redis } from '../../lib/redis.js';
+import { durationMsToMinutes, getPollDurationMinutes } from './poll-state.js';
 import { parsePollLookup } from './query.js';
 import type { PollCreationInput, PollWithRelations } from './types.js';
 
@@ -23,8 +24,6 @@ export const pollInclude = {
 } as const;
 
 const minuteMs = 60_000;
-
-const durationMsToMinutes = (durationMs: number): number => Math.max(1, Math.round(durationMs / minuteMs));
 
 const getPollForUpdate = async (
   tx: Prisma.TransactionClient,
@@ -463,8 +462,7 @@ export const extendPollRecord = async (
       },
       data: {
         closesAt,
-        durationMinutes: (existingPoll.durationMinutes ?? durationMsToMinutes(existingPoll.closesAt.getTime() - existingPoll.createdAt.getTime()))
-          + durationMsToMinutes(additionalDurationMs),
+        durationMinutes: getPollDurationMinutes(existingPoll) + durationMsToMinutes(additionalDurationMs),
         reminders: {
           deleteMany: {},
           create: buildPollReminderRecords(closesAt, existingPoll.reminders.map((reminder) => reminder.offsetMinutes)),

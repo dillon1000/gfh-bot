@@ -32,9 +32,11 @@ const governedPoll = {
   passThreshold: 50,
   passOptionIndex: 0,
   reminderRoleId: null,
+  durationMinutes: 1440,
   reminders: [],
   closesAt: new Date('2026-03-24T00:00:00.000Z'),
   closedAt: new Date('2026-03-24T01:00:00.000Z'),
+  closedReason: 'closed',
   createdAt: new Date('2026-03-24T00:00:00.000Z'),
   updatedAt: new Date('2026-03-24T00:00:00.000Z'),
   options: [

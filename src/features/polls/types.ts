@@ -21,8 +21,8 @@ type PrismaPollWithRelations = Prisma.PollGetPayload<{
 
 export type PollWithRelations = Omit<PrismaPollWithRelations, 'mode' | 'votes' | 'closedReason' | 'durationMinutes'> & {
   mode: PollMode;
-  closedReason?: PollClosedReason | null;
-  durationMinutes?: number;
+  closedReason: PollClosedReason | null;
+  durationMinutes: number;
   votes: Array<PrismaPollWithRelations['votes'][number] & { rank: number | null }>;
 };
 
