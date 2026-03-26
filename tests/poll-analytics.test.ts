@@ -161,20 +161,20 @@ describe('buildPollAnalyticsSnapshotFromPolls', () => {
       { userId: 'user_c', pollsParticipated: 1 },
     ]);
     expect(snapshot.channelActivity).toEqual([
-      { channelId: 'channel_alpha', pollCount: 2, participantCount: 5 },
-      { channelId: 'channel_beta', pollCount: 1, participantCount: 2 },
-      { channelId: 'channel_gamma', pollCount: 1, participantCount: 0 },
+      { channelId: 'channel_alpha', pollCount: 2, participationCount: 5 },
+      { channelId: 'channel_beta', pollCount: 1, participationCount: 2 },
+      { channelId: 'channel_gamma', pollCount: 1, participationCount: 0 },
     ]);
     expect(snapshot.visibilityBreakdown).toEqual({
       anonymous: {
         pollCount: 2,
         percentage: 50,
-        participantCount: 2,
+        participationCount: 2,
       },
       named: {
         pollCount: 2,
         percentage: 50,
-        participantCount: 5,
+        participationCount: 5,
       },
     });
   });
@@ -200,7 +200,7 @@ describe('buildPollAnalyticsSnapshotFromPolls', () => {
       { userId: 'user_e', pollsParticipated: 1 },
     ]);
     expect(snapshot.channelActivity).toEqual([
-      { channelId: 'channel_alpha', pollCount: 2, participantCount: 5 },
+      { channelId: 'channel_alpha', pollCount: 2, participationCount: 5 },
     ]);
     expect(snapshot.visibilityBreakdown.anonymous.pollCount).toBe(0);
     expect(snapshot.visibilityBreakdown.named.pollCount).toBe(2);
@@ -238,9 +238,11 @@ describe('buildPollAnalyticsSnapshotFromPolls', () => {
 describe('poll analytics limits', () => {
   it('clamps the command inputs to safe defaults', () => {
     expect(clampPollAnalyticsDays(undefined)).toBe(30);
+    expect(clampPollAnalyticsDays(0)).toBe(1);
     expect(clampPollAnalyticsDays(999)).toBe(90);
     expect(clampPollAnalyticsDays(-2)).toBe(1);
     expect(clampPollAnalyticsLimit(undefined)).toBe(5);
+    expect(clampPollAnalyticsLimit(0)).toBe(3);
     expect(clampPollAnalyticsLimit(1)).toBe(3);
     expect(clampPollAnalyticsLimit(50)).toBe(10);
   });

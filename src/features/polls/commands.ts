@@ -147,7 +147,7 @@ export const pollAnalyticsCommand = new SlashCommandBuilder()
   .addChannelOption((option) =>
     option
       .setName('channel')
-      .setDescription('Optional channel to limit analytics to')
+      .setDescription('Optional channel or thread to limit analytics to')
       .addChannelTypes(
         ChannelType.GuildAnnouncement,
         ChannelType.GuildText,

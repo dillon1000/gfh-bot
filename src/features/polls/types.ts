@@ -171,13 +171,13 @@ export type PollAnalyticsVoterEntry = {
 export type PollAnalyticsChannelEntry = {
   channelId: string;
   pollCount: number;
-  participantCount: number;
+  participationCount: number;
 };
 
 export type PollAnalyticsVisibilityEntry = {
   pollCount: number;
   percentage: number;
-  participantCount: number;
+  participationCount: number;
 };
 
 export type PollAnalyticsSnapshot = {

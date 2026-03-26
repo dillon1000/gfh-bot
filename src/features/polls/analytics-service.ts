@@ -80,11 +80,11 @@ const buildFilters = (
 
 const buildVisibilityEntry = (
   pollCount: number,
-  participantCount: number,
+  participationCount: number,
   totalPolls: number,
 ): PollAnalyticsVisibilityEntry => ({
   pollCount,
-  participantCount,
+  participationCount,
   percentage: totalPolls === 0 ? 0 : (pollCount / totalPolls) * 100,
 });
 
@@ -148,18 +148,18 @@ const buildChannelActivity = (
     const entry = channelStats.get(poll.channelId) ?? {
       channelId: poll.channelId,
       pollCount: 0,
-      participantCount: 0,
+      participationCount: 0,
     };
 
     entry.pollCount += 1;
-    entry.participantCount += getDistinctVoterCount(poll);
+    entry.participationCount += getDistinctVoterCount(poll);
     channelStats.set(poll.channelId, entry);
   }
 
   return [...channelStats.values()]
     .sort((left, right) =>
       byDescendingNumber(left, right, (entry) => entry.pollCount)
-      || byDescendingNumber(left, right, (entry) => entry.participantCount)
+      || byDescendingNumber(left, right, (entry) => entry.participationCount)
       || left.channelId.localeCompare(right.channelId))
     .slice(0, limit);
 };
@@ -185,7 +185,7 @@ const buildVisibilityBreakdown = (
 };
 
 export const clampPollAnalyticsDays = (days?: number | null): number => {
-  if (!days || Number.isNaN(days)) {
+  if (days == null || Number.isNaN(days)) {
     return defaultDays;
   }
 
@@ -193,7 +193,7 @@ export const clampPollAnalyticsDays = (days?: number | null): number => {
 };
 
 export const clampPollAnalyticsLimit = (limit?: number | null): number => {
-  if (!limit || Number.isNaN(limit)) {
+  if (limit == null || Number.isNaN(limit)) {
     return defaultLimit;
   }
 
