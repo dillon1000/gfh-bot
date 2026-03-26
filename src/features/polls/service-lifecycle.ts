@@ -80,9 +80,15 @@ export const recoverMissedPollReminders = async (client: Client): Promise<void> 
     ],
   });
 
-  const latestDueReminders = reminders.filter((reminder, index, entries) =>
-    index === 0 || reminder.pollId !== entries[index - 1]?.pollId,
-  );
+  const seenPollIds = new Set<string>();
+  const latestDueReminders = reminders.filter((reminder) => {
+    if (seenPollIds.has(reminder.pollId)) {
+      return false;
+    }
+
+    seenPollIds.add(reminder.pollId);
+    return true;
+  });
 
   await Promise.all(latestDueReminders.map((reminder) => sendPollReminder(client, reminder.id)));
 };
