@@ -2,7 +2,7 @@ import { Collection, type Client, type Guild, type GuildMember } from 'discord.j
 import { describe, expect, it, vi } from 'vitest';
 
 import { buildPollExportCsv } from '../src/features/polls/export.js';
-import { buildPollResultsEmbed } from '../src/features/polls/poll-embeds.js';
+import { buildPollMessageEmbed, buildPollResultsEmbed } from '../src/features/polls/poll-embeds.js';
 import { computePollResults } from '../src/features/polls/results.js';
 import {
   evaluatePollAgainstElectorate,
@@ -257,9 +257,19 @@ describe('poll governance evaluation', () => {
 
   it('surfaces turnout and quorum metadata in embeds and exports', () => {
     const snapshot = evaluatePollAgainstElectorate(governedPoll, electorate);
+    const messageEmbed = buildPollMessageEmbed(snapshot).toJSON();
     const embed = buildPollResultsEmbed(snapshot).toJSON();
     const csv = buildPollExportCsv(snapshot);
+    const details = messageEmbed.fields?.find((field) => field.name === 'Details')?.value ?? '';
 
+    expect(details).toContain('Single-choice public poll started by <@user_admin>');
+    expect(details).toContain('Governance** Quorum 60% • Allowed <@&role_allowed> • Blocked <@&role_blocked> • Channels <#channel_a>, <#channel_b>');
+    expect(details).toContain('Participation** 1/2 eligible voters (50.0%) • quorum 60% not met');
+    expect(details).toContain('Excluded** 2 ballots from 2 ineligible voters');
+    expect(details).not.toContain('**Started By**');
+    expect(details).not.toContain('**Turnout**');
+    expect(details).not.toContain('**Quorum**');
+    expect(details).not.toContain('**Outcome**');
     expect(embed.description).toContain('Turnout 1/2 eligible voters (50.0%)');
     expect(embed.description).toContain('Quorum 60% not met');
     expect(embed.description).toContain('Outcome: Quorum not met');
