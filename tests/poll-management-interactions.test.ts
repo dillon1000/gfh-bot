@@ -53,7 +53,7 @@ vi.mock('../src/features/polls/service-lifecycle.js', () => ({
   getPollVoteAuditSnapshotByQuery: vi.fn(),
 }));
 
-import { handlePollCloseContext } from '../src/features/polls/query-interactions.js';
+import { handlePollCloseContext, handlePollCloseModal } from '../src/features/polls/query-interactions.js';
 import {
   handlePollDuplicateContext,
   handlePollEditContext,
@@ -218,6 +218,31 @@ describe('poll management interactions', () => {
     expect(interaction.showModal).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects forged close modals for polls from another guild', async () => {
+    getPollById.mockResolvedValue({
+      ...basePoll,
+      guildId: 'guild_2',
+    });
+    const interaction = {
+      customId: 'poll:close-modal:poll_1',
+      inGuild: () => true,
+      guildId: 'guild_1',
+      user: {
+        id: 'owner_1',
+      },
+      memberPermissions: createMemberPermissions(true),
+      fields: {
+        getTextInputValue: vi.fn(() => 'CLOSE'),
+      },
+      deferReply: vi.fn(),
+      editReply: vi.fn(),
+    };
+
+    await expect(handlePollCloseModal({} as never, interaction as never))
+      .rejects
+      .toThrow('Poll not found.');
+  });
+
   it('submits edit management modals through the repository and refreshes the message', async () => {
     getPollById.mockResolvedValue(basePoll);
     const interaction = {
@@ -249,5 +274,30 @@ describe('poll management interactions', () => {
     });
     expect(refreshPollMessage).toHaveBeenCalledWith(expect.anything(), 'poll_1');
     expect(interaction.editReply).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects forged management modals for polls from another guild', async () => {
+    getPollById.mockResolvedValue({
+      ...basePoll,
+      guildId: 'guild_2',
+    });
+    const interaction = {
+      customId: 'poll:manage-modal:edit:poll_1',
+      inGuild: () => true,
+      guildId: 'guild_1',
+      user: {
+        id: 'owner_1',
+      },
+      memberPermissions: createMemberPermissions(true),
+      fields: {
+        getTextInputValue: vi.fn(),
+      },
+      deferReply: vi.fn(),
+      editReply: vi.fn(),
+    };
+
+    await expect(handlePollManageModal({} as never, interaction as never))
+      .rejects
+      .toThrow('Poll not found.');
   });
 });

@@ -342,6 +342,36 @@ describe('poll management repository helpers', () => {
     expect(reminderQueueAdd).toHaveBeenCalledTimes(2);
   });
 
+  it('drops reminder offsets that no longer fit when reopening with a shorter duration', async () => {
+    state.poll = createPoll({
+      closedAt: new Date('2099-03-26T17:00:00.000Z'),
+      closedReason: 'closed',
+      reminders: [
+        {
+          id: 'reminder_1',
+          pollId: 'poll_1',
+          offsetMinutes: 60,
+          remindAt: new Date('2099-03-26T16:00:00.000Z'),
+          sentAt: null,
+          createdAt: new Date('2099-03-26T15:00:00.000Z'),
+        },
+        {
+          id: 'reminder_2',
+          pollId: 'poll_1',
+          offsetMinutes: 10,
+          remindAt: new Date('2099-03-26T16:50:00.000Z'),
+          sentAt: null,
+          createdAt: new Date('2099-03-26T15:00:00.000Z'),
+        },
+      ],
+    });
+
+    const reopened = await reopenPollRecord('poll_1', 30 * 60 * 1000);
+
+    expect(reopened.reminders.map((reminder) => reminder.offsetMinutes)).toEqual([10]);
+    expect(reminderQueueAdd).toHaveBeenCalledTimes(1);
+  });
+
   it('extends an open poll and regenerates reminder jobs against the new close time', async () => {
     const originalCloseTime = state.poll!.closesAt;
 

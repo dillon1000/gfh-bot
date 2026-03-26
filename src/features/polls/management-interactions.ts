@@ -207,7 +207,7 @@ export const handlePollManageModal = async (
   }
 
   const poll = await getPollById(pollId);
-  if (!poll) {
+  if (!poll || poll.guildId !== interaction.guildId) {
     throw new Error('Poll not found.');
   }
 
