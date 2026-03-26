@@ -3,8 +3,8 @@ import {
   type ChatInputCommandInteraction,
   type Client,
   MessageFlags,
-  ModalSubmitInteraction,
   type MessageContextMenuCommandInteraction,
+  type ModalSubmitInteraction,
 } from 'discord.js';
 
 import { redis } from '../../lib/redis.js';

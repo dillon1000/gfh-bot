@@ -7,9 +7,9 @@ import {
   type ChatInputCommandInteraction,
   type Client,
   MessageFlags,
-  ModalSubmitInteraction,
   PermissionFlagsBits,
   type MessageContextMenuCommandInteraction,
+  type ModalSubmitInteraction,
 } from 'discord.js';
 
 import { buildPollCloseModal } from './poll-close-render.js';

@@ -67,7 +67,7 @@ export const buildPollMessageEmbed = (
   if (results.kind === 'ranked') {
     const latestRound = results.rounds[results.rounds.length - 1] ?? null;
     const roundSummaries = results.rounds
-      .slice(0, 3)
+      .slice(-3)
       .map((round) => [
         `**Round ${round.round}** • ${round.activeVotes} active • ${round.exhaustedVotes} exhausted`,
         ...round.tallies.map((choice, index) => renderPollChoiceLine(choice, index)),
