@@ -36,6 +36,7 @@ type ElectorateSummaryOverrides = {
 const buildGovernanceError = (message: string): Error => new Error(`Poll governance error: ${message}`);
 const electorateCacheTtlMs = 30_000;
 const electorateMemberCache = new Map<string, { expiresAt: number; members: PollElectorateMember[] }>();
+const electorateMemberLoadCache = new Map<string, Promise<PollElectorateMember[]>>();
 
 export const hasPollElectorateRules = (
   poll: PollGovernanceFields | PollCreationGovernanceFields,
@@ -305,26 +306,43 @@ const loadElectorateMembers = async (
     electorateMemberCache.delete(cacheKey);
   }
 
-  let members;
-  try {
-    members = await guild.members.fetch();
-  } catch (error) {
-    throw buildGovernanceError(
-      'This poll requires guild member access. Enable the Guild Members privileged intent and try again.',
-    );
+  const inFlightLoad = electorateMemberLoadCache.get(cacheKey);
+  if (inFlightLoad) {
+    return inFlightLoad;
   }
 
-  const channels = poll.eligibleChannelIds.length > 0
-    ? await resolveGovernanceChannels(guild, poll.eligibleChannelIds)
-    : [];
+  const loadPromise = (async () => {
+    let members;
+    try {
+      members = await guild.members.fetch();
+    } catch (error) {
+      throw buildGovernanceError(
+        'This poll requires guild member access. Enable the Guild Members privileged intent and try again.',
+      );
+    }
 
-  const electorateMembers = [...members.values()].map((member) => buildElectorateMember(member, channels));
-  electorateMemberCache.set(cacheKey, {
-    expiresAt: Date.now() + electorateCacheTtlMs,
-    members: electorateMembers,
-  });
+    const channels = poll.eligibleChannelIds.length > 0
+      ? await resolveGovernanceChannels(guild, poll.eligibleChannelIds)
+      : [];
 
-  return electorateMembers;
+    const electorateMembers = [...members.values()].map((member) => buildElectorateMember(member, channels));
+    electorateMemberCache.set(cacheKey, {
+      expiresAt: Date.now() + electorateCacheTtlMs,
+      members: electorateMembers,
+    });
+
+    return electorateMembers;
+  })();
+
+  electorateMemberLoadCache.set(cacheKey, loadPromise);
+
+  try {
+    return await loadPromise;
+  } finally {
+    if (electorateMemberLoadCache.get(cacheKey) === loadPromise) {
+      electorateMemberLoadCache.delete(cacheKey);
+    }
+  }
 };
 
 const loadParticipatingElectorateMembers = async (

@@ -10,6 +10,9 @@ import { handleLatexCommand } from '../features/meta/latex.js';
 import { handleMeowCommand } from '../features/meta/meow.js';
 import { handlePingCommand } from '../features/meta/ping.js';
 import {
+  handlePollAnalyticsCommand,
+} from '../features/polls/analytics-interactions.js';
+import {
   handlePollBuilderButton,
   handlePollBuilderCommand,
   handlePollBuilderModal,
@@ -80,6 +83,9 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'poll-audit':
             await handlePollAuditCommand(interaction);
+            return;
+          case 'poll-analytics':
+            await handlePollAnalyticsCommand(client, interaction);
             return;
           case 'starboard':
             await handleStarboardCommand(interaction);

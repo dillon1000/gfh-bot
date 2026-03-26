@@ -10,6 +10,7 @@ Supports single-choice polls, multi-choice polls, ranked-choice voting, governan
 - Interactive poll builder
 - Governance guardrails for polls
 - Persistent poll lookup
+- Poll participation analytics
 - Poll reminders one hour before close
 - Poll CSV export with optional R2 upload
 - Message context-menu poll seeding
@@ -114,6 +115,7 @@ If the package is private, authenticate the host with `docker login ghcr.io` fir
 - `/poll-builder`
 - `/poll-results query:<message link|message id|poll id>`
 - `/poll-export query:<message link|message id|poll id>`
+- `/poll-analytics channel:#general days:30 limit:5`
 - Message context menu: `Create Poll From Message`
 - `/starboard setup channel:#starboard emoji:"⭐,💎,<:gold_star:123>" threshold:3`
 - `/starboard disable`
