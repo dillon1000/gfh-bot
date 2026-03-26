@@ -62,15 +62,15 @@ const buildElectorateLines = (snapshot: EvaluatedPollSnapshot): string[] => {
     );
   }
 
-  if (snapshot.electorate.quorumPercent !== null) {
+  if (snapshot.electorate.quorumPercent !== null && snapshot.electorate.quorumMet !== null) {
     lines.push(
       `**Quorum** ${snapshot.electorate.quorumPercent}% ${snapshot.electorate.quorumMet ? 'met' : 'not met'}`,
     );
   }
 
-  if (snapshot.electorate.excludedVoteCount > 0) {
+  if (snapshot.electorate.excludedBallotCount > 0) {
     lines.push(
-      `**Excluded Ballots** ${snapshot.electorate.excludedVoteCount} from ${snapshot.electorate.excludedVoterCount} ineligible voter${snapshot.electorate.excludedVoterCount === 1 ? '' : 's'}`,
+      `**Excluded Ballots** ${snapshot.electorate.excludedBallotCount} from ${snapshot.electorate.excludedVoterCount} ineligible voter${snapshot.electorate.excludedVoterCount === 1 ? '' : 's'}`,
     );
   }
 

@@ -131,7 +131,7 @@ export type PollElectorateEvaluation = {
   allowedRoleIds: string[];
   blockedRoleIds: string[];
   eligibleChannelIds: string[];
-  excludedVoteCount: number;
+  excludedBallotCount: number;
   excludedVoterCount: number;
 };
 

@@ -8,7 +8,7 @@ import { redis } from '../../lib/redis.js';
 import { isR2Configured, uploadCsvToR2 } from '../../lib/r2.js';
 import { buildPollExportCsv } from './export.js';
 import { buildLivePollMessagePayload } from './poll-responses.js';
-import { evaluatePollForResults } from './service-governance.js';
+import { createFallbackPollSnapshot, evaluatePollForResults } from './service-governance.js';
 import {
   attachPollMessage,
   attachPollThread,
@@ -23,6 +23,19 @@ import type { EvaluatedPollSnapshot, PollOutcome, PollWithRelations } from './ty
 import { buildPollResultDiagram } from './visualize.js';
 
 const oneHourMs = 60 * 60 * 1000;
+
+const evaluatePollSnapshotForLifecycle = async (
+  client: Client,
+  poll: PollWithRelations,
+  context: string,
+): Promise<EvaluatedPollSnapshot> => {
+  try {
+    return await evaluatePollForResults(client, poll);
+  } catch (error) {
+    logger.warn({ err: error, pollId: poll.id, context }, 'Could not evaluate governed poll; falling back to raw results');
+    return createFallbackPollSnapshot(poll);
+  }
+};
 
 export const recoverExpiredPolls = async (client: Client): Promise<void> => {
   const polls = await prisma.poll.findMany({
@@ -76,7 +89,7 @@ export const refreshPollMessage = async (client: Client, pollId: string): Promis
     return;
   }
 
-  const snapshot = await evaluatePollForResults(client, poll);
+  const snapshot = await evaluatePollSnapshotForLifecycle(client, poll, 'refresh');
   await message.edit(await buildLivePollMessagePayload(snapshot, { replaceAttachments: true }));
 };
 
@@ -218,7 +231,7 @@ export const closePollAndRefresh = async (
   await refreshPollMessage(client, poll.id);
 
   if (didClose) {
-    await sendPollCloseAnnouncement(client, await evaluatePollForResults(client, poll), closedByUserId);
+    await sendPollCloseAnnouncement(client, await evaluatePollSnapshotForLifecycle(client, poll, 'close-announcement'), closedByUserId);
   }
 };
 
@@ -294,7 +307,7 @@ export const hydratePollMessage = async (
     throw new Error('Polls can only be published in text-based channels.');
   }
 
-  const message = await channel.send(await buildLivePollMessagePayload(await evaluatePollForResults(client, poll)));
+  const message = await channel.send(await buildLivePollMessagePayload(await evaluatePollSnapshotForLifecycle(client, poll, 'hydrate')));
   const attachedPoll = await attachPollMessage(poll.id, message.id);
   let threadCreated = false;
 

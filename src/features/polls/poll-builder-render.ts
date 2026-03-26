@@ -10,7 +10,7 @@ import {
 
 import { pollBuilderButtonCustomId, pollBuilderModalCustomId, type PollBuilderModalField } from './custom-ids.js';
 import { getPollChoiceEmojiDisplay, resolvePollThreadName } from './present.js';
-import { getDraftSummary, getGovernanceLabel, getModeLabel } from './render-helpers.js';
+import { getDraftSummary, getModeLabel } from './render-helpers.js';
 import type { PollDraft } from './types.js';
 
 export const buildPollBuilderPreview = (
