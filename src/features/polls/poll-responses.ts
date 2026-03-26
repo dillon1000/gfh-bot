@@ -1,4 +1,4 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, type AttachmentBuilder } from 'discord.js';
 
 import { logger } from '../../app/logger.js';
 import { buildPollResultDiagram } from './visualize.js';
