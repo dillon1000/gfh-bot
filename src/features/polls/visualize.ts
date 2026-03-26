@@ -7,15 +7,16 @@ import { getRankedBallots } from './results.js';
 import { createFallbackPollSnapshot } from './service-governance.js';
 import type { EvaluatedPollSnapshot, PollComputedResults, PollOutcome, PollWithRelations } from './types.js';
 
-const background = '#2b2d31';
-const panel = '#23272a';
-const panelAlt = '#1e2124';
-const text = '#f2f3f5';
-const muted = '#b5bac1';
+const background = '#323339';
+const panel = '#272a30';
+const panelAlt = '#202329';
+const text = '#f5f7fa';
+const muted = '#b8bdc7';
 const success = '#57f287';
 const danger = '#ed4245';
 const neutral = '#5865f2';
-const border = '#40444b';
+const warning = '#faa61a';
+const border = '#454a53';
 const fontStack = "'DejaVu Sans', 'Noto Sans', 'Liberation Sans', sans-serif";
 
 type DiagramPayload = {
@@ -58,7 +59,19 @@ const buildSvgShell = (
       text-rendering: geometricPrecision;
     }
   </style>
+  <defs>
+    <radialGradient id="topGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(160 84) rotate(21) scale(520 260)">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="accentGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(320 380) rotate(90) scale(340 300)">
+      <stop offset="0%" stop-color="#7aa2db" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#7aa2db" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
   <rect width="${size.width}" height="${size.height}" rx="28" fill="${background}"/>
+  <rect width="${size.width}" height="${size.height}" rx="28" fill="url(#topGlow)"/>
+  <circle cx="320" cy="380" r="300" fill="url(#accentGlow)"/>
   ${content}
 </svg>`;
 
@@ -98,25 +111,54 @@ const getLeadingStandardChoices = (
   return sorted.filter((choice) => choice.votes === leader.votes);
 };
 
-const buildStandardSummary = (
+type StandardSummary = {
+  accent: string;
+  eyebrow: string;
+  headline: string;
+  note: string;
+  subline: string;
+};
+
+const isPollOpen = (poll: Pick<PollWithRelations, 'closedAt' | 'closesAt'>): boolean =>
+  poll.closedAt === null && poll.closesAt.getTime() > Date.now();
+
+export const getStandardPollSummary = (
   poll: PollWithRelations,
   results: Extract<PollComputedResults, { kind: 'standard' }>,
   outcome: PollOutcome,
   electorate?: EvaluatedPollSnapshot['electorate'],
-): { accent: string; headline: string; subline: string } => {
+): StandardSummary => {
+  const live = isPollOpen(poll);
+
+  if (poll.closedReason === 'cancelled') {
+    return {
+      eyebrow: 'Poll cancelled',
+      headline: 'Cancelled',
+      accent: warning,
+      subline: `${results.totalVoters} voter${results.totalVoters === 1 ? '' : 's'} · ${results.totalVotes} vote${results.totalVotes === 1 ? '' : 's'} recorded`,
+      note: 'Results were frozen before the scheduled close.',
+    };
+  }
+
   if (outcome.kind !== 'standard') {
     return {
+      eyebrow: live ? 'Live status' : 'Final result',
       headline: 'Poll Summary',
       accent: neutral,
       subline: '',
+      note: '',
     };
   }
 
   if (results.totalVotes === 0) {
     return {
-      headline: 'No Votes',
+      eyebrow: live ? 'Live status' : 'Final result',
+      headline: live ? 'Awaiting Votes' : 'No Votes',
       accent: neutral,
-      subline: 'No ballots recorded',
+      subline: live ? 'No ballots recorded yet.' : 'The poll closed without recorded ballots.',
+      note: poll.passThreshold
+        ? `Threshold: ${poll.passThreshold}% for ${truncate(outcome.measuredChoiceLabel, 18)}`
+        : 'No pass threshold configured.',
     };
   }
 
@@ -125,30 +167,43 @@ const buildStandardSummary = (
     const leader = leaders[0] ?? null;
 
     return {
-      headline: leaders.length > 1 ? 'Tie' : truncate(leader?.label ?? 'Leader', 18),
+      eyebrow: live ? 'Live status' : 'Final result',
+      headline: leaders.length > 1
+        ? (live ? 'Tied' : 'Tie')
+        : (live ? 'Leading' : truncate(leader?.label ?? 'Leader', 18)),
       accent: neutral,
       subline: leaders.length > 1
         ? `${leaders.length} options tied at ${formatPercent(leader?.percentage ?? 0)}`
-        : `${formatPercent(leader?.percentage ?? 0)} of votes`,
+        : `${truncate(leader?.label ?? 'Leader', 18)} · ${formatPercent(leader?.percentage ?? 0)}`,
+      note: 'No pass threshold configured.',
     };
   }
 
   if (outcome.status === 'quorum-failed') {
     return {
-      headline: 'No Quorum',
+      eyebrow: live ? 'Live status' : 'Final result',
+      headline: live ? 'Below Quorum' : 'No Quorum',
       accent: danger,
       subline: electorate?.turnoutPercent != null && electorate.quorumPercent != null
         ? `Turnout ${formatPercent(electorate.turnoutPercent)} of ${electorate.quorumPercent}% quorum`
         : 'Turnout below quorum',
+      note: poll.passThreshold
+        ? `Threshold: ${poll.passThreshold}% for ${truncate(outcome.measuredChoiceLabel, 18)}`
+        : 'No pass threshold configured.',
     };
   }
 
   const measuredChoice = poll.options[poll.passOptionIndex ?? 0] ?? poll.options[0] ?? null;
+  const meetsThreshold = outcome.status === 'passed';
 
   return {
-    headline: outcome.status === 'passed' ? 'Passed' : 'Failed',
-    accent: outcome.status === 'passed' ? success : danger,
+    eyebrow: live ? 'Live status' : 'Final result',
+    headline: live
+      ? (meetsThreshold ? 'Passing' : 'Failing')
+      : (meetsThreshold ? 'Passed' : 'Failed'),
+    accent: meetsThreshold ? success : danger,
     subline: `${truncate(measuredChoice?.label ?? outcome.measuredChoiceLabel, 14)} · ${formatPercent(outcome.measuredPercentage)}`,
+    note: `${meetsThreshold ? 'Above' : 'Below'} ${outcome.passThreshold ?? poll.passThreshold ?? 0}% threshold`,
   };
 };
 
@@ -162,17 +217,20 @@ const buildStandardArcDiagram = (
   },
 ): string => {
   if (results.totalVotes === 0) {
+    const emptyMessage = isPollOpen(poll)
+      ? 'Waiting on the first ballot.'
+      : 'The poll closed without any recorded ballots.';
     return `
       <rect x="80" y="110" width="660" height="420" rx="28" fill="${panel}" stroke="${border}"/>
       ${renderText(410, 306, 'No votes yet', { anchor: 'middle', fontSize: 42, fontWeight: 700 })}
-      ${renderText(410, 348, 'The poll closed without any recorded ballots.', { anchor: 'middle', color: muted, fontSize: 22 })}
+      ${renderText(410, 348, emptyMessage, { anchor: 'middle', color: muted, fontSize: 22 })}
     `;
   }
 
   const rings = [
-    { inner: 126, outer: 162, opacity: 0.96 },
-    { inner: 170, outer: 206, opacity: 0.88 },
-    { inner: 214, outer: 250, opacity: 0.8 },
+    { inner: 136, outer: 164, opacity: 0.96 },
+    { inner: 186, outer: 214, opacity: 0.88 },
+    { inner: 236, outer: 264, opacity: 0.8 },
   ];
   const pieGen = pie<{ id: string; value: number }>()
     .sort(null)
@@ -189,8 +247,8 @@ const buildStandardArcDiagram = (
       const arcGen = arc<PieArcDatum<{ id: string; value: number }>>()
         .innerRadius(ring.inner)
         .outerRadius(ring.outer)
-        .cornerRadius(5)
-        .padAngle(0.01);
+        .cornerRadius(9)
+        .padAngle(0.018);
 
       return segments.map((segment) => {
         const path = arcGen(segment);
@@ -198,7 +256,7 @@ const buildStandardArcDiagram = (
           return '';
         }
 
-        return `<path d="${path}" transform="translate(${center.x} ${center.y})" fill="${colorScale(segment.data.id)}" fill-opacity="${ring.opacity}" stroke="${background}" stroke-width="2"/>`;
+        return `<path d="${path}" transform="translate(${center.x} ${center.y})" fill="${colorScale(segment.data.id)}" fill-opacity="${ring.opacity}" stroke="${background}" stroke-width="3"/>`;
       }).join('');
     })
     .join('');
@@ -209,11 +267,18 @@ const buildStandardLegend = (
   colorScale: ReturnType<typeof createColorScale>,
 ): string => results.choices
   .map((choice, index) => {
-    const y = 132 + (index * 52);
+    const x = 822;
+    const y = 246 + (index * 82);
+    const barWidth = 214;
+    const fillWidth = choice.votes === 0 ? 0 : Math.max(18, (barWidth * choice.percentage) / 100);
     return `
-      <rect x="846" y="${y}" width="24" height="24" rx="7" fill="${colorScale(choice.id)}"/>
-      ${renderText(882, y + 18, truncate(choice.label, 20), { fontSize: 20, fontWeight: 700 })}
-      ${renderText(1160, y + 18, `${choice.votes} · ${formatPercent(choice.percentage)}`, { anchor: 'end', color: muted, fontSize: 18 })}
+      <rect x="${x}" y="${y}" width="390" height="64" rx="20" fill="${panelAlt}" stroke="${border}"/>
+      <circle cx="${x + 26}" cy="${y + 22}" r="9" fill="${colorScale(choice.id)}"/>
+      ${renderText(x + 46, y + 28, truncate(choice.label, 22), { fontSize: 20, fontWeight: 700 })}
+      ${renderText(x + 358, y + 28, formatPercent(choice.percentage), { anchor: 'end', fontSize: 20, fontWeight: 700 })}
+      <rect x="${x + 46}" y="${y + 40}" width="${barWidth}" height="8" rx="4" fill="${border}"/>
+      ${fillWidth > 0 ? `<rect x="${x + 46}" y="${y + 40}" width="${fillWidth}" height="8" rx="4" fill="${colorScale(choice.id)}"/>` : ''}
+      ${renderText(x + 358, y + 48, `${choice.votes} vote${choice.votes === 1 ? '' : 's'}`, { anchor: 'end', color: muted, fontSize: 15 })}
     `;
   })
   .join('');
@@ -224,25 +289,32 @@ const buildStandardPollSvg = (
   outcome: PollOutcome,
   electorate?: EvaluatedPollSnapshot['electorate'],
 ): string => {
-  const summary = buildStandardSummary(poll, results, outcome, electorate);
+  const summary = getStandardPollSummary(poll, results, outcome, electorate);
   const colorScale = createColorScale(poll);
-  const arcCenterX = 410;
-  const arcCenterY = 525;
+  const arcCenterX = 388;
+  const arcCenterY = 552;
   const summaryCenterX = arcCenterX;
-  const summaryCenterY = 464;
-  const summaryRadius = 56;
+  const summaryCenterY = 474;
+  const summaryRadius = 74;
 
   return buildSvgShell(
     { width: 1280, height: 720 },
     `
-      ${renderText(70, 72, truncate(poll.question, 52), { fontSize: 36, fontWeight: 700 })}
-      ${renderText(70, 104, `Parliament view · ${results.totalVoters} voter${results.totalVoters === 1 ? '' : 's'} · ${results.totalVotes} total vote${results.totalVotes === 1 ? '' : 's'}`, { color: muted })}
+      ${renderText(70, 76, truncate(poll.question, 56), { fontSize: 38, fontWeight: 700 })}
+      ${renderText(70, 112, `Parliament view · ${results.totalVoters} voter${results.totalVoters === 1 ? '' : 's'} · ${results.totalVotes} total vote${results.totalVotes === 1 ? '' : 's'}`, { color: muted, fontSize: 19 })}
+      <rect x="790" y="72" width="446" height="${Math.max(412, 232 + (results.choices.length * 82))}" rx="28" fill="${panel}" stroke="${border}"/>
+      ${renderText(826, 110, summary.eyebrow.toUpperCase(), { fontSize: 15, fontWeight: 700, color: muted })}
+      ${renderText(826, 150, summary.headline, { fontSize: 34, fontWeight: 700, color: summary.accent })}
+      ${renderText(826, 184, truncate(summary.subline, 34), { fontSize: 19 })}
+      ${renderText(826, 212, truncate(summary.note, 48), { fontSize: 16, color: muted })}
+      <line x1="822" y1="230" x2="1204" y2="230" stroke="${border}" stroke-width="1"/>
       ${buildStandardArcDiagram(poll, results, colorScale, { x: arcCenterX, y: arcCenterY })}
-      <circle cx="${summaryCenterX}" cy="${summaryCenterY}" r="${summaryRadius}" fill="${panelAlt}" stroke="${summary.accent}" stroke-width="7"/>
-      ${renderText(summaryCenterX, summaryCenterY - 6, summary.headline, { anchor: 'middle', fontSize: 28, fontWeight: 700, color: summary.accent })}
-      ${renderText(summaryCenterX, summaryCenterY + 18, summary.subline, { anchor: 'middle', fontSize: 14 })}
-      <rect x="810" y="80" width="400" height="${Math.max(250, 120 + (results.choices.length * 52))}" rx="24" fill="${panel}" stroke="${border}"/>
-      ${renderText(848, 112, 'Legend', { fontSize: 24, fontWeight: 700 })}
+      <circle cx="${summaryCenterX}" cy="${summaryCenterY}" r="${summaryRadius + 12}" fill="${summary.accent}" fill-opacity="0.1"/>
+      <circle cx="${summaryCenterX}" cy="${summaryCenterY}" r="${summaryRadius}" fill="${panelAlt}" stroke="${summary.accent}" stroke-width="8"/>
+      ${renderText(summaryCenterX, summaryCenterY - 28, summary.eyebrow.toUpperCase(), { anchor: 'middle', fontSize: 12, fontWeight: 700, color: muted })}
+      ${renderText(summaryCenterX, summaryCenterY + 2, summary.headline, { anchor: 'middle', fontSize: 30, fontWeight: 700, color: summary.accent })}
+      ${renderText(summaryCenterX, summaryCenterY + 28, truncate(summary.subline, 22), { anchor: 'middle', fontSize: 16 })}
+      ${renderText(822, 262, 'Results', { fontSize: 23, fontWeight: 700 })}
       ${buildStandardLegend(results, colorScale)}
     `,
   );

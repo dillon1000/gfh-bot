@@ -188,6 +188,8 @@ import {
   reopenPollRecord,
 } from '../src/features/polls/service-repository.js';
 
+const encodeJobId = (id: string): string => Buffer.from(id).toString('base64url');
+
 const createPoll = (overrides?: Partial<PollWithRelations>): PollWithRelations => ({
   id: 'poll_1',
   guildId: 'guild_1',
@@ -317,8 +319,13 @@ describe('poll management repository helpers', () => {
 
     expect(cancelled.closedReason).toBe('cancelled');
     expect(cancelled.closedAt).toBeInstanceOf(Date);
-    expect(state.removedCloseJobIds).toEqual(['poll_1']);
-    expect(state.removedReminderJobIds).toEqual(['reminder_1', 'reminder_2']);
+    expect(state.removedCloseJobIds).toEqual([encodeJobId('poll_1'), 'poll_1']);
+    expect(state.removedReminderJobIds).toEqual([
+      encodeJobId('reminder_1'),
+      'reminder_1',
+      encodeJobId('reminder_2'),
+      'reminder_2',
+    ]);
   });
 
   it('reopens a closed poll, clears cancellation state, and reschedules jobs', async () => {
@@ -332,12 +339,17 @@ describe('poll management repository helpers', () => {
     expect(reopened.closedAt).toBeNull();
     expect(reopened.closedReason).toBeNull();
     expect(reopened.durationMinutes).toBe(180);
-    expect(state.removedCloseJobIds).toEqual(['poll_1']);
-    expect(state.removedReminderJobIds).toEqual(['reminder_1', 'reminder_2']);
+    expect(state.removedCloseJobIds).toEqual([encodeJobId('poll_1'), 'poll_1']);
+    expect(state.removedReminderJobIds).toEqual([
+      encodeJobId('reminder_1'),
+      'reminder_1',
+      encodeJobId('reminder_2'),
+      'reminder_2',
+    ]);
     expect(closeQueueAdd).toHaveBeenCalledWith(
       'close',
       { pollId: 'poll_1' },
-      expect.objectContaining({ jobId: 'poll_1' }),
+      expect.objectContaining({ jobId: encodeJobId('poll_1') }),
     );
     expect(reminderQueueAdd).toHaveBeenCalledTimes(2);
   });
@@ -380,8 +392,13 @@ describe('poll management repository helpers', () => {
     expect(extended.closesAt.getTime()).toBe(originalCloseTime.getTime() + (60 * 60 * 1000));
     expect(extended.durationMinutes).toBe(180);
     expect(extended.reminders.map((reminder) => reminder.offsetMinutes)).toEqual([60, 10]);
-    expect(state.removedCloseJobIds).toEqual(['poll_1']);
-    expect(state.removedReminderJobIds).toEqual(['reminder_1', 'reminder_2']);
+    expect(state.removedCloseJobIds).toEqual([encodeJobId('poll_1'), 'poll_1']);
+    expect(state.removedReminderJobIds).toEqual([
+      encodeJobId('reminder_1'),
+      'reminder_1',
+      encodeJobId('reminder_2'),
+      'reminder_2',
+    ]);
     expect(closeQueueAdd).toHaveBeenCalledTimes(1);
     expect(reminderQueueAdd).toHaveBeenCalledTimes(2);
   });

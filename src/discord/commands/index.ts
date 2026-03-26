@@ -2,7 +2,7 @@ import type { RESTPostAPIApplicationCommandsJSONBody } from 'discord.js';
 
 import { emojiBuilderCommand } from '../../features/emojis/definition.js';
 import { latexCommand } from '../../features/meta/latex.js';
-import { meowCommand } from '../../features/meta/meow.js';
+import { meowCommand } from '../../features/meta/meow-definition.js';
 import { pingCommand } from '../../features/meta/ping.js';
 import {
   pollAnalyticsCommand,

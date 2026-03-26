@@ -40,6 +40,8 @@ vi.mock('../src/features/polls/query.js', () => ({
 
 import { buildPollReminderRecords, schedulePollReminder } from '../src/features/polls/service-repository.js';
 
+const encodeJobId = (id: string): string => Buffer.from(id).toString('base64url');
+
 describe('poll reminder repository helpers', () => {
   beforeEach(() => {
     addReminderJob.mockReset();
@@ -75,7 +77,7 @@ describe('poll reminder repository helpers', () => {
       'remind',
       { reminderId: 'reminder_1' },
       expect.objectContaining({
-        jobId: 'reminder_1',
+        jobId: encodeJobId('reminder_1'),
       }),
     );
   });

@@ -4,7 +4,6 @@ import {
   ButtonStyle,
   EmbedBuilder,
   MessageFlags,
-  SlashCommandBuilder,
   type ChatInputCommandInteraction,
 } from 'discord.js';
 
@@ -12,12 +11,9 @@ import { env } from '../../app/config.js';
 import { assertWithinRateLimit } from '../../lib/rate-limit.js';
 import { redis } from '../../lib/redis.js';
 import { buildFeedbackEmbed } from '../polls/poll-embeds.js';
+import { meowCommand } from './meow-definition.js';
 
 const createRandomCatUrl = (): string => `https://cataas.com/cat?type=medium&ts=${Date.now()}`;
-
-export const meowCommand = new SlashCommandBuilder()
-  .setName('meow')
-  .setDescription('Show a random cat picture.');
 
 export const handleMeowCommand = async (
   interaction: ChatInputCommandInteraction,

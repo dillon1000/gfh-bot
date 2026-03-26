@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { computePollResults } from '../src/features/polls/results.js';
+import { computePollOutcome, computePollResults } from '../src/features/polls/results.js';
 import type { PollWithRelations } from '../src/features/polls/types.js';
-import { buildPollResultDiagram } from '../src/features/polls/visualize.js';
+import { buildPollResultDiagram, getStandardPollSummary } from '../src/features/polls/visualize.js';
 
 const standardPoll = {
   id: 'poll_standard_1',
@@ -87,6 +87,24 @@ const rankedPoll = {
 } satisfies PollWithRelations;
 
 describe('buildPollResultDiagram', () => {
+  it('labels open threshold polls as passing or failing in the summary', () => {
+    const openPoll: PollWithRelations = {
+      ...standardPoll,
+      closesAt: new Date('2099-03-24T00:00:00.000Z'),
+      closedAt: null,
+      closedReason: null,
+    };
+    const results = computePollResults(openPoll);
+    if (results.kind !== 'standard') {
+      throw new Error('Expected standard poll results.');
+    }
+    const summary = getStandardPollSummary(openPoll, results, computePollOutcome(openPoll, results));
+
+    expect(summary.headline).toBe('Passing');
+    expect(summary.eyebrow).toBe('Live status');
+    expect(summary.note).toContain('60% threshold');
+  });
+
   it('renders a PNG diagram for standard polls', async () => {
     const diagram = await buildPollResultDiagram(standardPoll, computePollResults(standardPoll));
     expect(diagram.fileName).toBe('poll-result-poll_standard_1.png');
