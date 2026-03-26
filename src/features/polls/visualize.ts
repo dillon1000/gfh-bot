@@ -265,10 +265,11 @@ const buildStandardArcDiagram = (
 const buildStandardLegend = (
   results: Extract<PollComputedResults, { kind: 'standard' }>,
   colorScale: ReturnType<typeof createColorScale>,
+  startY = 292,
 ): string => results.choices
   .map((choice, index) => {
     const x = 822;
-    const y = 246 + (index * 82);
+    const y = startY + (index * 82);
     const barWidth = 214;
     const fillWidth = choice.votes === 0 ? 0 : Math.max(18, (barWidth * choice.percentage) / 100);
     return `
@@ -294,28 +295,32 @@ const buildStandardPollSvg = (
   const arcCenterX = 388;
   const arcCenterY = 552;
   const summaryCenterX = arcCenterX;
-  const summaryCenterY = 474;
-  const summaryRadius = 74;
+  const summaryCenterY = 492;
+  const summaryRadius = 66;
+  const panelX = 790;
+  const panelY = 138;
+  const panelInnerX = panelX + 36;
+  const panelDividerY = panelY + 172;
+  const resultsHeaderY = panelY + 204;
 
   return buildSvgShell(
     { width: 1280, height: 720 },
     `
       ${renderText(70, 76, truncate(poll.question, 56), { fontSize: 38, fontWeight: 700 })}
       ${renderText(70, 112, `Parliament view · ${results.totalVoters} voter${results.totalVoters === 1 ? '' : 's'} · ${results.totalVotes} total vote${results.totalVotes === 1 ? '' : 's'}`, { color: muted, fontSize: 19 })}
-      <rect x="790" y="72" width="446" height="${Math.max(412, 232 + (results.choices.length * 82))}" rx="28" fill="${panel}" stroke="${border}"/>
-      ${renderText(826, 110, summary.eyebrow.toUpperCase(), { fontSize: 15, fontWeight: 700, color: muted })}
-      ${renderText(826, 150, summary.headline, { fontSize: 34, fontWeight: 700, color: summary.accent })}
-      ${renderText(826, 184, truncate(summary.subline, 34), { fontSize: 19 })}
-      ${renderText(826, 212, truncate(summary.note, 48), { fontSize: 16, color: muted })}
-      <line x1="822" y1="230" x2="1204" y2="230" stroke="${border}" stroke-width="1"/>
+      <rect x="${panelX}" y="${panelY}" width="446" height="${Math.max(452, 278 + (results.choices.length * 82))}" rx="28" fill="${panel}" stroke="${border}"/>
+      ${renderText(panelInnerX, panelY + 38, summary.eyebrow.toUpperCase(), { fontSize: 15, fontWeight: 700, color: muted })}
+      ${renderText(panelInnerX, panelY + 78, summary.headline, { fontSize: 34, fontWeight: 700, color: summary.accent })}
+      ${renderText(panelInnerX, panelY + 112, truncate(summary.subline, 34), { fontSize: 19 })}
+      ${renderText(panelInnerX, panelY + 140, truncate(summary.note, 48), { fontSize: 16, color: muted })}
+      <line x1="${panelX + 32}" y1="${panelDividerY}" x2="${panelX + 414}" y2="${panelDividerY}" stroke="${border}" stroke-width="1"/>
       ${buildStandardArcDiagram(poll, results, colorScale, { x: arcCenterX, y: arcCenterY })}
-      <circle cx="${summaryCenterX}" cy="${summaryCenterY}" r="${summaryRadius + 12}" fill="${summary.accent}" fill-opacity="0.1"/>
+      <circle cx="${summaryCenterX}" cy="${summaryCenterY}" r="${summaryRadius + 10}" fill="${summary.accent}" fill-opacity="0.1"/>
       <circle cx="${summaryCenterX}" cy="${summaryCenterY}" r="${summaryRadius}" fill="${panelAlt}" stroke="${summary.accent}" stroke-width="8"/>
-      ${renderText(summaryCenterX, summaryCenterY - 28, summary.eyebrow.toUpperCase(), { anchor: 'middle', fontSize: 12, fontWeight: 700, color: muted })}
-      ${renderText(summaryCenterX, summaryCenterY + 2, summary.headline, { anchor: 'middle', fontSize: 30, fontWeight: 700, color: summary.accent })}
-      ${renderText(summaryCenterX, summaryCenterY + 28, truncate(summary.subline, 22), { anchor: 'middle', fontSize: 16 })}
-      ${renderText(822, 262, 'Results', { fontSize: 23, fontWeight: 700 })}
-      ${buildStandardLegend(results, colorScale)}
+      ${renderText(summaryCenterX, summaryCenterY - 18, summary.eyebrow.toUpperCase(), { anchor: 'middle', fontSize: 11, fontWeight: 700, color: muted })}
+      ${renderText(summaryCenterX, summaryCenterY + 16, summary.headline, { anchor: 'middle', fontSize: 28, fontWeight: 700, color: summary.accent })}
+      ${renderText(panelInnerX, resultsHeaderY, 'Results', { fontSize: 23, fontWeight: 700 })}
+      ${buildStandardLegend(results, colorScale, resultsHeaderY + 16)}
     `,
   );
 };
