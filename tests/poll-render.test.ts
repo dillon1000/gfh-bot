@@ -66,7 +66,7 @@ const basePoll = {
   ],
 } satisfies PollWithRelations;
 
-describe('buildPollResultsEmbed', () => {
+describe('buildPollMessageEmbed', () => {
   it('renders message details as compact summary lines', () => {
     const embed = buildPollMessageEmbed(createFallbackPollSnapshot(basePoll)).toJSON();
     const details = embed.fields?.find((field) => field.name === 'Details')?.value ?? '';
@@ -78,7 +78,9 @@ describe('buildPollResultsEmbed', () => {
     expect(details).not.toContain('**Visibility**');
     expect(details).not.toContain('**Voters**');
   });
+});
 
+describe('buildPollResultsEmbed', () => {
   it('shows voter identities for non-anonymous polls', () => {
     const embed = buildPollResultsEmbed(basePoll, computePollResults(basePoll)).toJSON();
     expect(embed.fields?.[0]?.name).toContain('✅');

@@ -48,17 +48,7 @@ const renderPollChoiceLine = (choice: PollComputedResults['choices'][number], in
   renderChoiceLine(choice, index, renderPollBar, getPollChoiceEmojiDisplay);
 
 const toPlainLine = (value: string): string => value.replaceAll('**', '');
-
-const getModeSummaryLabel = (mode: PollWithRelations['mode']): string => {
-  switch (mode) {
-    case 'multi':
-      return 'Multi-choice';
-    case 'ranked':
-      return 'Ranked-choice';
-    default:
-      return 'Single-choice';
-  }
-};
+const getCompactModeLabel = (mode: PollWithRelations['mode']): string => getModeLabel(mode).replaceAll(' ', '-');
 
 const getVisibilitySummaryLabel = (poll: Pick<PollWithRelations, 'anonymous'>): string =>
   poll.anonymous ? 'anonymous' : 'public';
@@ -93,7 +83,7 @@ const getRankedStatusLabel = (
 const buildCompactDetailsLines = (snapshot: EvaluatedPollSnapshot): string[] => {
   const { poll, results, outcome, electorate } = snapshot;
   const lines = [
-    `**Poll** ${getModeSummaryLabel(poll.mode)} ${getVisibilitySummaryLabel(poll)} poll started by <@${poll.authorId}>`,
+    `**Poll** ${getCompactModeLabel(poll.mode)} ${getVisibilitySummaryLabel(poll)} poll started by <@${poll.authorId}>`,
   ];
   const statusParts = [
     getTimingLabel(poll),
