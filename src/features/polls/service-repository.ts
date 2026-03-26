@@ -74,6 +74,13 @@ const filterReminderOffsetsForDuration = (
   durationMs: number,
 ): number[] => reminderOffsets.filter((offsetMinutes) => (offsetMinutes * minuteMs) < durationMs);
 
+const getQueueJobId = (id: string): string => Buffer.from(id).toString('base64url');
+
+const getQueueJobIdsForLookup = (id: string): string[] => {
+  const encodedId = getQueueJobId(id);
+  return encodedId === id ? [id] : [encodedId, id];
+};
+
 export const createPollRecord = async (input: PollCreationInput): Promise<PollWithRelations> => {
   await assertWithinRateLimit(
     redis,
@@ -203,13 +210,15 @@ export const getPollByQuery = async (
 };
 
 export const removeScheduledPollClose = async (pollId: string): Promise<void> => {
-  const job = await pollCloseQueue.getJob(pollId);
-  await job?.remove();
+  await Promise.all(getQueueJobIdsForLookup(pollId).map(async (jobId) => {
+    const job = await pollCloseQueue.getJob(jobId);
+    await job?.remove();
+  }));
 };
 
 export const removeScheduledPollReminders = async (reminderIds: string[]): Promise<void> => {
-  await Promise.all(reminderIds.map(async (reminderId) => {
-    const job = await pollReminderQueue.getJob(reminderId);
+  await Promise.all(reminderIds.flatMap((reminderId) => getQueueJobIdsForLookup(reminderId)).map(async (jobId) => {
+    const job = await pollReminderQueue.getJob(jobId);
     await job?.remove();
   }));
 };
@@ -238,7 +247,7 @@ export const schedulePollClose = async (poll: Pick<Poll, 'id' | 'closesAt'>): Pr
     'close',
     { pollId: poll.id },
     {
-      jobId: poll.id,
+      jobId: getQueueJobId(poll.id),
       delay,
     },
   );
@@ -261,7 +270,7 @@ export const schedulePollReminder = async (
     'remind',
     { reminderId: reminder.id },
     {
-      jobId: reminder.id,
+      jobId: getQueueJobId(reminder.id),
       delay,
     },
   );
