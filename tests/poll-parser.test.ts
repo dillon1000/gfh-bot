@@ -136,6 +136,11 @@ describe('reminder parsers', () => {
     expect(() => parseReminderOffsets([60], 30 * 60 * 1000)).toThrow(/earlier than the poll closing time/);
   });
 
+  it('rejects too many unique reminder offsets', () => {
+    expect(() => parseReminderOffsets('5m, 10m, 15m, 20m, 25m, 30m, 35m, 40m, 45m, 50m, 55m', 24 * 60 * 60 * 1000))
+      .toThrow(/at most 10 reminder times/);
+  });
+
   it('parses a single reminder role target', () => {
     expect(parseReminderRoleTarget('<@&123456789012345678>')).toBe('123456789012345678');
     expect(parseReminderRoleTarget('')).toBeNull();

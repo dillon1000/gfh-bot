@@ -20,7 +20,7 @@ ADD CONSTRAINT "PollReminder_pollId_fkey" FOREIGN KEY ("pollId") REFERENCES "Pol
 
 INSERT INTO "PollReminder" ("id", "pollId", "offsetMinutes", "remindAt", "sentAt", "createdAt")
 SELECT
-  gen_random_uuid()::text,
+  "id" || ':60',
   "id",
   60,
   "closesAt" - INTERVAL '1 hour',
