@@ -7,7 +7,7 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 
-import { buildFeedbackEmbed } from '../polls/render.js';
+import { buildFeedbackEmbed } from '../polls/poll-embeds.js';
 import { deleteReactionRoleDraft, getReactionRoleDraft, saveReactionRoleDraft } from './draft-store.js';
 import { parseRoleTargets } from './parser.js';
 import {
