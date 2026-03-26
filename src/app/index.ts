@@ -1,6 +1,7 @@
 import { Events, GatewayIntentBits, Partials, Client } from 'discord.js';
 
 import { logger } from './logger.js';
+import { applyConfiguredPresence } from './presence.js';
 import { env } from './config.js';
 import { registerInteractionRouter } from '../discord/router.js';
 import { recoverExpiredPolls, recoverMissedPollReminders } from '../features/polls/service-lifecycle.js';
@@ -35,6 +36,7 @@ const client = new Client({
 registerInteractionRouter(client);
 
 client.once(Events.ClientReady, async (readyClient) => {
+  applyConfiguredPresence(readyClient);
   logger.info({ user: readyClient.user.tag }, 'Discord client ready');
   await recoverExpiredPolls(readyClient);
   await recoverMissedPollReminders(readyClient);
