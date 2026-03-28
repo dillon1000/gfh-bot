@@ -15,6 +15,7 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   POLL_CREATION_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(10),
   MEOW_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(5),
+  SEARCH_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(5),
   APP_REVISION: z.string().min(1).optional(),
   R2_ACCOUNT_ID: z.string().min(1).optional(),
   R2_ACCESS_KEY_ID: z.string().min(1).optional(),

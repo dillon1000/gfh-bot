@@ -59,6 +59,11 @@ import {
   handleReactionRolesCommand,
   handleReactionRoleSelect,
 } from '../features/reaction-roles/interactions.js';
+import {
+  handleSearchCommand,
+  handleSearchInteractionError,
+  handleSearchPaginationButton,
+} from '../features/search/interactions.js';
 import { handleStarboardCommand } from '../features/starboard/commands.js';
 
 export const registerInteractionRouter = (client: Client): void => {
@@ -77,6 +82,9 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'ping':
             await handlePingCommand(interaction);
+            return;
+          case 'search':
+            await handleSearchCommand(client, interaction);
             return;
           case 'poll':
             await handlePollCommand(client, interaction);
@@ -227,6 +235,11 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
+        if (interaction.customId.startsWith('search:page:')) {
+          await handleSearchPaginationButton(client, interaction);
+          return;
+        }
+
       }
 
       if (interaction.isStringSelectMenu()) {
@@ -280,6 +293,11 @@ export const registerInteractionRouter = (client: Client): void => {
           (interaction.isModalSubmit() && interaction.customId.startsWith('emoji-builder:'))
         ) {
           await handleEmojiBuilderInteractionError(interaction, error);
+        } else if (
+          (interaction.isChatInputCommand() && interaction.commandName === 'search')
+          || (interaction.isButton() && interaction.customId.startsWith('search:page:'))
+        ) {
+          await handleSearchInteractionError(interaction, error);
         } else if (
           (interaction.isChatInputCommand() && interaction.commandName === 'reaction-roles') ||
           (interaction.isChatInputCommand() && interaction.commandName === 'reaction-role-builder') ||
