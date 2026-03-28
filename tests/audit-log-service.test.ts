@@ -286,4 +286,40 @@ describe('audit log service', () => {
     expect(deleteEntry.payload.initialSnapshot.content).toBe('hello');
     expect(deleteEntry.payload.latestSnapshot.content).toBe('hello world');
   });
+
+  it('uses the stored latest snapshot when message.update receives a partial old message', async () => {
+    const client = createClient();
+    registerAuditLogEventHandlers(client as never);
+
+    const messageCreate = store.handlers.get(Events.MessageCreate);
+    const messageUpdate = store.handlers.get(Events.MessageUpdate);
+
+    if (!messageCreate || !messageUpdate) {
+      throw new Error('Expected audit handlers to be registered.');
+    }
+
+    const initialMessage = createMessage('hello');
+    messageCreate(initialMessage);
+    await flushAsync();
+
+    const partialOldMessage = {
+      ...initialMessage,
+      content: '',
+      cleanContent: '',
+      partial: true,
+    };
+    const updatedMessage = {
+      ...initialMessage,
+      content: 'hello world',
+      cleanContent: 'hello world',
+      editedAt: new Date('2026-03-28T10:05:00.000Z'),
+    };
+
+    messageUpdate(partialOldMessage, updatedMessage);
+    await flushAsync();
+
+    const updateEntry = [...store.entries.values()].find((entry) => entry.eventName === 'message.update');
+    expect(updateEntry.payload.previousSnapshot.content).toBe('hello');
+    expect(updateEntry.payload.currentSnapshot.content).toBe('hello world');
+  });
 });

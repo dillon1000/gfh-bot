@@ -257,6 +257,7 @@ model GuildEventLogEntry {
 
   @@index([guildId, occurredAt])
   @@index([deliveryStatus, occurredAt])
+  @@index([deliveryStatus, occurredAt, id])
 }
 
 model GuildMessageSnapshot {

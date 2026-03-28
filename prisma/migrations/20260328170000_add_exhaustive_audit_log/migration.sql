@@ -45,6 +45,8 @@ CREATE INDEX "GuildEventLogEntry_guildId_occurredAt_idx" ON "GuildEventLogEntry"
 
 CREATE INDEX "GuildEventLogEntry_deliveryStatus_occurredAt_idx" ON "GuildEventLogEntry"("deliveryStatus", "occurredAt");
 
+CREATE INDEX "GuildEventLogEntry_deliveryStatus_occurredAt_id_idx" ON "GuildEventLogEntry"("deliveryStatus", "occurredAt", "id");
+
 CREATE INDEX "GuildMessageSnapshot_guildId_channelId_idx" ON "GuildMessageSnapshot"("guildId", "channelId");
 
 CREATE INDEX "GuildMessageSnapshot_guildId_updatedAt_idx" ON "GuildMessageSnapshot"("guildId", "updatedAt");
