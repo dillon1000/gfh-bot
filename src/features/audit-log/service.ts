@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, type GuildEventLogEntry } from '@prisma/client';
 import {
   AttachmentBuilder,
   EmbedBuilder,
@@ -54,6 +54,11 @@ const maxReplayPages = 1_000;
 const embedPayloadPreviewLimit = 3800;
 const maxMessageSnapshotContentLength = 4_000;
 const maxJsonNormalizationDepth = 6;
+
+type DeliverableAuditLogEntry = Pick<
+  GuildEventLogEntry,
+  'id' | 'guildId' | 'bucket' | 'source' | 'eventName' | 'occurredAt' | 'payload' | 'deliveryStatus'
+>;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -629,20 +634,18 @@ const getMessageSnapshot = async (messageId: string) =>
 
 const deliverAuditLogEntry = async (
   client: Client,
-  entryId: string,
+  entry: DeliverableAuditLogEntry,
+  options?: {
+    config?: AuditLogConfig;
+    targetChannelId?: string | null;
+  },
 ): Promise<void> => {
-  const entry = await prisma.guildEventLogEntry.findUnique({
-    where: {
-      id: entryId,
-    },
-  });
-
-  if (!entry || entry.deliveryStatus === 'delivered') {
+  if (entry.deliveryStatus === 'delivered') {
     return;
   }
 
-  const config = await getAuditLogConfig(entry.guildId);
-  const targetChannelId = resolveBucketChannelId(config, entry.bucket);
+  const config = options?.config ?? await getAuditLogConfig(entry.guildId);
+  const targetChannelId = options?.targetChannelId ?? resolveBucketChannelId(config, entry.bucket);
   if (!targetChannelId) {
     await prisma.guildEventLogEntry.update({
       where: {
@@ -687,6 +690,33 @@ const deliverAuditLogEntry = async (
       },
     });
   }
+};
+
+const deliverAuditLogEntryById = async (
+  client: Client,
+  entryId: string,
+): Promise<void> => {
+  const entry = await prisma.guildEventLogEntry.findUnique({
+    where: {
+      id: entryId,
+    },
+    select: {
+      id: true,
+      guildId: true,
+      bucket: true,
+      source: true,
+      eventName: true,
+      occurredAt: true,
+      payload: true,
+      deliveryStatus: true,
+    },
+  });
+
+  if (!entry) {
+    return;
+  }
+
+  await deliverAuditLogEntry(client, entry);
 };
 
 export const replayUndeliveredAuditLogEntries = async (client: Client): Promise<void> => {
@@ -743,7 +773,7 @@ export const replayUndeliveredAuditLogEntries = async (client: Client): Promise<
     }
 
     for (const entry of entries) {
-      await deliverAuditLogEntry(client, entry.id);
+      await deliverAuditLogEntryById(client, entry.id);
     }
 
     if (entries.length < maxReplayBatchSize) {
@@ -784,7 +814,7 @@ export const recordAuditLogEvent = async (
     },
   });
 
-  await deliverAuditLogEntry(client, entry.id);
+  await deliverAuditLogEntry(client, entry, { config, targetChannelId });
 };
 
 const recordMessageSnapshotAndEvent = async (
@@ -817,6 +847,15 @@ const recordMessageSnapshotAndEvent = async (
     configOverride: config,
   });
 };
+
+const resolvePreviousMessageSnapshot = (
+  oldMessage: Message | PartialMessage,
+  snapshot: Awaited<ReturnType<typeof getMessageSnapshot>>,
+) => (
+  oldMessage.partial
+    ? snapshot?.latestPayload ?? summarizeMessage(oldMessage) ?? null
+    : summarizeMessage(oldMessage) ?? snapshot?.latestPayload ?? null
+);
 
 const registerAuditHandler = <T extends unknown[]>(
   client: Client,
@@ -859,7 +898,7 @@ export const registerAuditLogEventHandlers = (client: Client): void => {
       payload: {
         channel: summarizeChannel(newMessage.channel as GuildChannel),
         initialSnapshot: snapshot?.firstSeenPayload ?? null,
-        previousSnapshot: summarizeMessage(oldMessage) ?? snapshot?.latestPayload ?? null,
+        previousSnapshot: resolvePreviousMessageSnapshot(oldMessage, snapshot),
         currentSnapshot: summarizeMessage(newMessage),
       },
       configOverride: config,
