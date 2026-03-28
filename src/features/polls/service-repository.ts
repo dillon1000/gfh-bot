@@ -81,13 +81,20 @@ const getQueueJobIdsForLookup = (id: string): string[] => {
   return encodedId === id ? [id] : [encodedId, id];
 };
 
-export const createPollRecord = async (input: PollCreationInput): Promise<PollWithRelations> => {
-  await assertWithinRateLimit(
-    redis,
-    `rate-limit:poll-create:${input.guildId}:${input.authorId}`,
-    env.POLL_CREATION_LIMIT_PER_HOUR,
-    60 * 60,
-  );
+export const createPollRecord = async (
+  input: PollCreationInput,
+  options?: {
+    skipRateLimit?: boolean;
+  },
+): Promise<PollWithRelations> => {
+  if (!options?.skipRateLimit) {
+    await assertWithinRateLimit(
+      redis,
+      `rate-limit:poll-create:${input.guildId}:${input.authorId}`,
+      env.POLL_CREATION_LIMIT_PER_HOUR,
+      60 * 60,
+    );
+  }
 
   const closesAt = new Date(Date.now() + input.durationMs);
 
