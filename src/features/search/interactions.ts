@@ -43,7 +43,7 @@ const getBasicSearchFilters = (
   const query = interaction.options.getString('query', true).trim();
 
   if (query.length === 0) {
-    throw new Error('query must contain at least one non-space character.');
+    throw new Error('Query must contain at least one non-space character.');
   }
 
   return {

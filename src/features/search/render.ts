@@ -1,5 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 
+import { formatDiscordRelativeTimestamp } from '../../lib/discord-timestamp.js';
 import type {
   GuildMessageSearchFilters,
   GuildMessageSearchMessage,
@@ -108,7 +109,7 @@ const renderSearchResult = (
   const labelLine = labels.length > 0 ? `\n\`${labels.join(' • ')}\`` : '';
 
   return {
-    title: `**${offset + index + 1}.** [Jump](${jumpUrl}) • <#${message.channel_id}> • ${authorLabel} • <t:${Math.floor(new Date(message.timestamp).getTime() / 1000)}:R>`,
+    title: `**${offset + index + 1}.** [Jump](${jumpUrl}) • <#${message.channel_id}> • ${authorLabel} • ${formatDiscordRelativeTimestamp(message.timestamp)}`,
     body: `${getMessagePreview(message)}${labelLine}`,
     jumpUrl,
   };

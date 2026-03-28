@@ -191,13 +191,17 @@ describe('search service', () => {
 
     await vi.runAllTimersAsync();
 
-    await expect(promise).resolves.toEqual(expect.objectContaining({
+    const result = await promise;
+
+    expect(result).toEqual(expect.objectContaining({
       totalResults: 2,
       messages: [
         expect.objectContaining({ id: 'message_1' }),
         expect.objectContaining({ id: 'message_2' }),
       ],
     }));
+    expect(result.messages).toHaveLength(2);
+    expect(result.messages.map((message) => message.id)).toEqual(['message_1', 'message_2']);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('https://discord.com/api/v10/guilds/guild_1/messages/search');
