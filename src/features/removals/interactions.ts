@@ -1,10 +1,10 @@
 import {
   EmbedBuilder,
+  GuildMember,
   MessageFlags,
   PermissionFlagsBits,
   type ChatInputCommandInteraction,
   type GuildBasedChannel,
-  type GuildMember,
 } from 'discord.js';
 
 import { removeConfigurePermissions } from './commands.js';
@@ -58,12 +58,17 @@ const assertEligibleSupporter = (
   }
 };
 
-const getGuildActor = (interaction: ChatInputCommandInteraction): GuildMember => {
-  if (!interaction.inGuild() || !interaction.member) {
+const getGuildActor = async (interaction: ChatInputCommandInteraction): Promise<GuildMember> => {
+  if (!interaction.inGuild()) {
     throw new Error('Removal requests can only be used inside a server.');
   }
 
-  return interaction.member as GuildMember;
+  if (interaction.inCachedGuild() && interaction.member instanceof GuildMember) {
+    return interaction.member;
+  }
+
+  const guild = interaction.guild ?? await interaction.client.guilds.fetch(interaction.guildId);
+  return guild.members.fetch(interaction.user.id);
 };
 
 const assertCanPublishRemovalPoll = (
@@ -153,7 +158,7 @@ export const handleRemoveCommand = async (
     throw new Error('Removal requests are not configured yet. Ask a server manager to run /remove configure.');
   }
 
-  const actor = getGuildActor(interaction);
+  const actor = await getGuildActor(interaction);
   assertEligibleSupporter(actor, config.memberRoleId, target.id);
 
   switch (subcommand) {
