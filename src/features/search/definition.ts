@@ -250,6 +250,12 @@ export const searchCommand = new SlashCommandBuilder()
           .setName('include_nsfw')
           .setDescription('Include age-restricted channels if you can access them')
           .setRequired(false),
+      )
+      .addBooleanOption((option) =>
+        option
+          .setName('public')
+          .setDescription('Post results visibly instead of using an ephemeral reply')
+          .setRequired(false),
       ),
   )
   .addSubcommand((subcommand) =>

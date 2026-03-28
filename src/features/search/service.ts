@@ -52,14 +52,23 @@ const ensureSearchableChannelAccess = (
   member: GuildMember,
 ): boolean => Boolean(channel && isSearchableChannel(channel) && canSearchChannel(channel, member));
 
+const isThreadChannel = (channel: GuildBasedChannel): boolean =>
+  channel.type === ChannelType.PublicThread
+  || channel.type === ChannelType.PrivateThread
+  || channel.type === ChannelType.AnnouncementThread;
+
 const isIgnoredSearchChannel = (
   channel: GuildBasedChannel,
   ignoredChannelIdSet: Set<string>,
+  ignoredChannelBypassIdSet: Set<string>,
 ): boolean =>
-  ignoredChannelIdSet.has(channel.id)
-  || ('parentId' in channel
-    && typeof channel.parentId === 'string'
-    && ignoredChannelIdSet.has(channel.parentId));
+  !ignoredChannelBypassIdSet.has(channel.id)
+  && (
+    ignoredChannelIdSet.has(channel.id)
+    || (isThreadChannel(channel)
+      && typeof channel.parentId === 'string'
+      && ignoredChannelIdSet.has(channel.parentId))
+  );
 
 const isThreadParentChannel = (
   channel: GuildBasedChannel,
@@ -90,8 +99,10 @@ export const resolveSearchChannelIds = async (
   member: GuildMember,
   requestedChannelIds?: string[],
   ignoredChannelIds: string[] = [],
+  ignoredChannelBypassIds: string[] = [],
 ): Promise<string[]> => {
   const ignoredChannelIdSet = new Set(ignoredChannelIds);
+  const ignoredChannelBypassIdSet = new Set(ignoredChannelBypassIds);
 
   if (requestedChannelIds && requestedChannelIds.length > 0) {
     const uniqueRequestedChannelIds = [...new Set(requestedChannelIds)];
@@ -111,7 +122,7 @@ export const resolveSearchChannelIds = async (
         continue;
       }
 
-      if (isIgnoredSearchChannel(channel, ignoredChannelIdSet)) {
+      if (isIgnoredSearchChannel(channel, ignoredChannelIdSet, ignoredChannelBypassIdSet)) {
         ignoredIds.push(requestedChannelId);
         continue;
       }
@@ -153,7 +164,7 @@ export const resolveSearchChannelIds = async (
       continue;
     }
 
-    if (isIgnoredSearchChannel(channel, ignoredChannelIdSet)) {
+    if (isIgnoredSearchChannel(channel, ignoredChannelIdSet, ignoredChannelBypassIdSet)) {
       continue;
     }
 
@@ -177,7 +188,7 @@ export const resolveSearchChannelIds = async (
         continue;
       }
 
-      if (isIgnoredSearchChannel(archivedThread, ignoredChannelIdSet)) {
+      if (isIgnoredSearchChannel(archivedThread, ignoredChannelIdSet, ignoredChannelBypassIdSet)) {
         continue;
       }
 

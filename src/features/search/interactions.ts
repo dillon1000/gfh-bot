@@ -156,6 +156,7 @@ const buildSearchFilters = async (
 
   const member = await guild.members.fetch(interaction.user.id);
   const searchConfig = await getSearchConfig(interaction.guildId);
+  const ignoredChannelBypassIds = interaction.channelId ? [interaction.channelId] : [];
   const subcommand = interaction.options.getSubcommand();
 
   if (subcommand === 'messages') {
@@ -164,7 +165,13 @@ const buildSearchFilters = async (
 
     return {
       ...partial,
-      channelIds: await resolveSearchChannelIds(guild, member, requestedChannelIds, searchConfig.ignoredChannelIds),
+      channelIds: await resolveSearchChannelIds(
+        guild,
+        member,
+        requestedChannelIds,
+        searchConfig.ignoredChannelIds,
+        ignoredChannelBypassIds,
+      ),
     };
   }
 
@@ -176,7 +183,13 @@ const buildSearchFilters = async (
     return {
       limit: partial.limit,
       offset: partial.offset,
-      channelIds: await resolveSearchChannelIds(guild, member, partial.requestedChannelIds, searchConfig.ignoredChannelIds),
+      channelIds: await resolveSearchChannelIds(
+        guild,
+        member,
+        partial.requestedChannelIds,
+        searchConfig.ignoredChannelIds,
+        ignoredChannelBypassIds,
+      ),
       ...(validatedMaxId ? { maxId: validatedMaxId } : {}),
       ...(validatedMinId ? { minId: validatedMinId } : {}),
       ...(partial.slop !== undefined ? { slop: partial.slop } : {}),
@@ -308,7 +321,14 @@ export const handleSearchCommand = async (
     'Search rate limit exceeded. Please wait a moment before searching again.',
   );
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const isPublicAdvancedSearch = interaction.options.getSubcommand() === 'advanced'
+    && interaction.options.getBoolean('public') === true;
+
+  if (isPublicAdvancedSearch) {
+    await interaction.deferReply();
+  } else {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  }
   const filters = await buildSearchFilters(interaction);
 
   await interaction.editReply(await runSearchAndPersist(
