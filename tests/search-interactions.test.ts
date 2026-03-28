@@ -49,8 +49,8 @@ vi.mock('../src/features/search/config-service.js', () => ({
   getSearchConfig,
   setSearchIgnoredChannelIds,
   describeSearchConfig: vi.fn((config: { ignoredChannelIds: string[] }, adminUserIds: string[]) => [
-    `Ignored channels/threads: ${config.ignoredChannelIds.join(',') || 'None'}`,
-    `Admins: ${adminUserIds.join(',') || 'None'}`,
+    `Ignored channels/threads: ${config.ignoredChannelIds.length > 0 ? config.ignoredChannelIds.join(',') : 'None'}`,
+    `Editable by admin user IDs: ${adminUserIds.length > 0 ? adminUserIds.join(',') : 'No admin user IDs configured'}`,
   ].join('\n')),
 }));
 
