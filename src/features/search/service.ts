@@ -128,7 +128,7 @@ export const resolveSearchChannelIds = async (
   }
 
   if (accessibleChannelIds.length > 500) {
-    throw new Error('You can access more than 500 searchable channels or threads. Please narrow the search with channel_ids or the channel option.');
+    throw new Error('You have access to more than 500 searchable channels or threads. Please narrow the search with channel_ids or the channel option.');
   }
 
   return [...new Set(accessibleChannelIds)];
