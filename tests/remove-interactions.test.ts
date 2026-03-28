@@ -8,6 +8,7 @@ const {
   getRemovalRequestStatusDescription,
   getRemovalVotePollLink,
   setRemovalMemberRole,
+  recordAuditLogEvent,
 } = vi.hoisted(() => ({
   createRemovalVoteRequest: vi.fn(),
   secondRemovalVoteRequest: vi.fn(),
@@ -16,6 +17,7 @@ const {
   getRemovalRequestStatusDescription: vi.fn(),
   getRemovalVotePollLink: vi.fn(),
   setRemovalMemberRole: vi.fn(),
+  recordAuditLogEvent: vi.fn(),
 }));
 
 vi.mock('../src/features/removals/service.js', () => ({
@@ -26,6 +28,10 @@ vi.mock('../src/features/removals/service.js', () => ({
   getRemovalRequestStatusDescription,
   getRemovalVotePollLink,
   setRemovalMemberRole,
+}));
+
+vi.mock('../src/features/audit-log/service.js', () => ({
+  recordAuditLogEvent,
 }));
 
 import { handleRemoveCommand } from '../src/features/removals/interactions.js';
@@ -123,6 +129,7 @@ describe('remove interactions', () => {
     getRemovalRequestStatusDescription.mockReset();
     getRemovalVotePollLink.mockReset();
     setRemovalMemberRole.mockReset();
+    recordAuditLogEvent.mockReset();
 
     getRemovalEligibilityConfig.mockResolvedValue({
       guildId: 'guild_1',

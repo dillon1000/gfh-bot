@@ -12,6 +12,7 @@ const {
   createSearchSessionId,
   saveSearchSession,
   getSearchSession,
+  recordAuditLogEvent,
 } = vi.hoisted(() => ({
   env: {
     SEARCH_LIMIT_PER_MINUTE: 5,
@@ -26,6 +27,7 @@ const {
   createSearchSessionId: vi.fn(),
   saveSearchSession: vi.fn(),
   getSearchSession: vi.fn(),
+  recordAuditLogEvent: vi.fn(),
 }));
 
 vi.mock('../src/app/config.js', () => ({
@@ -58,6 +60,10 @@ vi.mock('../src/features/search/session-store.js', () => ({
   createSearchSessionId,
   saveSearchSession,
   getSearchSession,
+}));
+
+vi.mock('../src/features/audit-log/service.js', () => ({
+  recordAuditLogEvent,
 }));
 
 import {
@@ -147,6 +153,7 @@ describe('search interactions', () => {
     createSearchSessionId.mockReset();
     saveSearchSession.mockReset();
     getSearchSession.mockReset();
+    recordAuditLogEvent.mockReset();
     createSearchSessionId.mockReturnValue('session_1');
     getSearchConfig.mockResolvedValue({
       ignoredChannelIds: [],

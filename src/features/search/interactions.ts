@@ -9,6 +9,7 @@ import { logger } from '../../app/logger.js';
 import { env } from '../../app/config.js';
 import { assertWithinRateLimit } from '../../lib/rate-limit.js';
 import { redis } from '../../lib/redis.js';
+import { recordAuditLogEvent } from '../audit-log/service.js';
 import { buildFeedbackEmbed } from '../polls/poll-embeds.js';
 import {
   describeSearchConfig,
@@ -258,6 +259,16 @@ const handleSearchConfigCommand = async (
         parse: [],
       },
     });
+    await recordAuditLogEvent(interaction.client, {
+      guildId: interaction.guildId,
+      bucket: 'primary',
+      source: 'bot',
+      eventName: 'bot.search_config.updated',
+      payload: {
+        actorId: interaction.user.id,
+        ignoredChannelIds: [],
+      },
+    });
     return;
   }
 
@@ -272,6 +283,16 @@ const handleSearchConfigCommand = async (
       embeds: [buildFeedbackEmbed('Search Config Updated', describeSearchConfig(config, env.DISCORD_ADMIN_USER_IDS), 0x3b82f6)],
       allowedMentions: {
         parse: [],
+      },
+    });
+    await recordAuditLogEvent(interaction.client, {
+      guildId: interaction.guildId,
+      bucket: 'primary',
+      source: 'bot',
+      eventName: 'bot.search_config.updated',
+      payload: {
+        actorId: interaction.user.id,
+        ignoredChannelIds: config.ignoredChannelIds,
       },
     });
     return;

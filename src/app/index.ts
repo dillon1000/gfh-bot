@@ -4,6 +4,7 @@ import { logger } from './logger.js';
 import { applyConfiguredPresence } from './presence.js';
 import { env } from './config.js';
 import { registerInteractionRouter } from '../discord/router.js';
+import { registerAuditLogEventHandlers, replayUndeliveredAuditLogEntries } from '../features/audit-log/service.js';
 import { recoverExpiredPolls, recoverMissedPollReminders } from '../features/polls/service-lifecycle.js';
 import { syncOpenPollCloseJobs, syncOpenPollReminderJobs } from '../features/polls/service-repository.js';
 import { startPollReminderWorker, startPollWorker } from '../features/polls/worker.js';
@@ -21,7 +22,19 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMessagePolls,
     GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildMessageTyping,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildModeration,
+    GatewayIntentBits.GuildEmojisAndStickers,
+    GatewayIntentBits.GuildInvites,
+    GatewayIntentBits.GuildWebhooks,
+    GatewayIntentBits.GuildScheduledEvents,
+    GatewayIntentBits.GuildPresences,
+    GatewayIntentBits.GuildIntegrations,
+    GatewayIntentBits.AutoModerationConfiguration,
+    GatewayIntentBits.AutoModerationExecution,
     GatewayIntentBits.MessageContent,
   ],
   partials: [
@@ -36,6 +49,7 @@ const client = new Client({
 });
 
 registerInteractionRouter(client);
+registerAuditLogEventHandlers(client);
 
 client.once(Events.ClientReady, async (readyClient) => {
   applyConfiguredPresence(readyClient);
@@ -48,6 +62,7 @@ client.once(Events.ClientReady, async (readyClient) => {
   await syncOpenPollReminderJobs();
   await syncWaitingRemovalVoteStartJobs();
   await syncReactionRolePanels(readyClient);
+  await replayUndeliveredAuditLogEntries(readyClient);
 });
 
 client.on(Events.MessageReactionAdd, async (reaction, user) => {

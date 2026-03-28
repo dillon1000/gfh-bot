@@ -14,6 +14,7 @@ import {
   getStarboardPostLeaderboard,
   setStarboardConfig,
 } from './service.js';
+import { recordAuditLogEvent } from '../audit-log/service.js';
 
 const buildStarboardStatusEmbed = (description: string): EmbedBuilder =>
   new EmbedBuilder()
@@ -67,14 +68,44 @@ export const handleStarboardCommand = async (
           parse: [],
         },
       });
+      await recordAuditLogEvent(interaction.client, {
+        guildId: interaction.guildId,
+        bucket: 'primary',
+        source: 'bot',
+        eventName: 'bot.starboard_config.updated',
+        payload: {
+          actorId: interaction.user.id,
+          channelId: config.starboardChannelId,
+          threshold: config.starboardThreshold,
+          emojis: config.starboardEmojis,
+          blacklistedChannelIds: config.starboardBlacklistedChannelIds,
+          enabled: config.starboardEnabled,
+        },
+      });
       return;
     }
     case 'disable': {
+      const previousConfig = await getStarboardConfig(interaction.guildId);
       const config = await disableStarboard(interaction.guildId);
       await interaction.reply({
         flags: MessageFlags.Ephemeral,
         embeds: [buildStarboardStatusEmbed(describeStarboardStatus(config))],
       });
+      if (previousConfig?.starboardChannelId) {
+        await recordAuditLogEvent(interaction.client, {
+          guildId: interaction.guildId,
+          bucket: 'primary',
+          source: 'bot',
+          eventName: 'bot.starboard_config.disabled',
+          payload: {
+            actorId: interaction.user.id,
+            previousChannelId: previousConfig.starboardChannelId,
+            previousThreshold: previousConfig.starboardThreshold,
+            previousEmojis: previousConfig.starboardEmojis,
+            previousBlacklistedChannelIds: previousConfig.starboardBlacklistedChannelIds,
+          },
+        });
+      }
       return;
     }
     case 'status': {

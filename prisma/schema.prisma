@@ -30,6 +30,23 @@ enum RemovalVoteSupportKind {
   second
 }
 
+enum AuditLogBucket {
+  primary
+  noisy
+}
+
+enum AuditLogSource {
+  gateway
+  audit
+  bot
+}
+
+enum AuditLogDeliveryStatus {
+  pending
+  delivered
+  failed
+}
+
 model GuildConfig {
   id                 String           @id @default(cuid())
   guildId            String           @unique
@@ -39,6 +56,8 @@ model GuildConfig {
   starboardEmojis    String[]         @default([])
   starboardBlacklistedChannelIds String[] @default([])
   searchIgnoredChannelIds String[]    @default([])
+  auditLogChannelId  String?
+  auditLogNoisyChannelId String?
   starboardEmojiId   String?
   starboardEmojiName String?
   memberRoleId       String?
@@ -219,4 +238,39 @@ model RemovalVoteSupport {
 
   @@unique([requestId, supporterId])
   @@index([requestId, createdAt])
+}
+
+model GuildEventLogEntry {
+  id                String                 @id @default(cuid())
+  guildId           String
+  bucket            AuditLogBucket
+  source            AuditLogSource
+  eventName         String
+  payload           Json
+  occurredAt        DateTime               @default(now())
+  deliveryStatus    AuditLogDeliveryStatus @default(pending)
+  deliveredAt       DateTime?
+  deliveredMessageId String?
+  lastError         String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([guildId, occurredAt])
+  @@index([deliveryStatus, occurredAt])
+}
+
+model GuildMessageSnapshot {
+  messageId         String   @id
+  guildId           String
+  channelId         String
+  authorId          String?
+  firstSeenPayload  Json
+  latestPayload     Json
+  firstSeenAt       DateTime @default(now())
+  lastSeenAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([guildId, channelId])
+  @@index([guildId, updatedAt])
 }
