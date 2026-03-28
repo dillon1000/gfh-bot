@@ -23,6 +23,7 @@ import {
   parseSearchHasTypes,
   parseUserIds,
 } from './parser.js';
+import { searchMaxOffset } from './constants.js';
 import { buildSearchResultsResponse, parseSearchPaginationCustomId } from './render.js';
 import { createSearchSessionId, getSearchSession, saveSearchSession } from './session-store.js';
 import { resolveSearchChannelIds, searchGuildMessages } from './service.js';
@@ -214,7 +215,7 @@ export const handleSearchCommand = async (
 
   await assertWithinRateLimit(
     redis,
-    `search:${interaction.guildId}:${interaction.user.id}`,
+    `rate-limit:search:${interaction.guildId}:${interaction.user.id}`,
     env.SEARCH_LIMIT_PER_MINUTE,
     60,
     'Search rate limit exceeded. Please wait a moment before searching again.',
@@ -257,8 +258,12 @@ export const handleSearchPaginationButton = async (
     throw new Error('Only the original requester can use these search pagination buttons.');
   }
 
+  if (parsed.action === 'next' && session.filters.offset >= searchMaxOffset) {
+    throw new Error('This search is already at the last supported page.');
+  }
+
   const nextOffset = parsed.action === 'next'
-    ? session.filters.offset + session.filters.limit
+    ? Math.min(searchMaxOffset, session.filters.offset + session.filters.limit)
     : Math.max(0, session.filters.offset - session.filters.limit);
 
   const nextFilters: GuildMessageSearchFilters = {

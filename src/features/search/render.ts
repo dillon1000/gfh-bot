@@ -1,6 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 
 import { formatDiscordRelativeTimestamp } from '../../lib/discord-timestamp.js';
+import { searchMaxOffset } from './constants.js';
 import type {
   GuildMessageSearchFilters,
   GuildMessageSearchMessage,
@@ -202,6 +203,7 @@ export const buildSearchResultsResponse = (
     });
 
   const nextDisabled = page.messages.length === 0
+    || page.filters.offset >= searchMaxOffset
     || (page.totalResults > 0 && page.filters.offset + page.filters.limit >= page.totalResults);
 
   return {

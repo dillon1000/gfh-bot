@@ -1,4 +1,5 @@
 import type { GuildMessageSearchFilters, SearchEmbedType } from './types.js';
+import { searchMaxChannelIds } from './constants.js';
 
 const snowflakePattern = /^\d{16,25}$/;
 const userMentionPattern = /^<@!?(?<id>\d{16,25})>$/;
@@ -140,7 +141,7 @@ export const parseSearchEmbedTypes = (value: string): SearchEmbedType[] =>
 export const parseChannelIds = (value: string): string[] =>
   parseDelimitedSnowflakes(value, {
     fieldName: 'channel_ids',
-    maxItems: 500,
+    maxItems: searchMaxChannelIds,
     mentionPattern: channelMentionPattern,
   });
 

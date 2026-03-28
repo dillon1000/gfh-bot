@@ -10,6 +10,7 @@ import {
 } from 'discord.js';
 
 import { discordRestGet } from '../../lib/discord-rest.js';
+import { searchMaxChannelIds } from './constants.js';
 import type {
   GuildMessageSearchFilters,
   GuildMessageSearchIndexPendingResponse,
@@ -58,11 +59,14 @@ const isThreadParentChannel = (
 
 const fetchArchivedThreadsForChannel = async (
   channel: TextChannel | NewsChannel,
+  remainingCapacity: number,
 ): Promise<GuildBasedChannel[]> => {
+  const archivedFetchLimit = Math.min(searchMaxChannelIds, remainingCapacity + 1);
+
   const [publicThreads, privateThreads] = await Promise.all([
-    channel.threads.fetchArchived({ type: 'public', fetchAll: true }).catch(() => null),
+    channel.threads.fetchArchived({ type: 'public', limit: archivedFetchLimit }).catch(() => null),
     channel.type === ChannelType.GuildText
-      ? channel.threads.fetchArchived({ type: 'private', fetchAll: true }).catch(() => null)
+      ? channel.threads.fetchArchived({ type: 'private', limit: archivedFetchLimit }).catch(() => null)
       : Promise.resolve(null),
   ]);
 
@@ -106,32 +110,52 @@ export const resolveSearchChannelIds = async (
   }
 
   const channels = await guild.channels.fetch();
+  const guildChannels = [...channels.values()].filter((channel): channel is NonNullable<typeof channel> => channel !== null);
   const activeThreads = await guild.channels.fetchActiveThreads().catch(() => null);
-  const archivedThreads = await Promise.all(
-    [...channels.values()]
-      .filter((channel): channel is NonNullable<typeof channel> => channel !== null)
-      .filter(isThreadParentChannel)
-      .map((channel) => fetchArchivedThreadsForChannel(channel)),
-  );
   const searchableChannels: GuildBasedChannel[] = [
-    ...[...channels.values()].filter((channel): channel is NonNullable<typeof channel> => channel !== null),
+    ...guildChannels,
     ...(activeThreads ? [...activeThreads.threads.values()] : []),
-    ...archivedThreads.flat(),
   ];
+  const accessibleChannelIds = new Set<string>();
 
-  const accessibleChannelIds = searchableChannels
-    .filter((channel) => ensureSearchableChannelAccess(channel, member))
-    .map((channel) => channel.id);
+  for (const channel of searchableChannels) {
+    if (!ensureSearchableChannelAccess(channel, member)) {
+      continue;
+    }
 
-  if (accessibleChannelIds.length === 0) {
+    accessibleChannelIds.add(channel.id);
+
+    if (accessibleChannelIds.size > searchMaxChannelIds) {
+      throw new Error('You have access to more than 500 searchable channels or threads. Please narrow the search with channel_ids or the channel option.');
+    }
+  }
+
+  for (const channel of guildChannels.filter(isThreadParentChannel)) {
+    const remainingCapacity = searchMaxChannelIds - accessibleChannelIds.size;
+    if (remainingCapacity <= 0) {
+      break;
+    }
+
+    const archivedThreads = await fetchArchivedThreadsForChannel(channel, remainingCapacity);
+
+    for (const archivedThread of archivedThreads) {
+      if (!ensureSearchableChannelAccess(archivedThread, member)) {
+        continue;
+      }
+
+      accessibleChannelIds.add(archivedThread.id);
+
+      if (accessibleChannelIds.size > searchMaxChannelIds) {
+        throw new Error('You have access to more than 500 searchable channels or threads. Please narrow the search with channel_ids or the channel option.');
+      }
+    }
+  }
+
+  if (accessibleChannelIds.size === 0) {
     throw new Error('You do not have access to any searchable text channels or threads in this server.');
   }
 
-  if (accessibleChannelIds.length > 500) {
-    throw new Error('You have access to more than 500 searchable channels or threads. Please narrow the search with channel_ids or the channel option.');
-  }
-
-  return [...new Set(accessibleChannelIds)];
+  return [...accessibleChannelIds];
 };
 
 const flattenSearchMessages = (

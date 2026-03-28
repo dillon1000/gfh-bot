@@ -126,6 +126,9 @@ describe('search service', () => {
     };
 
     await expect(resolveSearchChannelIds(guild as never, {} as never)).rejects.toThrow(/more than 500/);
+    const firstChannel = channels.get('channel_0');
+    expect(firstChannel).toBeDefined();
+    expect(firstChannel?.threads?.fetchArchived).not.toHaveBeenCalled();
   });
 
   it('retries index-pending responses and flattens nested messages', async () => {

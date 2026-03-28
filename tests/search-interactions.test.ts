@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { searchMaxOffset } from '../src/features/search/constants.js';
+
 const {
   assertWithinRateLimit,
   searchGuildMessages,
@@ -153,6 +155,13 @@ describe('search interactions', () => {
     await handleSearchCommand({} as never, interaction as never);
 
     expect(assertWithinRateLimit).toHaveBeenCalledTimes(1);
+    expect(assertWithinRateLimit).toHaveBeenCalledWith(
+      expect.anything(),
+      'rate-limit:search:guild_1:user_1',
+      expect.any(Number),
+      60,
+      expect.any(String),
+    );
     expect(resolveSearchChannelIds).toHaveBeenCalledWith(
       interaction.guild,
       expect.objectContaining({ id: 'user_1' }),
@@ -337,5 +346,61 @@ describe('search interactions', () => {
     );
     expect(interaction.deferUpdate).toHaveBeenCalledTimes(1);
     expect(interaction.editReply).toHaveBeenCalledTimes(1);
+  });
+
+  it('clamps pagination to the maximum supported offset', async () => {
+    getSearchSession.mockResolvedValue({
+      guildId: 'guild_1',
+      userId: 'user_1',
+      filters: {
+        limit: 10,
+        offset: searchMaxOffset - 5,
+        channelIds: ['channel_1'],
+        content: 'ship it',
+      },
+      lastResultCount: 10,
+      totalResults: 20_000,
+    });
+
+    searchGuildMessages.mockResolvedValue({
+      filters: {
+        limit: 10,
+        offset: searchMaxOffset,
+        channelIds: ['channel_1'],
+        content: 'ship it',
+      },
+      totalResults: 20_000,
+      doingDeepHistoricalIndex: false,
+      messages: [{
+        id: 'message_3',
+        channel_id: 'channel_1',
+        content: 'last supported page',
+        timestamp: '2026-03-27T00:02:00.000Z',
+        author: {
+          id: 'user_2',
+        },
+      }],
+    });
+
+    const interaction = {
+      inGuild: () => true,
+      guildId: 'guild_1',
+      user: {
+        id: 'user_1',
+      },
+      customId: 'search:page:next:session_1',
+      deferUpdate: vi.fn(),
+      editReply: vi.fn(),
+    };
+
+    await handleSearchPaginationButton({} as never, interaction as never);
+
+    expect(searchGuildMessages).toHaveBeenCalledWith(
+      expect.anything(),
+      'guild_1',
+      expect.objectContaining({
+        offset: searchMaxOffset,
+      }),
+    );
   });
 });

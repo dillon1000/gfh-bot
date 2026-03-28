@@ -1,5 +1,7 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
 
+import { searchMaxOffset } from './constants.js';
+
 export const searchCommand = new SlashCommandBuilder()
   .setName('search')
   .setDescription('Search messages in this server.')
@@ -89,7 +91,7 @@ export const searchCommand = new SlashCommandBuilder()
           .setDescription('How many results to skip')
           .setRequired(false)
           .setMinValue(0)
-          .setMaxValue(9975),
+          .setMaxValue(searchMaxOffset),
       )
       .addStringOption((option) =>
         option
