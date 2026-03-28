@@ -100,7 +100,52 @@ describe('search service', () => {
       guild as never,
       {} as never,
       ['channel_1', 'channel_2'],
+      [],
     )).rejects.toThrow(/Invalid or inaccessible IDs: channel_2/);
+  });
+
+  it('filters ignored channels from automatic search scope and blocks explicit requests for them', async () => {
+    const allowedChannel = createChannel('channel_1', true);
+    const ignoredChannel = createChannel('channel_2', true);
+    const guild = {
+      channels: {
+        fetch: vi.fn(async (channelId?: string) => {
+          if (channelId) {
+            if (channelId === 'channel_1') {
+              return allowedChannel;
+            }
+
+            if (channelId === 'channel_2') {
+              return ignoredChannel;
+            }
+
+            return null;
+          }
+
+          return new Map([
+            ['channel_1', allowedChannel],
+            ['channel_2', ignoredChannel],
+          ]);
+        }),
+        fetchActiveThreads: vi.fn(async () => ({
+          threads: new Map(),
+        })),
+      },
+    };
+
+    await expect(resolveSearchChannelIds(
+      guild as never,
+      {} as never,
+      undefined,
+      ['channel_2'],
+    )).resolves.toEqual(['channel_1']);
+
+    await expect(resolveSearchChannelIds(
+      guild as never,
+      {} as never,
+      ['channel_1', 'channel_2'],
+      ['channel_2'],
+    )).rejects.toThrow(/excluded from search by server config: channel_2/i);
   });
 
   it('rejects auto-scoped searches larger than Discord channel filter limits', async () => {

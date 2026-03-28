@@ -251,4 +251,27 @@ export const searchCommand = new SlashCommandBuilder()
           .setDescription('Include age-restricted channels if you can access them')
           .setRequired(false),
       ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('config')
+      .setDescription('View or update search configuration for this server.')
+      .addStringOption((option) =>
+        option
+          .setName('action')
+          .setDescription('Whether to view, set, or clear ignored channels')
+          .setRequired(true)
+          .addChoices(
+            { name: 'View', value: 'view' },
+            { name: 'Set ignored channels', value: 'set' },
+            { name: 'Clear ignored channels', value: 'clear' },
+          ),
+      )
+      .addStringOption((option) =>
+        option
+          .setName('channel_ids')
+          .setDescription('Comma-separated channel or thread IDs / mentions to ignore')
+          .setRequired(false)
+          .setMaxLength(2000),
+      ),
   );

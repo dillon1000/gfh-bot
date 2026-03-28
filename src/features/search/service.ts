@@ -52,6 +52,15 @@ const ensureSearchableChannelAccess = (
   member: GuildMember,
 ): boolean => Boolean(channel && isSearchableChannel(channel) && canSearchChannel(channel, member));
 
+const isIgnoredSearchChannel = (
+  channel: GuildBasedChannel,
+  ignoredChannelIdSet: Set<string>,
+): boolean =>
+  ignoredChannelIdSet.has(channel.id)
+  || ('parentId' in channel
+    && typeof channel.parentId === 'string'
+    && ignoredChannelIdSet.has(channel.parentId));
+
 const isThreadParentChannel = (
   channel: GuildBasedChannel,
 ): channel is TextChannel | NewsChannel =>
@@ -80,15 +89,30 @@ export const resolveSearchChannelIds = async (
   guild: Guild,
   member: GuildMember,
   requestedChannelIds?: string[],
+  ignoredChannelIds: string[] = [],
 ): Promise<string[]> => {
+  const ignoredChannelIdSet = new Set(ignoredChannelIds);
+
   if (requestedChannelIds && requestedChannelIds.length > 0) {
-    const resolved = await Promise.all(requestedChannelIds.map(async (channelId) => guild.channels.fetch(channelId).catch(() => null)));
+    const uniqueRequestedChannelIds = [...new Set(requestedChannelIds)];
+    const resolved = await Promise.all(uniqueRequestedChannelIds.map(async (channelId) => guild.channels.fetch(channelId).catch(() => null)));
     const allowed: string[] = [];
     const invalidIds: string[] = [];
+    const ignoredIds: string[] = [];
 
     for (const [index, channel] of resolved.entries()) {
-      const requestedChannelId = requestedChannelIds[index];
+      const requestedChannelId = uniqueRequestedChannelIds[index];
       if (!requestedChannelId) {
+        continue;
+      }
+
+      if (!channel) {
+        invalidIds.push(requestedChannelId);
+        continue;
+      }
+
+      if (isIgnoredSearchChannel(channel, ignoredChannelIdSet)) {
+        ignoredIds.push(requestedChannelId);
         continue;
       }
 
@@ -98,6 +122,12 @@ export const resolveSearchChannelIds = async (
       }
 
       allowed.push(requestedChannelId);
+    }
+
+    if (ignoredIds.length > 0) {
+      throw new Error(
+        `These channels or threads are excluded from search by server config: ${ignoredIds.join(', ')}`,
+      );
     }
 
     if (invalidIds.length > 0) {
@@ -123,6 +153,10 @@ export const resolveSearchChannelIds = async (
       continue;
     }
 
+    if (isIgnoredSearchChannel(channel, ignoredChannelIdSet)) {
+      continue;
+    }
+
     accessibleChannelIds.add(channel.id);
 
     if (accessibleChannelIds.size > searchMaxChannelIds) {
@@ -140,6 +174,10 @@ export const resolveSearchChannelIds = async (
 
     for (const archivedThread of archivedThreads) {
       if (!ensureSearchableChannelAccess(archivedThread, member)) {
+        continue;
+      }
+
+      if (isIgnoredSearchChannel(archivedThread, ignoredChannelIdSet)) {
         continue;
       }
 
