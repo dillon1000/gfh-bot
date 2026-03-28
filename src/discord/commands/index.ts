@@ -24,6 +24,7 @@ import {
   pollExtendFromMessageCommand,
 } from '../../features/polls/commands.js';
 import { reactionRoleBuilderCommand, reactionRolesCommand } from '../../features/reaction-roles/definition.js';
+import { removeCommand } from '../../features/removals/commands.js';
 import { searchCommand } from '../../features/search/definition.js';
 import { starboardCommand } from '../../features/starboard/definition.js';
 
@@ -33,6 +34,7 @@ export const applicationCommands: RESTPostAPIApplicationCommandsJSONBody[] = [
   meowCommand.toJSON(),
   pingCommand.toJSON(),
   searchCommand.toJSON(),
+  removeCommand.toJSON(),
   pollCommand.toJSON(),
   pollBuilderCommand.toJSON(),
   pollResultsCommand.toJSON(),

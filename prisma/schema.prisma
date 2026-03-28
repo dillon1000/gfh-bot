@@ -18,6 +18,18 @@ enum PollClosedReason {
   cancelled
 }
 
+enum RemovalVoteRequestStatus {
+  collecting
+  waiting
+  initiated
+  expired
+}
+
+enum RemovalVoteSupportKind {
+  request
+  second
+}
+
 model GuildConfig {
   id                 String           @id @default(cuid())
   guildId            String           @unique
@@ -28,6 +40,7 @@ model GuildConfig {
   starboardBlacklistedChannelIds String[] @default([])
   starboardEmojiId   String?
   starboardEmojiName String?
+  memberRoleId       String?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
   starboardEntries   StarboardEntry[]
@@ -170,4 +183,39 @@ model ReactionRoleOption {
   @@unique([panelId, roleId])
   @@unique([panelId, sortOrder])
   @@index([panelId])
+}
+
+model RemovalVoteRequest {
+  id                  String                   @id @default(cuid())
+  guildId             String
+  targetUserId        String
+  pollChannelId       String
+  originChannelId     String
+  status              RemovalVoteRequestStatus @default(collecting)
+  supportWindowEndsAt DateTime
+  thresholdReachedAt  DateTime?
+  waitUntil           DateTime?
+  initiateBy          DateTime?
+  initiatedPollId     String?
+  lastAutoStartError  String?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  supports            RemovalVoteSupport[]
+
+  @@index([guildId, targetUserId, status])
+  @@index([status, waitUntil])
+  @@index([status, initiateBy])
+}
+
+model RemovalVoteSupport {
+  id          String                 @id @default(cuid())
+  requestId   String
+  supporterId String
+  kind        RemovalVoteSupportKind
+  channelId   String
+  createdAt   DateTime               @default(now())
+  request     RemovalVoteRequest     @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, supporterId])
+  @@index([requestId, createdAt])
 }

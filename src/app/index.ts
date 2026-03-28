@@ -8,9 +8,11 @@ import { recoverExpiredPolls, recoverMissedPollReminders } from '../features/pol
 import { syncOpenPollCloseJobs, syncOpenPollReminderJobs } from '../features/polls/service-repository.js';
 import { startPollReminderWorker, startPollWorker } from '../features/polls/worker.js';
 import { syncReactionRolePanels } from '../features/reaction-roles/service.js';
+import { expireStaleRemovalVoteRequests, recoverDueRemovalVoteStarts, syncWaitingRemovalVoteStartJobs } from '../features/removals/service.js';
+import { startRemovalVoteWorker } from '../features/removals/worker.js';
 import { removeStarboardEntryForSourceMessage, syncStarboardForReaction } from '../features/starboard/service.js';
 import { prisma } from '../lib/prisma.js';
-import { pollCloseQueue, pollReminderQueue } from '../lib/queue.js';
+import { pollCloseQueue, pollReminderQueue, removalVoteStartQueue } from '../lib/queue.js';
 import { redis } from '../lib/redis.js';
 import { installShutdownHooks, registerShutdownHandler } from '../lib/shutdown.js';
 
@@ -40,8 +42,11 @@ client.once(Events.ClientReady, async (readyClient) => {
   logger.info({ user: readyClient.user.tag }, 'Discord client ready');
   await recoverExpiredPolls(readyClient);
   await recoverMissedPollReminders(readyClient);
+  await expireStaleRemovalVoteRequests();
+  await recoverDueRemovalVoteStarts(readyClient);
   await syncOpenPollCloseJobs();
   await syncOpenPollReminderJobs();
+  await syncWaitingRemovalVoteStartJobs();
   await syncReactionRolePanels(readyClient);
 });
 
@@ -71,13 +76,16 @@ client.on(Events.MessageDelete, async (message) => {
 
 const worker = startPollWorker(client);
 const reminderWorker = startPollReminderWorker(client);
+const removalVoteWorker = startRemovalVoteWorker(client);
 
 registerShutdownHandler(async () => {
   await Promise.allSettled([
     worker.close(),
     reminderWorker.close(),
+    removalVoteWorker.close(),
     pollCloseQueue.close(),
     pollReminderQueue.close(),
+    removalVoteStartQueue.close(),
     redis.quit(),
     prisma.$disconnect(),
     client.destroy(),

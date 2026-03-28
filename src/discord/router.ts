@@ -59,6 +59,8 @@ import {
   handleReactionRolesCommand,
   handleReactionRoleSelect,
 } from '../features/reaction-roles/interactions.js';
+import { handleRemoveCommand } from '../features/removals/interactions.js';
+import { handleRemovalInteractionError } from '../features/removals/interaction-errors.js';
 import {
   handleSearchCommand,
   handleSearchInteractionError,
@@ -85,6 +87,9 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'search':
             await handleSearchCommand(client, interaction);
+            return;
+          case 'remove':
+            await handleRemoveCommand(interaction);
             return;
           case 'poll':
             await handlePollCommand(client, interaction);
@@ -293,6 +298,10 @@ export const registerInteractionRouter = (client: Client): void => {
           (interaction.isModalSubmit() && interaction.customId.startsWith('emoji-builder:'))
         ) {
           await handleEmojiBuilderInteractionError(interaction, error);
+        } else if (
+          interaction.isChatInputCommand() && interaction.commandName === 'remove'
+        ) {
+          await handleRemovalInteractionError(interaction, error);
         } else if (
           (interaction.isChatInputCommand() && interaction.commandName === 'search')
           || (interaction.isButton() && interaction.customId.startsWith('search:page:'))
