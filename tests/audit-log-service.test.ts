@@ -170,6 +170,11 @@ const createMessage = (content: string) => ({
   reference: null,
 });
 
+const makeOccurredAtDate = (index: number): Date =>
+  new Date(
+    `2026-03-28T09:${String(Math.floor(index / 60)).padStart(2, '0')}:${String(index % 60).padStart(2, '0')}.000Z`,
+  );
+
 describe('audit log service', () => {
   beforeEach(() => {
     store.entrySeq = 0;
@@ -230,7 +235,7 @@ describe('audit log service', () => {
         source: 'gateway',
         eventName: `guild.update.${index}`,
         payload: { index },
-        occurredAt: new Date(`2026-03-28T09:${String(Math.floor(index / 60)).padStart(2, '0')}:${String(index % 60).padStart(2, '0')}.000Z`),
+        occurredAt: makeOccurredAtDate(index),
         deliveryStatus: 'pending',
       });
       store.entries.set(pending.id, pending);
