@@ -1,5 +1,6 @@
 import { Events, type Client, type Interaction } from 'discord.js';
 
+import { handleAuditLogCommand } from '../features/audit-log/commands.js';
 import {
   handleEmojiBuilderButton,
   handleEmojiBuilderCommand,
@@ -73,6 +74,9 @@ export const registerInteractionRouter = (client: Client): void => {
     try {
       if (interaction.isChatInputCommand()) {
         switch (interaction.commandName) {
+          case 'audit-log':
+            await handleAuditLogCommand(interaction);
+            return;
           case 'emoji-builder':
             await handleEmojiBuilderCommand(interaction);
             return;

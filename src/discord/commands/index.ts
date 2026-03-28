@@ -1,5 +1,6 @@
 import type { RESTPostAPIApplicationCommandsJSONBody } from 'discord.js';
 
+import { auditLogCommand } from '../../features/audit-log/commands.js';
 import { emojiBuilderCommand } from '../../features/emojis/definition.js';
 import { latexCommand } from '../../features/meta/latex.js';
 import { meowCommand } from '../../features/meta/meow-definition.js';
@@ -29,6 +30,7 @@ import { searchCommand } from '../../features/search/definition.js';
 import { starboardCommand } from '../../features/starboard/definition.js';
 
 export const applicationCommands: RESTPostAPIApplicationCommandsJSONBody[] = [
+  auditLogCommand.toJSON(),
   emojiBuilderCommand.toJSON(),
   latexCommand.toJSON(),
   meowCommand.toJSON(),

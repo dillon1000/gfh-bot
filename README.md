@@ -80,6 +80,8 @@ For local development on your machine, use `localhost` in `DATABASE_URL` and `RE
 
 Poll governance guardrails require the `Guild Members` privileged intent to be enabled for the bot in the Discord Developer Portal.
 
+Exhaustive audit logging works best with the `Guild Members`, `Guild Presences`, and relevant moderation / voice intents enabled in the Discord Developer Portal.
+
 ## Development
 
 ```bash
@@ -115,6 +117,9 @@ docker compose --profile autoupdate up -d
 ## Commands
 
 - `/ping`
+- `/audit-log setup channel:#audit-log noisy_channel:#audit-noisy`
+- `/audit-log status`
+- `/audit-log disable`
 - `/search messages query:... channel:#general`
 - `/search advanced content:... channel_ids:"<#...>, <#...>" public:true`
 - `/search config action:view`

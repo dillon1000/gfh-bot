@@ -17,6 +17,7 @@ import {
   secondRemovalVoteRequest,
   setRemovalMemberRole,
 } from './service.js';
+import { recordAuditLogEvent } from '../audit-log/service.js';
 
 const buildEmbed = (
   title: string,
@@ -143,6 +144,16 @@ export const handleRemoveCommand = async (
       allowedMentions: {
         parse: [],
         roles: [],
+      },
+    });
+    await recordAuditLogEvent(interaction.client, {
+      guildId: interaction.guildId,
+      bucket: 'primary',
+      source: 'bot',
+      eventName: 'bot.removal_config.updated',
+      payload: {
+        actorId: interaction.user.id,
+        memberRoleId: config.memberRoleId,
       },
     });
     return;
