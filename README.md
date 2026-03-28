@@ -62,12 +62,14 @@ Copy `.env.example` to `.env` and fill in:
 - `DISCORD_TOKEN`
 - `DISCORD_CLIENT_ID`
 - `DISCORD_GUILD_ID`
+- `DISCORD_ADMIN_USER_IDS` optional comma-separated Discord user IDs allowed to edit admin-gated bot config like `/search config`
 - `DISCORD_PRESENCE_STATUS` optional: `online`, `idle`, `dnd`, or `invisible`
 - `DISCORD_ACTIVITY_TYPE` optional: `playing`, `listening`, `watching`, `competing`, or `streaming`
 - `DISCORD_ACTIVITY_TEXT` optional activity text, for example `help`
 - `DISCORD_ACTIVITY_URL` optional stream URL, only used when the activity type is `streaming`
 - `DATABASE_URL`
 - `REDIS_URL`
+- `SEARCH_LIMIT_PER_MINUTE`
 - `R2_ACCOUNT_ID` optional
 - `R2_ACCESS_KEY_ID` optional
 - `R2_SECRET_ACCESS_KEY` optional
@@ -113,6 +115,11 @@ docker compose --profile autoupdate up -d
 ## Commands
 
 - `/ping`
+- `/search messages query:... channel:#general`
+- `/search advanced content:... channel_ids:"<#...>, <#...>"`
+- `/search config action:view`
+- `/search config action:set channel_ids:"<#...>, <#...>"`
+- `/search config action:clear`
 - `/poll question:... choices:... description:... mode:single anonymous:false quorum_percent:60 allowed_roles:"<@&...>" blocked_roles:"<@&...>" eligible_channels:"<#...>" time:24h reminders:"1d,1h,10m" reminder_role:"<@&...>"`
 - `/poll-builder`
 - `/poll-results query:<message link|message id|poll id>`

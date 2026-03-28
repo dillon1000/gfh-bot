@@ -2,10 +2,29 @@ import 'dotenv/config';
 
 import { z } from 'zod';
 
+const snowflakePattern = /^\d{16,25}$/;
+
+const parseSnowflakeList = (value: unknown): string[] | unknown => {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  return [...new Set(
+    value
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean),
+  )];
+};
+
 const envSchema = z.object({
   DISCORD_TOKEN: z.string().min(1),
   DISCORD_CLIENT_ID: z.string().min(1),
   DISCORD_GUILD_ID: z.string().min(1).optional(),
+  DISCORD_ADMIN_USER_IDS: z.preprocess(
+    parseSnowflakeList,
+    z.array(z.string().regex(snowflakePattern, 'DISCORD_ADMIN_USER_IDS entries must be valid Discord snowflakes.')).default([]),
+  ),
   DISCORD_PRESENCE_STATUS: z.enum(['online', 'idle', 'dnd', 'invisible']).optional(),
   DISCORD_ACTIVITY_TYPE: z.enum(['playing', 'listening', 'watching', 'competing', 'streaming']).optional(),
   DISCORD_ACTIVITY_TEXT: z.string().min(1).optional(),
