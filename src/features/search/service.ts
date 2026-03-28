@@ -1,0 +1,197 @@
+import {
+  ChannelType,
+  PermissionFlagsBits,
+  type Client,
+  type Guild,
+  type GuildBasedChannel,
+  type GuildMember,
+  type NewsChannel,
+  type TextChannel,
+} from 'discord.js';
+
+import { discordRestGet } from '../../lib/discord-rest.js';
+import type {
+  GuildMessageSearchFilters,
+  GuildMessageSearchIndexPendingResponse,
+  GuildMessageSearchMessage,
+  GuildMessageSearchPage,
+  GuildMessageSearchResponse,
+} from './types.js';
+import { serializeGuildMessageSearchFilters } from './parser.js';
+
+const searchableChannelTypes = new Set<ChannelType>([
+  ChannelType.GuildText,
+  ChannelType.GuildAnnouncement,
+  ChannelType.PublicThread,
+  ChannelType.PrivateThread,
+  ChannelType.AnnouncementThread,
+]);
+
+const requiredSearchPermissions = [
+  PermissionFlagsBits.ViewChannel,
+  PermissionFlagsBits.ReadMessageHistory,
+] as const;
+
+const searchRetryLimit = 3;
+const searchRetryBudgetMs = 6000;
+
+const sleep = async (durationMs: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, durationMs);
+  });
+
+const isSearchableChannel = (channel: GuildBasedChannel): boolean =>
+  searchableChannelTypes.has(channel.type);
+
+const canSearchChannel = (channel: GuildBasedChannel, member: GuildMember): boolean =>
+  channel.permissionsFor(member)?.has(requiredSearchPermissions, true) ?? false;
+
+const ensureSearchableChannelAccess = (
+  channel: GuildBasedChannel | null,
+  member: GuildMember,
+): boolean => Boolean(channel && isSearchableChannel(channel) && canSearchChannel(channel, member));
+
+const isThreadParentChannel = (
+  channel: GuildBasedChannel,
+): channel is TextChannel | NewsChannel =>
+  channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement;
+
+const fetchArchivedThreadsForChannel = async (
+  channel: TextChannel | NewsChannel,
+): Promise<GuildBasedChannel[]> => {
+  const [publicThreads, privateThreads] = await Promise.all([
+    channel.threads.fetchArchived({ type: 'public', fetchAll: true }).catch(() => null),
+    channel.type === ChannelType.GuildText
+      ? channel.threads.fetchArchived({ type: 'private', fetchAll: true }).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+
+  return [
+    ...(publicThreads ? [...publicThreads.threads.values()] : []),
+    ...(privateThreads ? [...privateThreads.threads.values()] : []),
+  ];
+};
+
+export const resolveSearchChannelIds = async (
+  guild: Guild,
+  member: GuildMember,
+  requestedChannelIds?: string[],
+): Promise<string[]> => {
+  if (requestedChannelIds && requestedChannelIds.length > 0) {
+    const resolved = await Promise.all(requestedChannelIds.map(async (channelId) => guild.channels.fetch(channelId).catch(() => null)));
+    const allowed: string[] = [];
+    const invalidIds: string[] = [];
+
+    for (const [index, channel] of resolved.entries()) {
+      const requestedChannelId = requestedChannelIds[index];
+      if (!requestedChannelId) {
+        continue;
+      }
+
+      if (!ensureSearchableChannelAccess(channel, member)) {
+        invalidIds.push(requestedChannelId);
+        continue;
+      }
+
+      allowed.push(requestedChannelId);
+    }
+
+    if (invalidIds.length > 0) {
+      throw new Error(
+        `You can only search text channels or threads you can read. Invalid or inaccessible IDs: ${invalidIds.join(', ')}`,
+      );
+    }
+
+    return [...new Set(allowed)];
+  }
+
+  const channels = await guild.channels.fetch();
+  const activeThreads = await guild.channels.fetchActiveThreads().catch(() => null);
+  const archivedThreads = await Promise.all(
+    [...channels.values()]
+      .filter((channel): channel is NonNullable<typeof channel> => channel !== null)
+      .filter(isThreadParentChannel)
+      .map((channel) => fetchArchivedThreadsForChannel(channel)),
+  );
+  const searchableChannels: GuildBasedChannel[] = [
+    ...[...channels.values()].filter((channel): channel is NonNullable<typeof channel> => channel !== null),
+    ...(activeThreads ? [...activeThreads.threads.values()] : []),
+    ...archivedThreads.flat(),
+  ];
+
+  const accessibleChannelIds = searchableChannels
+    .filter((channel) => ensureSearchableChannelAccess(channel, member))
+    .map((channel) => channel.id);
+
+  if (accessibleChannelIds.length === 0) {
+    throw new Error('You do not have access to any searchable text channels or threads in this server.');
+  }
+
+  if (accessibleChannelIds.length > 500) {
+    throw new Error('You can access more than 500 searchable channels or threads. Please narrow the search with channel_ids or the channel option.');
+  }
+
+  return [...new Set(accessibleChannelIds)];
+};
+
+const flattenSearchMessages = (
+  nestedMessages: GuildMessageSearchMessage[][],
+): GuildMessageSearchMessage[] => {
+  const messages: GuildMessageSearchMessage[] = [];
+  const seenMessageIds = new Set<string>();
+
+  for (const group of nestedMessages) {
+    for (const message of group) {
+      if (seenMessageIds.has(message.id)) {
+        continue;
+      }
+
+      seenMessageIds.add(message.id);
+      messages.push(message);
+    }
+  }
+
+  return messages;
+};
+
+export const searchGuildMessages = async (
+  _client: Client,
+  guildId: string,
+  filters: GuildMessageSearchFilters,
+): Promise<GuildMessageSearchPage> => {
+  const query = serializeGuildMessageSearchFilters(filters);
+  let remainingBudgetMs = searchRetryBudgetMs;
+
+  for (let attempt = 0; attempt < searchRetryLimit; attempt += 1) {
+    const response = await discordRestGet<GuildMessageSearchResponse | GuildMessageSearchIndexPendingResponse>(
+      `/guilds/${guildId}/messages/search`,
+      query,
+    );
+
+    if (response.status !== 202) {
+      const payload = response.data as GuildMessageSearchResponse;
+      return {
+        filters,
+        totalResults: payload.total_results,
+        ...(payload.documents_indexed !== undefined ? { documentsIndexed: payload.documents_indexed } : {}),
+        doingDeepHistoricalIndex: payload.doing_deep_historical_index,
+        messages: flattenSearchMessages(payload.messages),
+      };
+    }
+
+    const payload = response.data as GuildMessageSearchIndexPendingResponse;
+    const retryAfterSeconds = Math.max(0, payload.retry_after ?? 0);
+    const retryDelayMs = retryAfterSeconds === 0
+      ? 250
+      : Math.ceil(retryAfterSeconds * 1000);
+
+    if (attempt === searchRetryLimit - 1 || retryDelayMs > remainingBudgetMs) {
+      throw new Error('Search index is not ready yet. Please try again in a moment.');
+    }
+
+    remainingBudgetMs -= retryDelayMs;
+    await sleep(retryDelayMs);
+  }
+
+  throw new Error('Search index is not ready yet. Please try again in a moment.');
+};
