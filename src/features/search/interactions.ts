@@ -11,6 +11,11 @@ import { assertWithinRateLimit } from '../../lib/rate-limit.js';
 import { redis } from '../../lib/redis.js';
 import { buildFeedbackEmbed } from '../polls/poll-embeds.js';
 import {
+  describeSearchConfig,
+  getSearchConfig,
+  setSearchIgnoredChannelIds,
+} from './config-service.js';
+import {
   parseAttachmentExtensions,
   parseAttachmentFilenames,
   parseChannelIds,
@@ -32,6 +37,19 @@ import type {
   SearchSortBy,
   SearchSortOrder,
 } from './types.js';
+
+const isSearchConfigAdmin = (userId: string): boolean =>
+  env.DISCORD_ADMIN_USER_IDS.includes(userId);
+
+const assertCanEditSearchConfig = (userId: string): void => {
+  if (env.DISCORD_ADMIN_USER_IDS.length === 0) {
+    throw new Error('Search config editing is disabled until DISCORD_ADMIN_USER_IDS is configured.');
+  }
+
+  if (!isSearchConfigAdmin(userId)) {
+    throw new Error('Only configured admin user IDs can edit search config.');
+  }
+};
 
 const getBasicSearchFilters = (
   interaction: ChatInputCommandInteraction,
@@ -137,6 +155,7 @@ const buildSearchFilters = async (
   }
 
   const member = await guild.members.fetch(interaction.user.id);
+  const searchConfig = await getSearchConfig(interaction.guildId);
   const subcommand = interaction.options.getSubcommand();
 
   if (subcommand === 'messages') {
@@ -145,7 +164,7 @@ const buildSearchFilters = async (
 
     return {
       ...partial,
-      channelIds: await resolveSearchChannelIds(guild, member, requestedChannelIds),
+      channelIds: await resolveSearchChannelIds(guild, member, requestedChannelIds, searchConfig.ignoredChannelIds),
     };
   }
 
@@ -157,7 +176,7 @@ const buildSearchFilters = async (
     return {
       limit: partial.limit,
       offset: partial.offset,
-      channelIds: await resolveSearchChannelIds(guild, member, partial.requestedChannelIds),
+      channelIds: await resolveSearchChannelIds(guild, member, partial.requestedChannelIds, searchConfig.ignoredChannelIds),
       ...(validatedMaxId ? { maxId: validatedMaxId } : {}),
       ...(validatedMinId ? { minId: validatedMinId } : {}),
       ...(partial.slop !== undefined ? { slop: partial.slop } : {}),
@@ -183,6 +202,69 @@ const buildSearchFilters = async (
   }
 
   throw new Error('Unknown search subcommand.');
+};
+
+const handleSearchConfigCommand = async (
+  interaction: ChatInputCommandInteraction,
+): Promise<void> => {
+  if (!interaction.inGuild()) {
+    throw new Error('Search config can only be used inside a server.');
+  }
+
+  const action = interaction.options.getString('action', true);
+  const rawChannelIds = interaction.options.getString('channel_ids');
+
+  if (action === 'view') {
+    if (rawChannelIds) {
+      throw new Error('channel_ids can only be provided when action is set.');
+    }
+
+    const config = await getSearchConfig(interaction.guildId);
+    await interaction.reply({
+      flags: MessageFlags.Ephemeral,
+      embeds: [buildFeedbackEmbed('Search Config', describeSearchConfig(config, env.DISCORD_ADMIN_USER_IDS), 0x3b82f6)],
+      allowedMentions: {
+        parse: [],
+      },
+    });
+    return;
+  }
+
+  assertCanEditSearchConfig(interaction.user.id);
+
+  if (action === 'clear') {
+    if (rawChannelIds) {
+      throw new Error('channel_ids cannot be provided when action is clear.');
+    }
+
+    const config = await setSearchIgnoredChannelIds(interaction.guildId, []);
+    await interaction.reply({
+      flags: MessageFlags.Ephemeral,
+      embeds: [buildFeedbackEmbed('Search Config Updated', describeSearchConfig(config, env.DISCORD_ADMIN_USER_IDS), 0x3b82f6)],
+      allowedMentions: {
+        parse: [],
+      },
+    });
+    return;
+  }
+
+  if (action === 'set') {
+    if (!rawChannelIds) {
+      throw new Error('channel_ids is required when action is set.');
+    }
+
+    const config = await setSearchIgnoredChannelIds(interaction.guildId, parseChannelIds(rawChannelIds));
+    await interaction.reply({
+      flags: MessageFlags.Ephemeral,
+      embeds: [buildFeedbackEmbed('Search Config Updated', describeSearchConfig(config, env.DISCORD_ADMIN_USER_IDS), 0x3b82f6)],
+      allowedMentions: {
+        parse: [],
+      },
+    });
+    return;
+  }
+
+  throw new Error('Unknown search config action.');
 };
 
 const runSearchAndPersist = async (
@@ -211,6 +293,11 @@ export const handleSearchCommand = async (
 ): Promise<void> => {
   if (!interaction.inGuild()) {
     throw new Error('Search can only be used inside a server.');
+  }
+
+  if (interaction.options.getSubcommand() === 'config') {
+    await handleSearchConfigCommand(interaction);
+    return;
   }
 
   await assertWithinRateLimit(

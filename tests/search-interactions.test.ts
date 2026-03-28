@@ -3,19 +3,33 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { searchMaxOffset } from '../src/features/search/constants.js';
 
 const {
+  env,
   assertWithinRateLimit,
   searchGuildMessages,
   resolveSearchChannelIds,
+  getSearchConfig,
+  setSearchIgnoredChannelIds,
   createSearchSessionId,
   saveSearchSession,
   getSearchSession,
 } = vi.hoisted(() => ({
+  env: {
+    SEARCH_LIMIT_PER_MINUTE: 5,
+    DISCORD_ADMIN_USER_IDS: ['user_1'],
+    LOG_LEVEL: 'info',
+  },
   assertWithinRateLimit: vi.fn(),
   searchGuildMessages: vi.fn(),
   resolveSearchChannelIds: vi.fn(),
+  getSearchConfig: vi.fn(),
+  setSearchIgnoredChannelIds: vi.fn(),
   createSearchSessionId: vi.fn(),
   saveSearchSession: vi.fn(),
   getSearchSession: vi.fn(),
+}));
+
+vi.mock('../src/app/config.js', () => ({
+  env,
 }));
 
 vi.mock('../src/lib/rate-limit.js', () => ({
@@ -29,6 +43,15 @@ vi.mock('../src/lib/redis.js', () => ({
 vi.mock('../src/features/search/service.js', () => ({
   searchGuildMessages,
   resolveSearchChannelIds,
+}));
+
+vi.mock('../src/features/search/config-service.js', () => ({
+  getSearchConfig,
+  setSearchIgnoredChannelIds,
+  describeSearchConfig: vi.fn((config: { ignoredChannelIds: string[] }, adminUserIds: string[]) => [
+    `Ignored channels/threads: ${config.ignoredChannelIds.join(',') || 'None'}`,
+    `Admins: ${adminUserIds.join(',') || 'None'}`,
+  ].join('\n')),
 }));
 
 vi.mock('../src/features/search/session-store.js', () => ({
@@ -51,7 +74,8 @@ const createBaseGuild = () => ({
 });
 
 const createCommandInteraction = (options: {
-  subcommand: 'messages' | 'advanced';
+  subcommand: 'messages' | 'advanced' | 'config';
+  userId?: string;
   strings?: Record<string, string | null>;
   integers?: Record<string, number | null>;
   booleans?: Record<string, boolean | null>;
@@ -63,13 +87,14 @@ const createCommandInteraction = (options: {
   const booleans = options.booleans ?? {};
   const users = options.users ?? {};
   const channels = options.channels ?? {};
+  const userId = options.userId ?? 'user_1';
 
   return {
     inGuild: () => true,
     guildId: 'guild_1',
     guild: createBaseGuild(),
     user: {
-      id: 'user_1',
+      id: userId,
     },
     options: {
       getSubcommand: vi.fn(() => options.subcommand),
@@ -105,6 +130,7 @@ const createCommandInteraction = (options: {
     },
     deferReply: vi.fn(),
     editReply: vi.fn(),
+    reply: vi.fn(),
   };
 };
 
@@ -113,10 +139,18 @@ describe('search interactions', () => {
     assertWithinRateLimit.mockReset();
     searchGuildMessages.mockReset();
     resolveSearchChannelIds.mockReset();
+    getSearchConfig.mockReset();
+    setSearchIgnoredChannelIds.mockReset();
     createSearchSessionId.mockReset();
     saveSearchSession.mockReset();
     getSearchSession.mockReset();
     createSearchSessionId.mockReturnValue('session_1');
+    getSearchConfig.mockResolvedValue({
+      ignoredChannelIds: [],
+    });
+    setSearchIgnoredChannelIds.mockImplementation(async (_guildId: string, channelIds: string[]) => ({
+      ignoredChannelIds: channelIds,
+    }));
     resolveSearchChannelIds.mockResolvedValue(['channel_1']);
     searchGuildMessages.mockResolvedValue({
       filters: {
@@ -166,6 +200,7 @@ describe('search interactions', () => {
       interaction.guild,
       expect.objectContaining({ id: 'user_1' }),
       ['channel_1'],
+      [],
     );
     expect(searchGuildMessages).toHaveBeenCalledWith(
       expect.anything(),
@@ -234,6 +269,65 @@ describe('search interactions', () => {
         slop: 3,
       }),
     );
+  });
+
+  it('shows the current search config without rate limiting', async () => {
+    const interaction = createCommandInteraction({
+      subcommand: 'config',
+      strings: {
+        action: 'view',
+      },
+    });
+
+    getSearchConfig.mockResolvedValue({
+      ignoredChannelIds: ['123456789012345678'],
+    });
+
+    await handleSearchCommand({} as never, interaction as never);
+
+    expect(assertWithinRateLimit).not.toHaveBeenCalled();
+    expect(getSearchConfig).toHaveBeenCalledWith('guild_1');
+    expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({
+      flags: 64,
+    }));
+    expect(setSearchIgnoredChannelIds).not.toHaveBeenCalled();
+  });
+
+  it('lets configured admin users update ignored channels', async () => {
+    const interaction = createCommandInteraction({
+      subcommand: 'config',
+      strings: {
+        action: 'set',
+        channel_ids: '<#123456789012345678>, <#223456789012345678>',
+      },
+    });
+
+    await handleSearchCommand({} as never, interaction as never);
+
+    expect(setSearchIgnoredChannelIds).toHaveBeenCalledWith(
+      'guild_1',
+      ['123456789012345678', '223456789012345678'],
+    );
+    expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({
+      flags: 64,
+    }));
+    expect(searchGuildMessages).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-admin users who try to edit search config', async () => {
+    const interaction = createCommandInteraction({
+      subcommand: 'config',
+      userId: 'user_2',
+      strings: {
+        action: 'clear',
+      },
+    });
+
+    await expect(handleSearchCommand({} as never, interaction as never))
+      .rejects
+      .toThrow(/Only configured admin user IDs/i);
+
+    expect(setSearchIgnoredChannelIds).not.toHaveBeenCalled();
   });
 
   it('rejects whitespace-only queries for the basic messages subcommand', async () => {
