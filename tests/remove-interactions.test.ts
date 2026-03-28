@@ -38,20 +38,11 @@ const createInteraction = (options: {
   canManageGuild?: boolean;
   targetBot?: boolean;
   botCanPublish?: boolean;
-}) => ({
-  inGuild: () => true,
-  guildId: 'guild_1',
-  channelId: 'origin_channel_1',
-  client: {
-    user: {
-      id: 'bot_1',
-    },
-  },
-  user: {
-    id: options.actorId ?? 'actor_1',
-  },
-  member: {
-    id: options.actorId ?? 'actor_1',
+  rawMember?: boolean;
+}) => {
+  const actorId = options.actorId ?? 'actor_1';
+  const fetchedMember = {
+    id: actorId,
     user: {
       bot: false,
     },
@@ -61,31 +52,67 @@ const createInteraction = (options: {
           ? [[options.memberRoleId, { id: options.memberRoleId }]]
           : [],
       ),
-      has: (roleId: string) => roleId === options.memberRoleId,
     },
-  },
-  memberPermissions: {
-    has: vi.fn(() => options.canManageGuild ?? false),
-  },
-  options: {
-    getSubcommand: vi.fn(() => options.subcommand),
-    getUser: vi.fn(() => ({
-      id: options.targetId ?? 'target_1',
-      bot: options.targetBot ?? false,
-    })),
-    getChannel: vi.fn(() => ({
-      id: 'poll_channel_1',
-      isTextBased: () => true,
-      permissionsFor: vi.fn(() => ({
-        has: vi.fn(() => options.botCanPublish ?? true),
+  };
+
+  return {
+    inGuild: () => true,
+    inCachedGuild: () => !options.rawMember,
+    guildId: 'guild_1',
+    channelId: 'origin_channel_1',
+    guild: options.rawMember
+      ? null
+      : {
+          members: {
+            fetch: vi.fn(async () => fetchedMember),
+          },
+        },
+    client: {
+      user: {
+        id: 'bot_1',
+      },
+      guilds: {
+        fetch: vi.fn(async () => ({
+          members: {
+            fetch: vi.fn(async () => fetchedMember),
+          },
+        })),
+      },
+    },
+    user: {
+      id: actorId,
+    },
+    member: options.rawMember
+      ? {
+          user: {
+            bot: false,
+          },
+          roles: [],
+        }
+      : fetchedMember,
+    memberPermissions: {
+      has: vi.fn(() => options.canManageGuild ?? false),
+    },
+    options: {
+      getSubcommand: vi.fn(() => options.subcommand),
+      getUser: vi.fn(() => ({
+        id: options.targetId ?? 'target_1',
+        bot: options.targetBot ?? false,
       })),
-    })),
-    getRole: vi.fn(() => ({
-      id: 'role_member',
-    })),
-  },
-  reply: vi.fn(),
-});
+      getChannel: vi.fn(() => ({
+        id: 'poll_channel_1',
+        isTextBased: () => true,
+        permissionsFor: vi.fn(() => ({
+          has: vi.fn(() => options.botCanPublish ?? true),
+        })),
+      })),
+      getRole: vi.fn(() => ({
+        id: 'role_member',
+      })),
+    },
+    reply: vi.fn(),
+  };
+};
 
 describe('remove interactions', () => {
   beforeEach(() => {
@@ -176,6 +203,37 @@ describe('remove interactions', () => {
       .toThrow('I need permission to view and send messages in that poll channel.');
 
     expect(createRemovalVoteRequest).not.toHaveBeenCalled();
+  });
+
+  it('fetches a full guild member when the interaction carries a raw member payload', async () => {
+    createRemovalVoteRequest.mockResolvedValue({
+      id: 'request_1',
+      guildId: 'guild_1',
+      targetUserId: 'target_1',
+      pollChannelId: 'poll_channel_1',
+      originChannelId: 'origin_channel_1',
+      status: 'collecting',
+      supportWindowEndsAt: new Date('2026-03-28T12:00:00.000Z'),
+      thresholdReachedAt: null,
+      waitUntil: null,
+      initiateBy: null,
+      initiatedPollId: null,
+      lastAutoStartError: null,
+      createdAt: new Date('2026-03-27T12:00:00.000Z'),
+      updatedAt: new Date('2026-03-27T12:00:00.000Z'),
+      supports: [],
+    });
+
+    const interaction = createInteraction({
+      subcommand: 'request',
+      memberRoleId: 'role_member',
+      rawMember: true,
+    });
+
+    await handleRemoveCommand(interaction as never);
+
+    expect(interaction.client.guilds.fetch).toHaveBeenCalledWith('guild_1');
+    expect(createRemovalVoteRequest).toHaveBeenCalledTimes(1);
   });
 
   it('shows status ephemerally', async () => {
