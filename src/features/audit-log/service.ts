@@ -50,8 +50,10 @@ type AuditLogEventInput = {
 };
 
 const maxReplayBatchSize = 250;
+const maxReplayPages = 1_000;
 const embedPayloadPreviewLimit = 3800;
 const maxMessageSnapshotContentLength = 4_000;
+const maxJsonNormalizationDepth = 6;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -77,7 +79,7 @@ const toTimestamp = (value: Date | number | null | undefined): string | null => 
 };
 
 const normalizeJson = (value: unknown, depth = 0): JsonValue => {
-  if (depth > 6) {
+  if (depth > maxJsonNormalizationDepth) {
     return '[depth-limited]';
   }
 
@@ -689,8 +691,15 @@ const deliverAuditLogEntry = async (
 
 export const replayUndeliveredAuditLogEntries = async (client: Client): Promise<void> => {
   let cursor: { occurredAt: Date; id: string } | null = null;
+  let pageCount = 0;
 
   while (true) {
+    pageCount += 1;
+    if (pageCount > maxReplayPages) {
+      logger.error({ maxReplayPages }, 'Stopped audit log replay after hitting the page safety limit');
+      return;
+    }
+
     const entries: Array<{ id: string; occurredAt: Date }> = await prisma.guildEventLogEntry.findMany({
       where: {
         deliveryStatus: {
