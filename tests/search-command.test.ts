@@ -27,4 +27,15 @@ describe('searchCommand', () => {
       'channel_ids',
     ]);
   });
+
+  it('registers the advanced public reply toggle', () => {
+    const json = searchCommand.toJSON();
+    const advancedSubcommand = json.options?.find((option) => option.name === 'advanced');
+
+    if (!advancedSubcommand || !('options' in advancedSubcommand) || !advancedSubcommand.options) {
+      throw new Error('Expected advanced subcommand options.');
+    }
+
+    expect(advancedSubcommand.options.some((option) => option.name === 'public')).toBe(true);
+  });
 });

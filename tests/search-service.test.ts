@@ -148,6 +148,97 @@ describe('search service', () => {
     )).rejects.toThrow(/excluded from search by server config: channel_2/i);
   });
 
+  it('allows the current channel to bypass ignore rules without unignoring siblings', async () => {
+    const ignoredParent = createChannel('channel_2', true);
+    const currentThread = createChannel('thread_current', true, ChannelType.PublicThread, {
+      parentId: 'channel_2',
+    });
+    const siblingThread = createChannel('thread_sibling', true, ChannelType.PublicThread, {
+      parentId: 'channel_2',
+    });
+    const guild = {
+      channels: {
+        fetch: vi.fn(async (channelId?: string) => {
+          if (channelId === 'thread_current') {
+            return currentThread;
+          }
+
+          if (channelId === 'thread_sibling') {
+            return siblingThread;
+          }
+
+          if (channelId === 'channel_2') {
+            return ignoredParent;
+          }
+
+          return new Map([
+            ['channel_2', ignoredParent],
+            ['thread_current', currentThread],
+            ['thread_sibling', siblingThread],
+          ]);
+        }),
+        fetchActiveThreads: vi.fn(async () => ({
+          threads: new Map([
+            ['thread_current', currentThread],
+            ['thread_sibling', siblingThread],
+          ]),
+        })),
+      },
+    };
+
+    await expect(resolveSearchChannelIds(
+      guild as never,
+      {} as never,
+      undefined,
+      ['channel_2'],
+      ['thread_current'],
+    )).resolves.toEqual(['thread_current']);
+
+    await expect(resolveSearchChannelIds(
+      guild as never,
+      {} as never,
+      ['thread_current', 'thread_sibling'],
+      ['channel_2'],
+      ['thread_current'],
+    )).rejects.toThrow(/excluded from search by server config: thread_sibling/i);
+  });
+
+  it('does not treat category parent IDs as ignored channels for normal channels', async () => {
+    const categoryScopedChannel = createChannel('channel_1', true, ChannelType.GuildText, {
+      parentId: 'category_1',
+    });
+    const guild = {
+      channels: {
+        fetch: vi.fn(async (channelId?: string) => {
+          if (channelId === 'channel_1') {
+            return categoryScopedChannel;
+          }
+
+          return new Map([
+            ['channel_1', categoryScopedChannel],
+          ]);
+        }),
+        fetchActiveThreads: vi.fn(async () => ({
+          threads: new Map(),
+        })),
+      },
+    };
+
+    await expect(resolveSearchChannelIds(
+      guild as never,
+      {} as never,
+      undefined,
+      ['category_1'],
+    )).resolves.toEqual(['channel_1']);
+
+    await expect(resolveSearchChannelIds(
+      guild as never,
+      {} as never,
+      ['channel_1'],
+      ['category_1'],
+    )).resolves.toEqual(['channel_1']);
+  });
+
   it('rejects auto-scoped searches larger than Discord channel filter limits', async () => {
     const channels = new Map<string, ReturnType<typeof createChannel>>();
 

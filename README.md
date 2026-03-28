@@ -116,7 +116,7 @@ docker compose --profile autoupdate up -d
 
 - `/ping`
 - `/search messages query:... channel:#general`
-- `/search advanced content:... channel_ids:"<#...>, <#...>"`
+- `/search advanced content:... channel_ids:"<#...>, <#...>" public:true`
 - `/search config action:view`
 - `/search config action:set channel_ids:"<#...>, <#...>"`
 - `/search config action:clear`

@@ -76,6 +76,7 @@ const createBaseGuild = () => ({
 const createCommandInteraction = (options: {
   subcommand: 'messages' | 'advanced' | 'config';
   userId?: string;
+  channelId?: string;
   strings?: Record<string, string | null>;
   integers?: Record<string, number | null>;
   booleans?: Record<string, boolean | null>;
@@ -88,10 +89,12 @@ const createCommandInteraction = (options: {
   const users = options.users ?? {};
   const channels = options.channels ?? {};
   const userId = options.userId ?? 'user_1';
+  const channelId = options.channelId ?? 'channel_1';
 
   return {
     inGuild: () => true,
     guildId: 'guild_1',
+    channelId,
     guild: createBaseGuild(),
     user: {
       id: userId,
@@ -201,6 +204,7 @@ describe('search interactions', () => {
       expect.objectContaining({ id: 'user_1' }),
       ['channel_1'],
       [],
+      ['channel_1'],
     );
     expect(searchGuildMessages).toHaveBeenCalledWith(
       expect.anything(),
@@ -269,6 +273,22 @@ describe('search interactions', () => {
         slop: 3,
       }),
     );
+  });
+
+  it('allows advanced searches to reply publicly when requested', async () => {
+    const interaction = createCommandInteraction({
+      subcommand: 'advanced',
+      strings: {
+        content: 'governance',
+      },
+      booleans: {
+        public: true,
+      },
+    });
+
+    await handleSearchCommand({} as never, interaction as never);
+
+    expect(interaction.deferReply).toHaveBeenCalledWith();
   });
 
   it('shows the current search config without rate limiting', async () => {
