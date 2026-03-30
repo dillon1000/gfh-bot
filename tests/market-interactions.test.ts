@@ -16,6 +16,7 @@ const {
   getMarketById,
   executeMarketTrade,
   resolveMarket,
+  resolveMarketOutcome,
   cancelMarket,
   scheduleMarketRefresh,
   hydrateMarketMessage,
@@ -36,6 +37,7 @@ const {
   getMarketById: vi.fn(),
   executeMarketTrade: vi.fn(),
   resolveMarket: vi.fn(),
+  resolveMarketOutcome: vi.fn(),
   cancelMarket: vi.fn(),
   scheduleMarketRefresh: vi.fn(),
   hydrateMarketMessage: vi.fn(),
@@ -65,6 +67,7 @@ vi.mock('../src/features/markets/service.js', () => ({
   getMarketById,
   executeMarketTrade,
   resolveMarket,
+  resolveMarketOutcome,
   cancelMarket,
   scheduleMarketRefresh,
   getMarketStatus: vi.fn(() => 'open'),
@@ -93,6 +96,7 @@ const baseMarket = {
   originChannelId: 'origin_channel_1',
   marketChannelId: 'market_channel_1',
   messageId: 'message_market_1',
+  threadId: null,
   title: 'Will turnout exceed 40%?',
   description: 'A test market',
   tags: ['meta'],
@@ -112,8 +116,8 @@ const baseMarket = {
   updatedAt: new Date('2099-03-29T00:00:00.000Z'),
   winningOutcome: null,
   outcomes: [
-    { id: 'outcome_yes', marketId: 'market_1', label: 'Yes', sortOrder: 0, outstandingShares: 0, createdAt: new Date('2099-03-29T00:00:00.000Z') },
-    { id: 'outcome_no', marketId: 'market_1', label: 'No', sortOrder: 1, outstandingShares: 0, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'outcome_yes', marketId: 'market_1', label: 'Yes', sortOrder: 0, outstandingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'outcome_no', marketId: 'market_1', label: 'No', sortOrder: 1, outstandingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
   ],
   trades: [],
   positions: [],
@@ -178,6 +182,7 @@ describe('market interactions', () => {
     getMarketById.mockReset();
     executeMarketTrade.mockReset();
     resolveMarket.mockReset();
+    resolveMarketOutcome.mockReset();
     cancelMarket.mockReset();
     scheduleMarketRefresh.mockReset();
     refreshMarketMessage.mockReset();
@@ -190,6 +195,9 @@ describe('market interactions', () => {
     hydrateMarketMessage.mockResolvedValue({
       messageId: 'message_market_1',
       url: 'https://discord.com/channels/guild_1/market_channel_1/message_market_1',
+      threadCreated: true,
+      threadId: 'thread_1',
+      threadUrl: 'https://discord.com/channels/guild_1/thread_1',
     });
     deleteMarketRecord.mockResolvedValue(undefined);
     setMarketConfig.mockResolvedValue({
@@ -199,6 +207,11 @@ describe('market interactions', () => {
     disableMarketConfig.mockResolvedValue({
       marketEnabled: false,
       marketChannelId: null,
+    });
+    resolveMarketOutcome.mockResolvedValue({
+      market: baseMarket,
+      outcome: baseMarket.outcomes[1],
+      payouts: [],
     });
   });
 
@@ -242,12 +255,58 @@ describe('market interactions', () => {
       creatorId: 'user_1',
       originChannelId: 'origin_channel_1',
       marketChannelId: 'market_channel_1',
+      closeAt: expect.any(Date),
     }));
     expect(hydrateMarketMessage).toHaveBeenCalledWith({}, baseMarket);
     expect(interaction.deferReply).toHaveBeenCalledWith();
     expect(interaction.editReply).toHaveBeenCalledTimes(1);
     expect(interaction.editReply.mock.calls[0]?.[0]).not.toHaveProperty('flags');
     expect(interaction.editReply.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
+      embeds: expect.any(Array),
+    }));
+  });
+
+  it('accepts an absolute close time during market creation', async () => {
+    const interaction = createInteraction({
+      subcommand: 'create',
+      strings: {
+        title: 'Will turnout exceed 40%?',
+        outcomes: 'Yes, No',
+        close: 'April 6 2026 10:00pm CDT',
+      },
+    });
+
+    await handleMarketCommand({} as never, interaction as never);
+
+    expect(createMarketRecord).toHaveBeenCalledWith(expect.objectContaining({
+      closeAt: expect.any(Date),
+    }));
+  });
+
+  it('resolves a specific outcome without closing the market', async () => {
+    const interaction = createInteraction({
+      subcommand: 'resolve-outcome',
+      strings: {
+        query: 'market_1',
+        outcome: 'No',
+        note: 'Eliminated in the semifinal.',
+        evidence_url: 'https://example.com/game',
+      },
+    });
+
+    getMarketByQuery.mockResolvedValue(baseMarket);
+
+    await handleMarketCommand({} as never, interaction as never);
+
+    expect(resolveMarketOutcome).toHaveBeenCalledWith(expect.objectContaining({
+      marketId: 'market_1',
+      actorId: 'user_1',
+      outcomeId: 'outcome_no',
+      note: 'Eliminated in the semifinal.',
+      evidenceUrl: 'https://example.com/game',
+    }));
+    expect(refreshMarketMessage).toHaveBeenCalledWith({}, 'market_1');
+    expect(interaction.editReply).toHaveBeenCalledWith(expect.objectContaining({
       embeds: expect.any(Array),
     }));
   });

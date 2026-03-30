@@ -3,6 +3,7 @@ import type { MarketWithRelations } from '../src/features/markets/types.js';
 
 vi.mock('../src/features/markets/service.js', () => ({
   getMarketStatus: vi.fn(() => 'open'),
+  getTradeLockReason: vi.fn(() => null),
   computeMarketSummary: vi.fn((market: MarketWithRelations) => ({
     status: 'open',
     probabilities: market.outcomes.map((outcome, index) => ({
@@ -10,6 +11,8 @@ vi.mock('../src/features/markets/service.js', () => ({
       label: outcome.label,
       probability: [0.34, 0.29, 0.17, 0.14, 0.06][index] ?? 0.1,
       shares: outcome.outstandingShares,
+      isResolved: outcome.settlementValue !== null,
+      settlementValue: outcome.settlementValue,
     })),
     totalVolume: market.totalVolume,
   })),
@@ -24,6 +27,7 @@ const market = {
   originChannelId: 'origin_channel_1',
   marketChannelId: 'market_channel_1',
   messageId: 'message_market_1',
+  threadId: null,
   title: 'Championship board',
   description: 'A test market',
   tags: ['sports'],
@@ -43,11 +47,11 @@ const market = {
   updatedAt: new Date('2099-03-29T00:00:00.000Z'),
   winningOutcome: null,
   outcomes: [
-    { id: 'a', marketId: 'market_1', label: 'Arizona', sortOrder: 0, outstandingShares: 12, createdAt: new Date('2099-03-29T00:00:00.000Z') },
-    { id: 'b', marketId: 'market_1', label: 'Michigan', sortOrder: 1, outstandingShares: 3, createdAt: new Date('2099-03-29T00:00:00.000Z') },
-    { id: 'c', marketId: 'market_1', label: 'Illinois', sortOrder: 2, outstandingShares: -4, createdAt: new Date('2099-03-29T00:00:00.000Z') },
-    { id: 'd', marketId: 'market_1', label: 'UConn', sortOrder: 3, outstandingShares: 9, createdAt: new Date('2099-03-29T00:00:00.000Z') },
-    { id: 'e', marketId: 'market_1', label: 'Duke', sortOrder: 4, outstandingShares: 1, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'a', marketId: 'market_1', label: 'Arizona', sortOrder: 0, outstandingShares: 12, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'b', marketId: 'market_1', label: 'Michigan', sortOrder: 1, outstandingShares: 3, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'c', marketId: 'market_1', label: 'Illinois', sortOrder: 2, outstandingShares: -4, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'd', marketId: 'market_1', label: 'UConn', sortOrder: 3, outstandingShares: 9, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'e', marketId: 'market_1', label: 'Duke', sortOrder: 4, outstandingShares: 1, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
   ],
   trades: [],
   positions: [],
@@ -72,6 +76,33 @@ describe('market render', () => {
 
     expect(buttonComponents[0]?.custom_id).toBe('market:quick:buy:market_1:a');
     expect(buttonComponents[1]?.custom_id).toBe('market:quick:short:market_1:a');
+  });
+
+  it('omits resolved outcomes from the quick trade board', () => {
+    const payload = buildMarketMessage({
+      ...market,
+      outcomes: market.outcomes.map((outcome) =>
+        outcome.id === 'c'
+          ? { ...outcome, settlementValue: 0, resolvedAt: new Date('2099-03-30T00:00:00.000Z') }
+          : outcome),
+    });
+
+    const labels = payload.components
+      .slice(0, -1)
+      .flatMap((row) => (row.toJSON().components as Array<{ label?: string }>).map((component) => component.label ?? ''));
+
+    expect(labels.some((label) => label.includes('Illinois'))).toBe(false);
+  });
+
+  it('includes the discussion thread when one exists', () => {
+    const payload = buildMarketMessage({
+      ...market,
+      threadId: 'thread_1',
+    });
+
+    const embedJson = payload.embeds[0].toJSON();
+    const marketField = embedJson.fields?.find((field) => field.name === 'Market');
+    expect(marketField?.value).toContain('Discussion: <#thread_1>');
   });
 
   it('builds a portfolio management selector for open positions', () => {

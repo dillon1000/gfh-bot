@@ -4,6 +4,7 @@ import { logger } from '../../app/logger.js';
 import { prisma } from '../../lib/prisma.js';
 import { buildMarketEmbed, buildMarketMessage, buildMarketResolvePrompt, buildMarketStatusEmbed } from './render.js';
 import {
+  attachMarketThread,
   attachMarketMessage,
   clearMarketJobs,
   closeMarketTrading,
@@ -41,7 +42,7 @@ const buildMarketMessagePayload = async (
 export const hydrateMarketMessage = async (
   client: Client,
   market: MarketWithRelations,
-): Promise<{ messageId: string; url: string }> => {
+): Promise<{ messageId: string; url: string; threadCreated: boolean; threadId: string | null; threadUrl: string | null }> => {
   const channel = await client.channels.fetch(market.marketChannelId).catch(() => null);
   if (!channel?.isTextBased() || !('send' in channel)) {
     throw new Error('Configured market channel is not a text channel.');
@@ -56,10 +57,29 @@ export const hydrateMarketMessage = async (
 
   try {
     await attachMarketMessage(market.id, message.id);
+    let threadCreated = false;
+    let threadId: string | null = null;
+    let threadUrl: string | null = null;
+    try {
+      const thread = await message.startThread({
+        name: resolveMarketThreadName(market.title),
+        autoArchiveDuration: 1440,
+      });
+      await attachMarketThread(market.id, thread.id);
+      threadCreated = true;
+      threadId = thread.id;
+      threadUrl = thread.url;
+    } catch (error) {
+      logger.warn({ err: error, marketId: market.id, messageId: message.id }, 'Could not create market discussion thread');
+    }
+
     await scheduleMarketClose(market);
     return {
       messageId: message.id,
       url: message.url,
+      threadCreated,
+      threadId,
+      threadUrl,
     };
   } catch (error) {
     await message.delete().catch((deleteError) => {
@@ -67,6 +87,11 @@ export const hydrateMarketMessage = async (
     });
     throw error;
   }
+};
+
+const resolveMarketThreadName = (title: string): string => {
+  const normalized = title.trim().replace(/\s+/g, ' ') || 'Market discussion';
+  return normalized.length > 100 ? normalized.slice(0, 100) : normalized;
 };
 
 export const refreshMarketMessage = async (client: Client, marketId: string): Promise<void> => {

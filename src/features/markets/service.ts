@@ -24,6 +24,7 @@ import { parseMarketLookup } from './parser.js';
 import type {
   MarketAccountWithOpenPositions,
   MarketCreationInput,
+  MarketOutcomeResolutionResult,
   MarketResolutionResult,
   MarketStatus,
   MarketTradeResult,
@@ -36,6 +37,8 @@ const liquidityParameter = 150;
 const resolutionGraceMs = 24 * 60 * 60 * 1_000;
 const refreshDelayMs = 5_000;
 const serializableRetryLimit = 3;
+const maxOpenProbability = 0.98;
+const minOpenProbability = 0.02;
 const marketInclude = {
   outcomes: {
     orderBy: {
@@ -114,6 +117,43 @@ const assertMarketOpen = (market: MarketWithRelations): void => {
   }
 };
 
+const assertOutcomeTradable = (
+  market: MarketWithRelations,
+  outcome: Pick<MarketOutcome, 'label' | 'settlementValue'>,
+): void => {
+  assertMarketOpen(market);
+
+  if (isOutcomeResolved(outcome)) {
+    throw new Error(`Trading on ${outcome.label} is closed because that outcome has already been resolved.`);
+  }
+};
+
+export const getTradeLockReason = (
+  market: MarketWithRelations,
+  outcomeId: string,
+  action: MarketTradeSide,
+): string | null => {
+  if (action !== 'buy' && action !== 'short') {
+    return null;
+  }
+
+  const summary = computeMarketSummary(market);
+  const outcome = summary.probabilities.find((entry) => entry.outcomeId === outcomeId);
+  if (!outcome || outcome.isResolved) {
+    return null;
+  }
+
+  if (action === 'buy' && outcome.probability >= maxOpenProbability) {
+    return `Yes on **${outcome.label}** is locked above 98%.`;
+  }
+
+  if (action === 'short' && outcome.probability <= minOpenProbability) {
+    return `No on **${outcome.label}** is locked above 98%.`;
+  }
+
+  return null;
+};
+
 const canModerateMarkets = (permissions: PermissionsBitField | Readonly<PermissionsBitField> | null | undefined): boolean =>
   Boolean(permissions?.has(PermissionFlagsBits.ManageGuild));
 
@@ -130,20 +170,31 @@ const assertCanResolveMarket = (
     throw new Error('This market is already resolved.');
   }
 
-  if (!market.tradingClosedAt && market.closeAt.getTime() > Date.now()) {
-    throw new Error('Markets can only be resolved after trading closes.');
-  }
-
-  if (actorId === market.creatorId) {
+  if (actorId === market.creatorId || canModerateMarkets(permissions)) {
     return;
   }
 
-  const graceEnded = market.resolutionGraceEndsAt?.getTime() ? market.resolutionGraceEndsAt.getTime() <= Date.now() : false;
-  if (graceEnded && canModerateMarkets(permissions)) {
+  throw new Error('Only the creator or a moderator can resolve this market.');
+};
+
+const assertCanResolveOutcome = (
+  market: MarketWithRelations,
+  actorId: string,
+  permissions?: PermissionsBitField | Readonly<PermissionsBitField> | null,
+): void => {
+  if (market.cancelledAt) {
+    throw new Error('Cancelled markets cannot resolve outcomes.');
+  }
+
+  if (market.resolvedAt) {
+    throw new Error('Resolved markets cannot resolve additional outcomes.');
+  }
+
+  if (actorId === market.creatorId || canModerateMarkets(permissions)) {
     return;
   }
 
-  throw new Error('Only the creator can resolve this market until the grace window expires.');
+  throw new Error('Only the creator or a moderator can resolve individual outcomes.');
 };
 
 const assertCanCancelMarket = (
@@ -157,6 +208,10 @@ const assertCanCancelMarket = (
 
   if (market.resolvedAt) {
     throw new Error('Resolved markets cannot be cancelled.');
+  }
+
+  if (market.outcomes.some((outcome) => isOutcomeResolved(outcome))) {
+    throw new Error('Markets with resolved outcomes cannot be cancelled.');
   }
 
   if (actorId === market.creatorId) {
@@ -249,6 +304,64 @@ const getPosition = (
   side: MarketPositionSide,
 ): MarketPosition | undefined =>
   positions.get(`${outcomeId}:${side}`);
+
+const isOutcomeResolved = (outcome: Pick<MarketOutcome, 'settlementValue'>): boolean =>
+  outcome.settlementValue !== null;
+
+const getActiveOutcomeIndexes = (
+  outcomes: Array<Pick<MarketOutcome, 'settlementValue'>>,
+): number[] =>
+  outcomes.reduce<number[]>((indexes, outcome, index) => {
+    if (!isOutcomeResolved(outcome)) {
+      indexes.push(index);
+    }
+    return indexes;
+  }, []);
+
+const getMarketProbabilities = (
+  market: Pick<Market, 'resolvedAt' | 'winningOutcomeId' | 'liquidityParameter'> & {
+    outcomes: Array<Pick<MarketOutcome, 'id' | 'outstandingShares' | 'settlementValue'>>;
+  },
+): number[] => {
+  if (market.outcomes.length === 0) {
+    return [];
+  }
+
+  if (market.resolvedAt) {
+    return market.outcomes.map((outcome) => (outcome.id === market.winningOutcomeId ? 1 : 0));
+  }
+
+  const activeIndexes = getActiveOutcomeIndexes(market.outcomes);
+  if (activeIndexes.length === 0) {
+    return market.outcomes.map((outcome) => outcome.settlementValue ?? 0);
+  }
+
+  const activeProbabilities = computeLmsrProbabilities(
+    activeIndexes.map((index) => market.outcomes[index]?.outstandingShares ?? 0),
+    market.liquidityParameter,
+  );
+
+  return market.outcomes.map((outcome, index) => {
+    if (isOutcomeResolved(outcome)) {
+      return outcome.settlementValue ?? 0;
+    }
+
+    const activeIndex = activeIndexes.indexOf(index);
+    return activeIndex >= 0 ? (activeProbabilities[activeIndex] ?? 0) : 0;
+  });
+};
+
+const getTradableOutcomeIndexes = (
+  market: Pick<Market, 'resolvedAt' | 'cancelledAt'> & {
+    outcomes: Array<Pick<MarketOutcome, 'settlementValue'>>;
+  },
+): number[] => {
+  if (market.resolvedAt || market.cancelledAt) {
+    return [];
+  }
+
+  return getActiveOutcomeIndexes(market.outcomes);
+};
 
 const getOutstandingShares = (market: MarketWithRelations): number[] =>
   market.outcomes.map((outcome) => outcome.outstandingShares);
@@ -351,7 +464,6 @@ export const getMarketStatus = (market: Pick<Market, 'resolvedAt' | 'cancelledAt
 };
 
 export const createMarketRecord = async (input: MarketCreationInput): Promise<MarketWithRelations> => {
-  const closeAt = new Date(Date.now() + input.closeInMs);
   const market = await prisma.market.create({
     data: {
       guildId: input.guildId,
@@ -362,7 +474,7 @@ export const createMarketRecord = async (input: MarketCreationInput): Promise<Ma
       description: input.description,
       tags: input.tags,
       liquidityParameter,
-      closeAt,
+      closeAt: input.closeAt,
       outcomes: {
         create: input.outcomes.map((label, index) => ({
           label,
@@ -395,6 +507,24 @@ export const attachMarketMessage = async (marketId: string, messageId: string): 
     },
     data: {
       messageId,
+    },
+  });
+
+  return prisma.market.findUniqueOrThrow({
+    where: {
+      id: marketId,
+    },
+    include: marketInclude,
+  });
+};
+
+export const attachMarketThread = async (marketId: string, threadId: string): Promise<MarketWithRelations> => {
+  await prisma.market.update({
+    where: {
+      id: marketId,
+    },
+    data: {
+      threadId,
     },
   });
 
@@ -444,7 +574,7 @@ export const editMarketRecord = async (
     title?: string;
     description?: string | null;
     tags?: string[];
-    closeInMs?: number;
+    closeAt?: Date;
     outcomes?: string[];
   },
 ): Promise<MarketWithRelations> =>
@@ -464,8 +594,8 @@ export const editMarketRecord = async (
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.description !== undefined ? { description: input.description } : {}),
         ...(input.tags !== undefined ? { tags: input.tags } : {}),
-        ...(input.closeInMs !== undefined
-          ? { closeAt: new Date(Date.now() + input.closeInMs) }
+        ...(input.closeAt !== undefined
+          ? { closeAt: input.closeAt }
           : {}),
       },
     });
@@ -521,8 +651,19 @@ export const executeMarketTrade = async (input: {
       throw new Error('Market outcome not found.');
     }
 
+    assertOutcomeTradable(market, outcome);
+    const tradeLockReason = getTradeLockReason(market, outcome.id, input.action);
+    if (tradeLockReason) {
+      throw new Error(tradeLockReason);
+    }
+    const tradableOutcomeIndexes = getTradableOutcomeIndexes(market);
+    const tradableIndex = tradableOutcomeIndexes.indexOf(outcomeIndex);
+    if (tradableIndex < 0) {
+      throw new Error('That outcome can no longer be traded.');
+    }
+
     const account = await ensureMarketAccountTx(tx, market.guildId, input.userId);
-    const shares = getOutstandingShares(market);
+    const shares = tradableOutcomeIndexes.map((index) => market.outcomes[index]?.outstandingShares ?? 0);
     const positions = getPositionMap(
       market.positions.filter((position) => position.userId === input.userId),
     );
@@ -550,8 +691,8 @@ export const executeMarketTrade = async (input: {
           throw new Error('You do not have enough bankroll for that trade.');
         }
 
-        shareDelta = solveBuySharesForAmount(shares, outcomeIndex, input.amount, market.liquidityParameter);
-        nextShares[outcomeIndex] = (nextShares[outcomeIndex] ?? 0) + shareDelta;
+        shareDelta = solveBuySharesForAmount(shares, tradableIndex, input.amount, market.liquidityParameter);
+        nextShares[tradableIndex] = (nextShares[tradableIndex] ?? 0) + shareDelta;
         nextLongShares += shareDelta;
         nextLongCostBasis += input.amount;
         nextBankroll -= input.amount;
@@ -566,20 +707,20 @@ export const executeMarketTrade = async (input: {
 
         const requestedSharesToSell = input.amountMode === 'shares'
           ? input.amount
-          : solveSellSharesForAmount(shares, outcomeIndex, input.amount, ownedShares, market.liquidityParameter);
+          : solveSellSharesForAmount(shares, tradableIndex, input.amount, ownedShares, market.liquidityParameter);
         if (requestedSharesToSell > ownedShares + 1e-6) {
           throw new Error('You do not have enough shares in that outcome to sell that much.');
         }
 
         shareDelta = -requestedSharesToSell;
-        nextShares[outcomeIndex] = (nextShares[outcomeIndex] ?? 0) + shareDelta;
+        nextShares[tradableIndex] = (nextShares[tradableIndex] ?? 0) + shareDelta;
         const sharesSold = Math.abs(shareDelta);
         const averageCostBasis = (longPosition?.costBasis ?? 0) / ownedShares;
         const releasedCostBasis = averageCostBasis * sharesSold;
         nextLongShares -= sharesSold;
         nextLongCostBasis -= releasedCostBasis;
         cashAmount = input.amountMode === 'shares'
-          ? roundCurrency(computeSellPayout(shares, outcomeIndex, sharesSold, market.liquidityParameter))
+          ? roundCurrency(computeSellPayout(shares, tradableIndex, sharesSold, market.liquidityParameter))
           : input.amount;
         nextBankroll += cashAmount;
         realizedProfitDelta = roundCurrency(cashAmount - releasedCostBasis);
@@ -593,9 +734,9 @@ export const executeMarketTrade = async (input: {
 
         const sharesToShort = input.amountMode === 'shares'
           ? input.amount
-          : solveShortSharesForAmount(shares, outcomeIndex, input.amount, market.liquidityParameter);
+          : solveShortSharesForAmount(shares, tradableIndex, input.amount, market.liquidityParameter);
         const proceedsReceived = input.amountMode === 'shares'
-          ? roundCurrency(computeSellPayout(shares, outcomeIndex, sharesToShort, market.liquidityParameter))
+          ? roundCurrency(computeSellPayout(shares, tradableIndex, sharesToShort, market.liquidityParameter))
           : input.amount;
         const collateralToLock = roundCurrency(sharesToShort);
         // Allow a tiny epsilon here so floating-point error does not reject
@@ -605,7 +746,7 @@ export const executeMarketTrade = async (input: {
         }
 
         shareDelta = -sharesToShort;
-        nextShares[outcomeIndex] = (nextShares[outcomeIndex] ?? 0) + shareDelta;
+        nextShares[tradableIndex] = (nextShares[tradableIndex] ?? 0) + shareDelta;
         nextShortShares += sharesToShort;
         nextShortProceeds += proceedsReceived;
         nextShortCollateral += collateralToLock;
@@ -621,7 +762,7 @@ export const executeMarketTrade = async (input: {
         }
 
         if (input.amountMode !== 'shares') {
-          const maxCoverCost = computeBuyCost(shares, outcomeIndex, ownedShortShares, market.liquidityParameter);
+          const maxCoverCost = computeBuyCost(shares, tradableIndex, ownedShortShares, market.liquidityParameter);
           if (input.amount > maxCoverCost + 1e-6) {
             throw new Error('You do not have enough short shares in that outcome to cover that much.');
           }
@@ -629,13 +770,13 @@ export const executeMarketTrade = async (input: {
 
         const sharesToCover = input.amountMode === 'shares'
           ? input.amount
-          : solveBuySharesForAmount(shares, outcomeIndex, input.amount, market.liquidityParameter);
+          : solveBuySharesForAmount(shares, tradableIndex, input.amount, market.liquidityParameter);
         if (sharesToCover > ownedShortShares + 1e-6) {
           throw new Error('You do not have enough short shares in that outcome to cover that much.');
         }
 
         const coverCost = input.amountMode === 'shares'
-          ? roundCurrency(computeBuyCost(shares, outcomeIndex, sharesToCover, market.liquidityParameter))
+          ? roundCurrency(computeBuyCost(shares, tradableIndex, sharesToCover, market.liquidityParameter))
           : input.amount;
         const averageProceeds = (shortPosition?.proceeds ?? 0) / ownedShortShares;
         const averageCollateral = (shortPosition?.collateralLocked ?? 0) / ownedShortShares;
@@ -648,7 +789,7 @@ export const executeMarketTrade = async (input: {
         }
 
         shareDelta = sharesToCover;
-        nextShares[outcomeIndex] = (nextShares[outcomeIndex] ?? 0) + shareDelta;
+        nextShares[tradableIndex] = (nextShares[tradableIndex] ?? 0) + shareDelta;
         nextShortShares -= sharesToCover;
         nextShortProceeds -= releasedProceeds;
         nextShortCollateral -= releasedCollateral;
@@ -663,10 +804,13 @@ export const executeMarketTrade = async (input: {
     }
 
     const probabilities = computeLmsrProbabilities(nextShares, market.liquidityParameter);
-    await replaceOutcomeState(tx, market.id, market.outcomes.map((marketOutcome, index) => ({
-      id: marketOutcome.id,
-      outstandingShares: nextShares[index] ?? 0,
-    })));
+    await replaceOutcomeState(tx, market.id, market.outcomes.map((marketOutcome, index) => {
+      const activeIndex = tradableOutcomeIndexes.indexOf(index);
+      return {
+        id: marketOutcome.id,
+        outstandingShares: activeIndex >= 0 ? (nextShares[activeIndex] ?? marketOutcome.outstandingShares) : marketOutcome.outstandingShares,
+      };
+    }));
 
     await upsertPosition(tx, {
       marketId: market.id,
@@ -713,7 +857,7 @@ export const executeMarketTrade = async (input: {
             side: input.action,
             cashDelta: input.action === 'buy' || input.action === 'cover' ? -cashAmount : cashAmount,
             shareDelta: roundCurrency(shareDelta),
-            probabilitySnapshot: probabilities[outcomeIndex] ?? 0,
+            probabilitySnapshot: probabilities[tradableIndex] ?? 0,
             cumulativeVolume: market.totalVolume + cashAmount,
           },
         },
@@ -768,6 +912,117 @@ export const closeMarketTrading = async (
     };
   });
 
+export const resolveMarketOutcome = async (input: {
+  marketId: string;
+  actorId: string;
+  outcomeId: string;
+  note?: string | null;
+  evidenceUrl?: string | null;
+  permissions?: PermissionsBitField | Readonly<PermissionsBitField> | null;
+}): Promise<MarketOutcomeResolutionResult> =>
+  prisma.$transaction(async (tx) => {
+    const market = await getMarketForUpdate(tx, input.marketId);
+    if (!market) {
+      throw new Error('Market not found.');
+    }
+
+    assertCanResolveOutcome(market, input.actorId, input.permissions);
+    const outcome = market.outcomes.find((entry) => entry.id === input.outcomeId);
+    if (!outcome) {
+      throw new Error('Market outcome not found.');
+    }
+
+    if (isOutcomeResolved(outcome)) {
+      throw new Error('That outcome has already been resolved.');
+    }
+
+    const payouts = new Map<string, { payout: number; profit: number }>();
+    const positionsByUser = new Map<string, MarketPosition[]>();
+    for (const position of market.positions.filter((entry) => entry.outcomeId === outcome.id)) {
+      const existing = positionsByUser.get(position.userId) ?? [];
+      existing.push(position);
+      positionsByUser.set(position.userId, existing);
+    }
+
+    for (const [userId, positions] of positionsByUser) {
+      const account = await ensureMarketAccountTx(tx, market.guildId, userId);
+      let payout = 0;
+      let profit = 0;
+
+      for (const position of positions) {
+        if (position.side === 'long') {
+          profit -= position.costBasis;
+          continue;
+        }
+
+        payout += position.collateralLocked;
+        profit += position.proceeds;
+      }
+
+      await tx.marketAccount.update({
+        where: {
+          id: account.id,
+        },
+        data: {
+          bankroll: roundCurrency(account.bankroll + payout),
+          realizedProfit: roundCurrency(account.realizedProfit + profit),
+        },
+      });
+
+      payouts.set(userId, {
+        payout: roundCurrency(payout),
+        profit: roundCurrency(profit),
+      });
+    }
+
+    await tx.marketPosition.deleteMany({
+      where: {
+        marketId: market.id,
+        outcomeId: outcome.id,
+      },
+    });
+
+    await tx.marketOutcome.update({
+      where: {
+        id: outcome.id,
+      },
+      data: {
+        outstandingShares: 0,
+        settlementValue: 0,
+        resolvedAt: new Date(),
+        resolvedByUserId: input.actorId,
+        resolutionNote: input.note ?? null,
+        resolutionEvidenceUrl: input.evidenceUrl ?? null,
+      },
+    });
+
+    await tx.market.update({
+      where: {
+        id: market.id,
+      },
+      data: {
+        updatedAt: new Date(),
+      },
+    });
+
+    const updatedMarket = await tx.market.findUniqueOrThrow({
+      where: {
+        id: market.id,
+      },
+      include: marketInclude,
+    });
+
+    return {
+      market: updatedMarket,
+      outcome: updatedMarket.outcomes.find((entry) => entry.id === outcome.id) ?? outcome,
+      payouts: [...payouts.entries()].map(([userId, value]) => ({
+        userId,
+        payout: value.payout,
+        profit: value.profit,
+      })),
+    };
+  });
+
 export const resolveMarket = async (input: {
   marketId: string;
   actorId: string;
@@ -777,6 +1032,7 @@ export const resolveMarket = async (input: {
   permissions?: PermissionsBitField | Readonly<PermissionsBitField> | null;
 }): Promise<MarketResolutionResult> =>
   prisma.$transaction(async (tx) => {
+    const resolvedAt = new Date();
     const market = await getMarketForUpdate(tx, input.marketId);
     if (!market) {
       throw new Error('Market not found.');
@@ -847,6 +1103,15 @@ export const resolveMarket = async (input: {
         },
         data: {
           outstandingShares: 0,
+          settlementValue: outcome.id === winningOutcome.id ? 1 : outcome.settlementValue ?? 0,
+          resolvedAt: outcome.resolvedAt ?? resolvedAt,
+          resolvedByUserId: outcome.resolvedByUserId ?? input.actorId,
+          resolutionNote: outcome.id === winningOutcome.id
+            ? input.note ?? outcome.resolutionNote ?? null
+            : outcome.resolutionNote ?? null,
+          resolutionEvidenceUrl: outcome.id === winningOutcome.id
+            ? input.evidenceUrl ?? outcome.resolutionEvidenceUrl ?? null
+            : outcome.resolutionEvidenceUrl ?? null,
         },
       })));
 
@@ -855,8 +1120,8 @@ export const resolveMarket = async (input: {
         id: market.id,
       },
       data: {
-        tradingClosedAt: market.tradingClosedAt ?? new Date(),
-        resolvedAt: new Date(),
+        tradingClosedAt: market.tradingClosedAt ?? resolvedAt,
+        resolvedAt,
         winningOutcomeId: winningOutcome.id,
         resolutionNote: input.note ?? null,
         resolutionEvidenceUrl: input.evidenceUrl ?? null,
@@ -1110,20 +1375,38 @@ export const clearMarketJobs = async (marketId: string): Promise<void> => {
   ]);
 };
 
+export const isMarketOutcomeResolved = isOutcomeResolved;
+
 export const computeMarketSummary = (market: MarketWithRelations): {
   status: MarketStatus;
-  probabilities: Array<{ outcomeId: string; label: string; probability: number; shares: number }>;
+  probabilities: Array<{
+    outcomeId: string;
+    label: string;
+    probability: number;
+    shares: number;
+    isResolved: boolean;
+    settlementValue: number | null;
+  }>;
   totalVolume: number;
 } => {
-  const probabilities = computeLmsrProbabilities(getOutstandingShares(market), market.liquidityParameter);
+  const probabilities = getMarketProbabilities(market);
   return {
     status: getMarketStatus(market),
-    probabilities: market.outcomes.map((outcome, index) => ({
-      outcomeId: outcome.id,
-      label: outcome.label,
-      probability: probabilities[index] ?? 0,
-      shares: outcome.outstandingShares,
-    })),
+    probabilities: market.outcomes.map((outcome, index) => {
+      const isResolved = market.resolvedAt ? true : isOutcomeResolved(outcome);
+      const settlementValue = market.resolvedAt
+        ? (outcome.id === market.winningOutcomeId ? 1 : 0)
+        : outcome.settlementValue;
+
+      return {
+        outcomeId: outcome.id,
+        label: outcome.label,
+        probability: probabilities[index] ?? 0,
+        shares: outcome.outstandingShares,
+        isResolved,
+        settlementValue,
+      };
+    }),
     totalVolume: market.totalVolume,
   };
 };
@@ -1142,5 +1425,16 @@ export const getMaxSellPayout = (
     return 0;
   }
 
-  return roundCurrency(computeSellPayout(getOutstandingShares(market), index, ownedShares, market.liquidityParameter));
+  const tradableIndexes = getTradableOutcomeIndexes(market);
+  const tradableIndex = tradableIndexes.indexOf(index);
+  if (tradableIndex < 0) {
+    return 0;
+  }
+
+  return roundCurrency(computeSellPayout(
+    tradableIndexes.map((outcomeIndex) => market.outcomes[outcomeIndex]?.outstandingShares ?? 0),
+    tradableIndex,
+    ownedShares,
+    market.liquidityParameter,
+  ));
 };

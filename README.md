@@ -122,6 +122,7 @@ docker compose --profile autoupdate up -d
 - `/market config view`
 - `/market config disable`
 - `/market create title:... outcomes:... close:24h description:... tags:...`
+- `/market create title:... outcomes:... close:"April 6 2026 10:00pm CDT" description:... tags:...`
 - `/market edit query:... title:... outcomes:... close:... description:... tags:...`
 - `/market view query:<message link|message id|market id>`
 - `/market list status:open creator:@user tag:meta`

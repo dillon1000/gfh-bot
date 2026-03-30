@@ -23,7 +23,7 @@ import {
   marketTradeSelectCustomId,
 } from './custom-ids.js';
 import { formatProbabilityPercent } from './math.js';
-import { computeMarketSummary, getMarketStatus } from './service.js';
+import { computeMarketSummary, getMarketStatus, getTradeLockReason } from './service.js';
 import type { MarketAccountWithOpenPositions, MarketWithRelations } from './types.js';
 
 const formatMoney = (value: number): string => `${value.toFixed(2)} pts`;
@@ -106,6 +106,7 @@ export const buildMarketStatusEmbed = (title: string, description: string, color
 export const buildMarketEmbed = (market: MarketWithRelations): EmbedBuilder => {
   const summary = computeMarketSummary(market);
   const status = summary.status;
+  const unresolvedCount = summary.probabilities.filter((entry) => !entry.isResolved).length;
 
   return new EmbedBuilder()
     .setTitle(market.title)
@@ -119,15 +120,28 @@ export const buildMarketEmbed = (market: MarketWithRelations): EmbedBuilder => {
           `Creator: <@${market.creatorId}>`,
           `Closes: <t:${Math.floor(market.closeAt.getTime() / 1000)}:R>`,
           `Volume: ${summary.totalVolume} pts`,
+          market.threadId ? `Discussion: <#${market.threadId}>` : null,
           market.tags.length > 0 ? `Tags: ${market.tags.map((tag) => `\`${tag}\``).join(' ')}` : null,
         ].filter(Boolean).join('\n'),
       },
       {
         name: 'Current Probabilities',
         value: summary.probabilities
-          .map((entry, index) => `${index + 1}. **${entry.label}** — ${formatProbabilityPercent(entry.probability)} (${entry.shares.toFixed(2)} net shares)`)
+          .map((entry, index) => `${index + 1}. **${entry.label}** — ${entry.isResolved
+            ? entry.settlementValue === 1
+              ? 'Winner'
+              : 'Eliminated'
+            : formatProbabilityPercent(entry.probability)} (${entry.shares.toFixed(2)} net shares)`)
           .join('\n'),
       },
+      ...(unresolvedCount < market.outcomes.length
+        ? [{
+            name: 'Live Board',
+            value: unresolvedCount === 0
+              ? 'No unresolved outcomes remain.'
+              : `${unresolvedCount} outcome${unresolvedCount === 1 ? '' : 's'} still trading.`,
+          }]
+        : []),
     )
     .setFooter({
       text: `Market ID: ${market.id}`,
@@ -144,21 +158,26 @@ export const buildMarketMessage = (
   const tradingClosed = status !== 'open';
   const summary = computeMarketSummary(market);
   const tradeRows: ActionRowBuilder<ButtonBuilder>[] = [];
+  const tradableEntries = summary.probabilities.filter((entry) => !entry.isResolved);
 
   if (!tradingClosed) {
-    for (let index = 0; index < summary.probabilities.length; index += 2) {
-      const chunk = summary.probabilities.slice(index, index + 2);
+    for (let index = 0; index < tradableEntries.length; index += 2) {
+      const chunk = tradableEntries.slice(index, index + 2);
       const row = new ActionRowBuilder<ButtonBuilder>();
       for (const entry of chunk) {
+        const buyLocked = Boolean(getTradeLockReason(market, entry.outcomeId, 'buy'));
+        const shortLocked = Boolean(getTradeLockReason(market, entry.outcomeId, 'short'));
         const outcomeLabel = truncateLabel(entry.label);
         row.addComponents(
           new ButtonBuilder()
             .setCustomId(marketQuickTradeButtonCustomId('buy', market.id, entry.outcomeId))
             .setLabel(`${outcomeLabel} Yes ${formatProbabilityPercent(entry.probability)}`)
+            .setDisabled(buyLocked)
             .setStyle(ButtonStyle.Success),
           new ButtonBuilder()
             .setCustomId(marketQuickTradeButtonCustomId('short', market.id, entry.outcomeId))
             .setLabel(`${outcomeLabel} No ${formatProbabilityPercent(1 - entry.probability)}`)
+            .setDisabled(shortLocked)
             .setStyle(ButtonStyle.Danger),
         );
       }
@@ -213,9 +232,20 @@ export const buildMarketTradeSelector = (
   action: 'buy' | 'sell' | 'short' | 'cover',
 ): {
   embeds: [EmbedBuilder];
-  components: [ActionRowBuilder<StringSelectMenuBuilder>];
+  components: ActionRowBuilder<StringSelectMenuBuilder>[];
 } => {
   const copy = getTradeCopy(action);
+  const tradableEntries = computeMarketSummary(market).probabilities.filter((entry) =>
+    !entry.isResolved && !getTradeLockReason(market, entry.outcomeId, action));
+
+  if (tradableEntries.length === 0) {
+    return {
+      embeds: [
+        buildMarketStatusEmbed(copy.title, 'No unresolved outcomes are available for that action right now.', copy.color),
+      ],
+      components: [],
+    };
+  }
 
   return {
     embeds: [
@@ -229,10 +259,10 @@ export const buildMarketTradeSelector = (
           .setMinValues(1)
           .setMaxValues(1)
           .addOptions(
-            market.outcomes.map((outcome, index) => ({
-              label: `${index + 1}. ${outcome.label}`,
-              value: outcome.id,
-              description: `Net shares: ${outcome.outstandingShares.toFixed(2)}`,
+            tradableEntries.map((entry, index) => ({
+              label: `${index + 1}. ${entry.label}`,
+              value: entry.outcomeId,
+              description: `Net shares: ${entry.shares.toFixed(2)}`,
             })),
           ),
       ),
