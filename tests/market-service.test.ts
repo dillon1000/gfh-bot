@@ -160,7 +160,9 @@ describe('market service', () => {
   it('retries serializable conflicts while executing a trade', async () => {
     prisma.$transaction
       .mockImplementationOnce(async () => {
-        throw { code: 'P2034' };
+        const error = new Error('Serializable conflict');
+        (error as Error & { code?: string }).code = 'P2034';
+        throw error;
       })
       .mockImplementationOnce(async (callback: (tx: typeof transaction) => Promise<unknown>) =>
         callback(transaction));
