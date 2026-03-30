@@ -596,6 +596,8 @@ export const executeMarketTrade = async (input: {
           ? roundCurrency(computeSellPayout(shares, outcomeIndex, sharesToShort, market.liquidityParameter))
           : input.amount;
         const collateralToLock = roundCurrency(sharesToShort);
+        // Allow a tiny epsilon here so floating-point error does not reject
+        // a trade that is exactly affordable after rounding.
         if ((account.bankroll + proceedsReceived - collateralToLock) < -1e-6) {
           throw new Error('You do not have enough bankroll to collateralize that short.');
         }
@@ -637,6 +639,8 @@ export const executeMarketTrade = async (input: {
         const averageCollateral = (shortPosition?.collateralLocked ?? 0) / ownedShortShares;
         const releasedProceeds = averageProceeds * sharesToCover;
         const releasedCollateral = averageCollateral * sharesToCover;
+        // The same epsilon prevents round-off from blocking a cover that
+        // should be payable with the released collateral.
         if (account.bankroll + releasedCollateral < coverCost - 1e-6) {
           throw new Error('You do not have enough bankroll to cover that short.');
         }
@@ -807,7 +811,9 @@ export const resolveMarket = async (input: {
         const shortWins = position.outcomeId !== winningOutcome.id;
         const releasedCollateral = shortWins ? position.collateralLocked : 0;
         payout += releasedCollateral;
-        profit += shortWins ? position.proceeds : position.proceeds - position.shares;
+        // A losing short keeps the proceeds already credited at entry but
+        // forfeits the locked collateral that backs the obligation.
+        profit += shortWins ? position.proceeds : position.proceeds - position.collateralLocked;
       }
 
       await tx.marketAccount.update({
