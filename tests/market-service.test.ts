@@ -345,6 +345,35 @@ describe('market service', () => {
     })).rejects.toThrow('You must cover your short position in that outcome before buying it.');
   });
 
+  it('ignores another user’s short position when buying an outcome', async () => {
+    transaction.market.findUnique.mockResolvedValue({
+      ...market,
+      positions: [
+        makeShortPosition({
+          userId: 'user_3',
+        }),
+      ],
+    });
+    runTransaction();
+
+    const result = await executeMarketTrade({
+      marketId: 'market_1',
+      userId: 'user_2',
+      outcomeId: 'outcome_yes',
+      action: 'buy',
+      amount: 20,
+    });
+
+    expect(result.positionSide).toBe('long');
+    expect(result.cashAmount).toBe(20);
+    expect(transaction.marketPosition.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({
+        userId: 'user_2',
+        side: 'long',
+      }),
+    }));
+  });
+
   it('rejects shorts that cannot be fully collateralized', async () => {
     transaction.marketAccount.upsert.mockResolvedValue({
       ...baseAccount,

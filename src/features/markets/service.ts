@@ -523,7 +523,9 @@ export const executeMarketTrade = async (input: {
 
     const account = await ensureMarketAccountTx(tx, market.guildId, input.userId);
     const shares = getOutstandingShares(market);
-    const positions = getPositionMap(market.positions);
+    const positions = getPositionMap(
+      market.positions.filter((position) => position.userId === input.userId),
+    );
     const longPosition = getPosition(positions, outcome.id, 'long');
     const shortPosition = getPosition(positions, outcome.id, 'short');
     let shareDelta = 0;
