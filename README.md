@@ -7,6 +7,7 @@ Supports single-choice polls, multi-choice polls, ranked-choice voting, governan
 ## Features
 
 - Polls
+- Prediction markets
 - Interactive poll builder
 - Governance guardrails for polls
 - Persistent poll lookup
@@ -117,6 +118,18 @@ docker compose --profile autoupdate up -d
 ## Commands
 
 - `/ping`
+- `/market config set channel:#predictions`
+- `/market config view`
+- `/market config disable`
+- `/market create title:... outcomes:... close:24h description:... tags:...`
+- `/market edit query:... title:... outcomes:... close:... description:... tags:...`
+- `/market view query:<message link|message id|market id>`
+- `/market list status:open creator:@user tag:meta`
+- `/market trade query:... action:buy outcome:1 amount:50`
+- `/market resolve query:... winning_outcome:1 note:... evidence_url:https://...`
+- `/market cancel query:... reason:...`
+- `/market portfolio user:@user`
+- `/market leaderboard`
 - `/audit-log setup channel:#audit-log noisy_channel:#audit-noisy`
 - `/audit-log status`
 - `/audit-log disable`
