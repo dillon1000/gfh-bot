@@ -13,9 +13,11 @@ import { buildFeedbackEmbed } from '../polls/poll-embeds.js';
 import {
   marketBuyButtonCustomId,
   marketCancelButtonCustomId,
+  marketCancelModalCustomId,
   marketPortfolioButtonCustomId,
   marketRefreshButtonCustomId,
   marketResolveButtonCustomId,
+  marketResolveModalCustomId,
   marketSellButtonCustomId,
   marketTradeModalCustomId,
   marketTradeSelectCustomId,
@@ -191,7 +193,7 @@ export const buildMarketResolveModal = (
   marketId: string,
 ): ModalBuilder =>
   new ModalBuilder()
-    .setCustomId(`market:resolve-modal:${marketId}`)
+    .setCustomId(marketResolveModalCustomId(marketId))
     .setTitle('Resolve Market')
     .addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(
@@ -224,7 +226,7 @@ export const buildMarketCancelModal = (
   marketId: string,
 ): ModalBuilder =>
   new ModalBuilder()
-    .setCustomId(`market:cancel-modal:${marketId}`)
+    .setCustomId(marketCancelModalCustomId(marketId))
     .setTitle('Cancel Market')
     .addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(

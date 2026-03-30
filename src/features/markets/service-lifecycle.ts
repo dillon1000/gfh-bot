@@ -152,7 +152,11 @@ export const sendMarketGraceNotice = async (client: Client, marketId: string): P
   }
 
   const channel = await client.channels.fetch(market.marketChannelId).catch(() => null);
-  if (channel?.isTextBased() && 'send' in channel) {
+  if (!channel?.isTextBased() || !('send' in channel)) {
+    return;
+  }
+
+  try {
     await channel.send({
       embeds: [
         buildMarketStatusEmbed(
@@ -164,19 +168,19 @@ export const sendMarketGraceNotice = async (client: Client, marketId: string): P
       allowedMentions: {
         parse: [],
       },
-    }).catch((error) => {
-      logger.warn({ err: error, marketId }, 'Could not send market grace notice');
     });
-  }
 
-  await prisma.market.update({
-    where: {
-      id: market.id,
-    },
-    data: {
-      graceNotifiedAt: new Date(),
-    },
-  });
+    await prisma.market.update({
+      where: {
+        id: market.id,
+      },
+      data: {
+        graceNotifiedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    logger.warn({ err: error, marketId }, 'Could not send market grace notice');
+  }
 };
 
 export const recoverExpiredMarketGraceNotices = async (client: Client): Promise<void> => {

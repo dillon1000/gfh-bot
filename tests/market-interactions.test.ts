@@ -244,9 +244,10 @@ describe('market interactions', () => {
       marketChannelId: 'market_channel_1',
     }));
     expect(hydrateMarketMessage).toHaveBeenCalledWith({}, baseMarket);
-    expect(interaction.reply).toHaveBeenCalledTimes(1);
-    expect(interaction.reply.mock.calls[0]?.[0]).not.toHaveProperty('flags');
-    expect(interaction.reply.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
+    expect(interaction.deferReply).toHaveBeenCalledWith();
+    expect(interaction.editReply).toHaveBeenCalledTimes(1);
+    expect(interaction.editReply.mock.calls[0]?.[0]).not.toHaveProperty('flags');
+    expect(interaction.editReply.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
       embeds: expect.any(Array),
     }));
   });
@@ -267,5 +268,24 @@ describe('market interactions', () => {
 
     expect(deleteMarketRecord).toHaveBeenCalledWith('market_1');
     expect(interaction.reply).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-http evidence URLs before resolving a market', async () => {
+    const interaction = createInteraction({
+      subcommand: 'resolve',
+      strings: {
+        query: 'market_1',
+        winning_outcome: '1',
+        evidence_url: 'javascript:alert(1)',
+      },
+    });
+
+    getMarketByQuery.mockResolvedValue(baseMarket);
+
+    await expect(handleMarketCommand({} as never, interaction as never)).rejects.toThrow(
+      'Evidence URL must be a valid http or https URL.',
+    );
+
+    expect(resolveMarket).not.toHaveBeenCalled();
   });
 });

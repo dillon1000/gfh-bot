@@ -108,7 +108,21 @@ export const parseMarketTags = (value: string | null | undefined): string[] => {
   return tags;
 };
 
-export const parseMarketCloseDuration = (value: string): number => parseDurationToMs(value);
+export const parseMarketCloseDuration = (value: string): number => {
+  try {
+    return parseDurationToMs(value);
+  } catch (error) {
+    if (!(error instanceof Error)) {
+      throw error;
+    }
+
+    throw new Error(
+      error.message
+        .replace(/^Poll duration must be at least/, 'Market duration must be at least')
+        .replace(/^Poll duration cannot exceed/, 'Market duration cannot exceed'),
+    );
+  }
+};
 
 export const parseMarketLookup = (value: string): MarketLookup => {
   const trimmed = value.trim();
