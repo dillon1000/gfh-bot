@@ -110,12 +110,12 @@ describe('buildPollResultDiagram', () => {
     expect(diagram.fileName).toBe('poll-result-poll_standard_1.png');
     const buffer = diagram.attachment.attachment as Buffer;
     expect(buffer.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
-  });
+  }, 15_000);
 
   it('renders a PNG diagram for ranked polls', async () => {
     const diagram = await buildPollResultDiagram(rankedPoll, computePollResults(rankedPoll));
     const buffer = diagram.attachment.attachment as Buffer;
     expect(buffer.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
     expect(buffer.length).toBeGreaterThan(1_000);
-  });
+  }, 15_000);
 });

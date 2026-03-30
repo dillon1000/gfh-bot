@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   prisma,
@@ -68,7 +68,10 @@ vi.mock('../src/lib/queue.js', () => ({
   },
 }));
 
-import { cancelMarket, executeMarketTrade, resolveMarket, resolveMarketOutcome } from '../src/features/markets/service.js';
+let cancelMarket: typeof import('../src/features/markets/service.js').cancelMarket;
+let executeMarketTrade: typeof import('../src/features/markets/service.js').executeMarketTrade;
+let resolveMarket: typeof import('../src/features/markets/service.js').resolveMarket;
+let resolveMarketOutcome: typeof import('../src/features/markets/service.js').resolveMarketOutcome;
 
 const baseAccount = {
   id: 'account_1',
@@ -166,6 +169,15 @@ const runTransaction = (): void => {
 };
 
 describe('market service', () => {
+  beforeAll(async () => {
+    ({
+      cancelMarket,
+      executeMarketTrade,
+      resolveMarket,
+      resolveMarketOutcome,
+    } = await import('../src/features/markets/service.js'));
+  });
+
   beforeEach(() => {
     prisma.$transaction.mockReset();
     transaction.guildConfig.upsert.mockReset();
@@ -230,6 +242,44 @@ describe('market service', () => {
     );
     expect(result.cashAmount).toBe(50);
     expect(transaction.market.findUnique).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries serializable conflicts while resolving an outcome', async () => {
+    prisma.$transaction
+      .mockImplementationOnce(async () => {
+        const error = new Error('Serializable conflict');
+        (error as Error & { code?: string }).code = 'P2034';
+        throw error;
+      })
+      .mockImplementationOnce(async (callback: (tx: typeof transaction) => Promise<unknown>) =>
+        callback(transaction));
+
+    const updatedMarket = {
+      ...market,
+      outcomes: [
+        { ...market.outcomes[0], settlementValue: 0, resolvedAt: new Date('2099-03-30T12:00:00.000Z') },
+        market.outcomes[1],
+      ],
+    };
+    transaction.market.findUnique.mockResolvedValue(market);
+    transaction.market.findUniqueOrThrow.mockResolvedValue(updatedMarket);
+
+    const result = await resolveMarketOutcome({
+      marketId: 'market_1',
+      actorId: 'user_1',
+      outcomeId: 'outcome_yes',
+      note: 'Eliminated.',
+    });
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(prisma.$transaction).toHaveBeenNthCalledWith(
+      1,
+      expect.any(Function),
+      expect.objectContaining({
+        isolationLevel: 'Serializable',
+      }),
+    );
+    expect(result.outcome.settlementValue).toBe(0);
   });
 
   it('supports selling a specific number of long shares', async () => {
@@ -400,7 +450,7 @@ describe('market service', () => {
     transaction.market.findUnique.mockResolvedValue({
       ...market,
       outcomes: [
-        { ...market.outcomes[0], outstandingShares: 583.62 },
+        { ...market.outcomes[0], outstandingShares: 600 },
         { ...market.outcomes[1], outstandingShares: 0 },
       ],
     });
@@ -419,7 +469,7 @@ describe('market service', () => {
     transaction.market.findUnique.mockResolvedValue({
       ...market,
       outcomes: [
-        { ...market.outcomes[0], outstandingShares: -583.62 },
+        { ...market.outcomes[0], outstandingShares: -600 },
         { ...market.outcomes[1], outstandingShares: 0 },
       ],
     });

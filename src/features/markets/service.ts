@@ -804,11 +804,16 @@ export const executeMarketTrade = async (input: {
     }
 
     const probabilities = computeLmsrProbabilities(nextShares, market.liquidityParameter);
+    const tradableIndexMap = new Map<number, number>(
+      tradableOutcomeIndexes.map((outcomeIndex, activeIndex) => [outcomeIndex, activeIndex]),
+    );
     await replaceOutcomeState(tx, market.id, market.outcomes.map((marketOutcome, index) => {
-      const activeIndex = tradableOutcomeIndexes.indexOf(index);
+      const activeIndex = tradableIndexMap.get(index);
       return {
         id: marketOutcome.id,
-        outstandingShares: activeIndex >= 0 ? (nextShares[activeIndex] ?? marketOutcome.outstandingShares) : marketOutcome.outstandingShares,
+        outstandingShares: activeIndex === undefined
+          ? marketOutcome.outstandingShares
+          : (nextShares[activeIndex] ?? marketOutcome.outstandingShares),
       };
     }));
 
@@ -920,7 +925,7 @@ export const resolveMarketOutcome = async (input: {
   evidenceUrl?: string | null;
   permissions?: PermissionsBitField | Readonly<PermissionsBitField> | null;
 }): Promise<MarketOutcomeResolutionResult> =>
-  prisma.$transaction(async (tx) => {
+  runSerializableTransaction(async (tx) => {
     const market = await getMarketForUpdate(tx, input.marketId);
     if (!market) {
       throw new Error('Market not found.');

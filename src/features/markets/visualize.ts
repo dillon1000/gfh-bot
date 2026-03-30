@@ -17,6 +17,7 @@ const muted = '#b8bdc7';
 const grid = '#4b5563';
 const volumeColor = '#7aa2db';
 const fontStack = "'DejaVu Sans', 'Noto Sans', 'Liberation Sans', sans-serif";
+const PROBABILITY_EPSILON = 1e-6;
 
 type DiagramPayload = {
   attachment: AttachmentBuilder;
@@ -71,7 +72,9 @@ const buildSnapshots = (market: MarketWithRelations): Snapshot[] => {
   const finalProbabilities = computeMarketSummary(market).probabilities.map((entry) => entry.probability);
   const latestSnapshot = snapshots[snapshots.length - 1];
   const needsTerminalSnapshot = market.outcomes.some((outcome) => outcome.settlementValue !== null)
-    || latestSnapshot?.probabilities.some((value, index) => Math.abs(value - (finalProbabilities[index] ?? 0)) > 1e-6);
+    || latestSnapshot?.probabilities.some(
+      (value, index) => Math.abs(value - (finalProbabilities[index] ?? 0)) > PROBABILITY_EPSILON,
+    );
   if (needsTerminalSnapshot) {
     snapshots.push({
       at: market.updatedAt,
