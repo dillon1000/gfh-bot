@@ -48,7 +48,7 @@ export const marketCommand = new SlashCommandBuilder()
       .addStringOption((option) =>
         option
           .setName('close')
-          .setDescription('Trading duration, for example 24h or 3d')
+          .setDescription('Trading duration or close time, for example 24h or April 6 2026 10:00pm CDT')
           .setRequired(true),
       )
       .addStringOption((option) =>
@@ -89,7 +89,7 @@ export const marketCommand = new SlashCommandBuilder()
       .addStringOption((option) =>
         option
           .setName('close')
-          .setDescription('Updated duration from now')
+          .setDescription('Updated duration or close time')
           .setRequired(false),
       )
       .addStringOption((option) =>
@@ -182,8 +182,37 @@ export const marketCommand = new SlashCommandBuilder()
   )
   .addSubcommand((subcommand) =>
     subcommand
+      .setName('resolve-outcome')
+      .setDescription('Resolve a specific outcome as impossible while leaving the market open.')
+      .addStringOption((option) =>
+        option
+          .setName('query')
+          .setDescription('Market ID, message ID, or message link')
+          .setRequired(true),
+      )
+      .addStringOption((option) =>
+        option
+          .setName('outcome')
+          .setDescription('Outcome number, outcome ID, or exact label')
+          .setRequired(true),
+      )
+      .addStringOption((option) =>
+        option
+          .setName('note')
+          .setDescription('Optional resolution note')
+          .setRequired(false),
+      )
+      .addStringOption((option) =>
+        option
+          .setName('evidence_url')
+          .setDescription('Optional evidence URL')
+          .setRequired(false),
+      ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
       .setName('resolve')
-      .setDescription('Resolve a closed market.')
+      .setDescription('Resolve a market by naming the winner.')
       .addStringOption((option) =>
         option
           .setName('query')

@@ -25,11 +25,12 @@ import {
   getMarketLeaderboard,
   listMarkets,
   resolveMarket,
+  resolveMarketOutcome,
   scheduleMarketClose,
   scheduleMarketRefresh,
 } from './service.js';
 import {
-  parseMarketCloseDuration,
+  parseMarketCloseAt,
   parseMarketOutcomes,
   parseMarketTags,
   parseFlexibleTradeAmount,
@@ -235,7 +236,7 @@ export const handleMarketCommand = async (
         description: sanitizeMarketDescription(interaction.options.getString('description')),
         outcomes: parseMarketOutcomes(interaction.options.getString('outcomes', true)),
         tags: parseMarketTags(interaction.options.getString('tags')),
-        closeInMs: parseMarketCloseDuration(interaction.options.getString('close', true)),
+        closeAt: parseMarketCloseAt(interaction.options.getString('close', true)),
       });
       let published: Awaited<ReturnType<typeof hydrateMarketMessage>>;
       try {
@@ -248,7 +249,14 @@ export const handleMarketCommand = async (
         embeds: [
           buildMarketStatusEmbed(
             'Market Created',
-            `<@${interaction.user.id}> created **${market.title}** in <#${market.marketChannelId}>.\n[Open market](${published.url})\nMarket ID: \`${market.id}\``,
+            [
+              `<@${interaction.user.id}> created **${market.title}** in <#${market.marketChannelId}>.`,
+              `[Open market](${published.url})`,
+              published.threadUrl
+                ? `[Open discussion thread](${published.threadUrl})`
+                : 'Discussion thread could not be created automatically.',
+              `Market ID: \`${market.id}\``,
+            ].join('\n'),
             0x57f287,
           ),
         ],
@@ -270,7 +278,7 @@ export const handleMarketCommand = async (
         ...(interaction.options.getString('title') !== null ? { title: sanitizeMarketTitle(interaction.options.getString('title', true)) } : {}),
         ...(interaction.options.getString('description') !== null ? { description: sanitizeMarketDescription(interaction.options.getString('description')) } : {}),
         ...(interaction.options.getString('tags') !== null ? { tags: parseMarketTags(interaction.options.getString('tags')) } : {}),
-        ...(interaction.options.getString('close') !== null ? { closeInMs: parseMarketCloseDuration(interaction.options.getString('close', true)) } : {}),
+        ...(interaction.options.getString('close') !== null ? { closeAt: parseMarketCloseAt(interaction.options.getString('close', true)) } : {}),
         ...(interaction.options.getString('outcomes') !== null ? { outcomes: parseMarketOutcomes(interaction.options.getString('outcomes', true)) } : {}),
       });
       await clearMarketJobs(updated.id);
@@ -384,6 +392,34 @@ export const handleMarketCommand = async (
             'Market Resolved',
             `Resolved **${resolved.market.title}** in favor of **${outcome.label}**.`,
             0x57f287,
+          ),
+        ],
+      });
+      return;
+    }
+    case 'resolve-outcome': {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const market = await getMarketByQuery(interaction.options.getString('query', true), interaction.guildId);
+      if (!market) {
+        throw new Error('Market not found.');
+      }
+
+      const outcome = parseOutcomeSelection(interaction.options.getString('outcome', true), market.outcomes);
+      const resolved = await resolveMarketOutcome({
+        marketId: market.id,
+        actorId: interaction.user.id,
+        outcomeId: outcome.id,
+        note: interaction.options.getString('note'),
+        evidenceUrl: validateEvidenceUrl(interaction.options.getString('evidence_url')),
+        permissions: interaction.memberPermissions,
+      });
+      await refreshMarketMessage(client, market.id);
+      await interaction.editReply({
+        embeds: [
+          buildMarketStatusEmbed(
+            'Outcome Resolved',
+            `Resolved **${outcome.label}** as eliminated in **${resolved.market.title}**. Trading remains open on the remaining outcomes.`,
+            0xf59e0b,
           ),
         ],
       });

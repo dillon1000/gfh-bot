@@ -262,6 +262,7 @@ model Market {
   originChannelId        String
   marketChannelId        String
   messageId              String?          @unique
+  threadId               String?          @unique
   title                  String
   description            String?
   tags                   String[]         @default([])
@@ -290,16 +291,21 @@ model Market {
 }
 
 model MarketOutcome {
-  id                String           @id @default(cuid())
-  marketId          String
-  label             String
-  sortOrder         Int
-  outstandingShares Float            @default(0)
-  createdAt         DateTime         @default(now())
-  market            Market           @relation(fields: [marketId], references: [id], onDelete: Cascade)
-  trades            MarketTrade[]
-  positions         MarketPosition[]
-  wonMarkets        Market[]         @relation("MarketWinningOutcome")
+  id                   String           @id @default(cuid())
+  marketId             String
+  label                String
+  sortOrder            Int
+  outstandingShares    Float            @default(0)
+  settlementValue      Float?
+  resolvedAt           DateTime?
+  resolvedByUserId     String?
+  resolutionNote       String?
+  resolutionEvidenceUrl String?
+  createdAt            DateTime         @default(now())
+  market               Market           @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  trades               MarketTrade[]
+  positions            MarketPosition[]
+  wonMarkets           Market[]         @relation("MarketWinningOutcome")
 
   @@unique([marketId, sortOrder])
   @@index([marketId])

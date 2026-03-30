@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseFlexibleTradeAmount, parseMarketCloseDuration, parseTradeAmount } from '../src/features/markets/parser.js';
+import { parseFlexibleTradeAmount, parseMarketCloseAt, parseMarketCloseDuration, parseTradeAmount } from '../src/features/markets/parser.js';
 
 describe('market parser', () => {
   it('uses market-specific validation for short durations', () => {
@@ -13,6 +13,38 @@ describe('market parser', () => {
 
   it('uses market-specific validation for durations above 365 days', () => {
     expect(() => parseMarketCloseDuration('366d')).toThrow('Market duration cannot exceed 365 days.');
+  });
+
+  it('parses an absolute datetime with an explicit timezone', () => {
+    const closeAt = parseMarketCloseAt(
+      'April 6 2026 10:00pm CDT',
+      new Date('2026-03-30T12:00:00.000Z'),
+    );
+
+    expect(closeAt.toISOString()).toBe('2026-04-07T03:00:00.000Z');
+  });
+
+  it('parses a timezone-less absolute datetime in the configured default timezone', () => {
+    const closeAt = parseMarketCloseAt(
+      'April 6 2026 10:00pm',
+      new Date('2026-03-30T12:00:00.000Z'),
+    );
+
+    expect(closeAt.toISOString()).toBe('2026-04-07T03:00:00.000Z');
+  });
+
+  it('rejects absolute datetimes that are too soon', () => {
+    expect(() => parseMarketCloseAt(
+      'March 30 2026 7:04am CDT',
+      new Date('2026-03-30T12:00:00.000Z'),
+    )).toThrow('Market close time must be at least 5 minutes in the future.');
+  });
+
+  it('rejects absolute datetimes more than 365 days away', () => {
+    expect(() => parseMarketCloseAt(
+      'April 1 2027 10:00pm CDT',
+      new Date('2026-03-30T12:00:00.000Z'),
+    )).toThrow('Market close time cannot be more than 365 days in the future.');
   });
 
   it('parses flexible trade amounts expressed in shares', () => {

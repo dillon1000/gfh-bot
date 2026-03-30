@@ -4,4 +4,5 @@ process.env.DATABASE_URL ??= 'postgresql://postgres:postgres@localhost:5432/gfh_
 process.env.REDIS_URL ??= 'redis://localhost:6379';
 process.env.LOG_LEVEL ??= 'error';
 process.env.SEARCH_LIMIT_PER_MINUTE ??= '5';
+process.env.MARKET_DEFAULT_TIMEZONE ??= 'America/Chicago';
 process.env.R2_PUBLIC_BASE_URL ??= 'https://example.com';

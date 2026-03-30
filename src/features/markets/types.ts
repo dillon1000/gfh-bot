@@ -33,7 +33,7 @@ export type MarketCreationInput = {
   description: string | null;
   outcomes: string[];
   tags: string[];
-  closeInMs: number;
+  closeAt: Date;
 };
 
 export type MarketTradeResult = {
@@ -48,6 +48,16 @@ export type MarketTradeResult = {
 
 export type MarketResolutionResult = {
   market: MarketWithRelations;
+  payouts: Array<{
+    userId: string;
+    payout: number;
+    profit: number;
+  }>;
+};
+
+export type MarketOutcomeResolutionResult = {
+  market: MarketWithRelations;
+  outcome: MarketOutcome;
   payouts: Array<{
     userId: string;
     payout: number;

@@ -35,6 +35,7 @@ const envSchema = z.object({
   POLL_CREATION_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(10),
   MEOW_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(5),
   SEARCH_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(5),
+  MARKET_DEFAULT_TIMEZONE: z.string().min(1).default('America/Chicago'),
   APP_REVISION: z.string().min(1).optional(),
   R2_ACCOUNT_ID: z.string().min(1).optional(),
   R2_ACCESS_KEY_ID: z.string().min(1).optional(),

@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   attachMarketMessage,
+  attachMarketThread,
   scheduleMarketClose,
   getMarketById,
 } = vi.hoisted(() => ({
   attachMarketMessage: vi.fn(),
+  attachMarketThread: vi.fn(),
   scheduleMarketClose: vi.fn(),
   getMarketById: vi.fn(),
 }));
@@ -50,6 +52,7 @@ vi.mock('../src/features/markets/render.js', () => ({
 
 vi.mock('../src/features/markets/service.js', () => ({
   attachMarketMessage,
+  attachMarketThread,
   clearMarketJobs: vi.fn(),
   closeMarketTrading: vi.fn(),
   getMarketById,
@@ -70,6 +73,7 @@ const market = {
   originChannelId: 'origin_channel_1',
   marketChannelId: 'market_channel_1',
   messageId: 'message_market_1',
+  threadId: null,
   title: 'Will turnout exceed 40%?',
   description: 'A test market',
   tags: ['meta'],
@@ -89,8 +93,8 @@ const market = {
   updatedAt: new Date('2099-03-29T00:00:00.000Z'),
   winningOutcome: null,
   outcomes: [
-    { id: 'outcome_yes', marketId: 'market_1', label: 'Yes', sortOrder: 0, outstandingShares: 0, createdAt: new Date('2099-03-29T00:00:00.000Z') },
-    { id: 'outcome_no', marketId: 'market_1', label: 'No', sortOrder: 1, outstandingShares: 0, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'outcome_yes', marketId: 'market_1', label: 'Yes', sortOrder: 0, outstandingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'outcome_no', marketId: 'market_1', label: 'No', sortOrder: 1, outstandingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
   ],
   trades: [],
   positions: [],
@@ -99,12 +103,18 @@ const market = {
 describe('market service lifecycle', () => {
   beforeEach(() => {
     attachMarketMessage.mockReset();
+    attachMarketThread.mockReset();
     scheduleMarketClose.mockReset();
     getMarketById.mockReset();
     findMany.mockReset();
     update.mockReset();
     buildMarketMessage.mockReset();
     buildMarketDiagram.mockReset();
+    attachMarketMessage.mockResolvedValue(market);
+    attachMarketThread.mockResolvedValue({
+      ...market,
+      threadId: 'thread_1',
+    });
   });
 
   it('clears prior attachments when refreshing a market message', async () => {
@@ -171,6 +181,80 @@ describe('market service lifecycle', () => {
     } as never, market)).rejects.toThrow('database update failed');
 
     expect(sentMessage.delete).toHaveBeenCalledTimes(1);
+  });
+
+  it('creates and stores a discussion thread after publishing a market', async () => {
+    const embed = {
+      setImage: vi.fn(),
+    };
+    const startThread = vi.fn().mockResolvedValue({
+      id: 'thread_1',
+      url: 'https://discord.com/channels/guild_1/thread_1',
+    });
+
+    buildMarketMessage.mockReturnValue({
+      embeds: [embed],
+      components: [],
+    });
+    buildMarketDiagram.mockResolvedValue({
+      fileName: 'market-market_1.png',
+      attachment: { name: 'market-market_1.png' },
+    });
+
+    const result = await hydrateMarketMessage({
+      channels: {
+        fetch: vi.fn().mockResolvedValue({
+          isTextBased: () => true,
+          send: vi.fn().mockResolvedValue({
+            id: 'message_market_1',
+            url: 'https://discord.com/channels/guild_1/market_channel_1/message_market_1',
+            startThread,
+          }),
+        }),
+      },
+    } as never, market);
+
+    expect(attachMarketThread).toHaveBeenCalledWith('market_1', 'thread_1');
+    expect(result).toEqual(expect.objectContaining({
+      threadCreated: true,
+      threadId: 'thread_1',
+      threadUrl: 'https://discord.com/channels/guild_1/thread_1',
+    }));
+  });
+
+  it('keeps the market live when discussion thread creation fails', async () => {
+    const embed = {
+      setImage: vi.fn(),
+    };
+
+    buildMarketMessage.mockReturnValue({
+      embeds: [embed],
+      components: [],
+    });
+    buildMarketDiagram.mockResolvedValue({
+      fileName: 'market-market_1.png',
+      attachment: { name: 'market-market_1.png' },
+    });
+
+    const result = await hydrateMarketMessage({
+      channels: {
+        fetch: vi.fn().mockResolvedValue({
+          isTextBased: () => true,
+          send: vi.fn().mockResolvedValue({
+            id: 'message_market_1',
+            url: 'https://discord.com/channels/guild_1/market_channel_1/message_market_1',
+            startThread: vi.fn().mockRejectedValue(new Error('missing permissions')),
+          }),
+        }),
+      },
+    } as never, market);
+
+    expect(attachMarketThread).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      threadCreated: false,
+      threadId: null,
+      threadUrl: null,
+    }));
   });
 
   it('only marks grace notifications as sent after a successful post', async () => {

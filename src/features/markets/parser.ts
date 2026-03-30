@@ -1,4 +1,4 @@
-import { parseDurationToMsWithLimits } from '../../lib/duration.js';
+export { parseMarketCloseAt, parseMarketCloseDuration } from './close-parser.js';
 
 const maxOutcomes = 5;
 const minOutcomes = 2;
@@ -8,8 +8,6 @@ const maxOutcomeLength = 80;
 const maxTags = 10;
 const maxTagLength = 24;
 const minTradeAmount = 10;
-const marketMinDurationMs = 5 * 60_000;
-const marketMaxDurationMs = 365 * 24 * 60 * 60 * 1_000;
 const sellSharesPattern = /^(?<amount>\d+(?:\.\d+)?)\s*(?<unit>share|shares|sh)$/i;
 const sellPointsPattern = /^(?<amount>\d+)\s*(?<unit>pt|pts|point|points)?$/i;
 
@@ -112,22 +110,6 @@ export const parseMarketTags = (value: string | null | undefined): string[] => {
   return tags;
 };
 
-export const parseMarketCloseDuration = (value: string): number => {
-  try {
-    return parseDurationToMsWithLimits(value, {
-      minMs: marketMinDurationMs,
-      maxMs: marketMaxDurationMs,
-      tooShortMessage: 'Market duration must be at least 5 minutes.',
-      tooLongMessage: 'Market duration cannot exceed 365 days.',
-    });
-  } catch (error) {
-    if (!(error instanceof Error)) {
-      throw error;
-    }
-
-    throw new Error(error.message);
-  }
-};
 
 export const parseMarketLookup = (value: string): MarketLookup => {
   const trimmed = value.trim();

@@ -3,6 +3,7 @@ import { scaleOrdinal, schemeTableau10 } from 'd3';
 import sharp from 'sharp';
 
 import { computeLmsrProbabilities } from './math.js';
+import { computeMarketSummary } from './service.js';
 import type { MarketWithRelations } from './types.js';
 
 const width = 1100;
@@ -64,6 +65,18 @@ const buildSnapshots = (market: MarketWithRelations): Snapshot[] => {
       at: market.tradingClosedAt ?? market.closeAt,
       probabilities: initialProbabilities,
       cumulativeVolume: 0,
+    });
+  }
+
+  const finalProbabilities = computeMarketSummary(market).probabilities.map((entry) => entry.probability);
+  const latestSnapshot = snapshots[snapshots.length - 1];
+  const needsTerminalSnapshot = market.outcomes.some((outcome) => outcome.settlementValue !== null)
+    || latestSnapshot?.probabilities.some((value, index) => Math.abs(value - (finalProbabilities[index] ?? 0)) > 1e-6);
+  if (needsTerminalSnapshot) {
+    snapshots.push({
+      at: market.updatedAt,
+      probabilities: finalProbabilities,
+      cumulativeVolume: market.totalVolume,
     });
   }
 

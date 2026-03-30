@@ -68,7 +68,7 @@ vi.mock('../src/lib/queue.js', () => ({
   },
 }));
 
-import { cancelMarket, executeMarketTrade, resolveMarket } from '../src/features/markets/service.js';
+import { cancelMarket, executeMarketTrade, resolveMarket, resolveMarketOutcome } from '../src/features/markets/service.js';
 
 const baseAccount = {
   id: 'account_1',
@@ -89,6 +89,7 @@ const market = {
   originChannelId: 'origin_channel_1',
   marketChannelId: 'market_channel_1',
   messageId: 'message_market_1',
+  threadId: null,
   title: 'Will turnout exceed 40%?',
   description: 'A test market',
   tags: ['meta'],
@@ -108,8 +109,8 @@ const market = {
   updatedAt: new Date('2099-03-29T00:00:00.000Z'),
   winningOutcome: null,
   outcomes: [
-    { id: 'outcome_yes', marketId: 'market_1', label: 'Yes', sortOrder: 0, outstandingShares: 0, createdAt: new Date('2099-03-29T00:00:00.000Z') },
-    { id: 'outcome_no', marketId: 'market_1', label: 'No', sortOrder: 1, outstandingShares: 0, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'outcome_yes', marketId: 'market_1', label: 'Yes', sortOrder: 0, outstandingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'outcome_no', marketId: 'market_1', label: 'No', sortOrder: 1, outstandingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
   ],
   trades: [],
   positions: [],
@@ -169,6 +170,7 @@ describe('market service', () => {
     prisma.$transaction.mockReset();
     transaction.guildConfig.upsert.mockReset();
     transaction.market.findUnique.mockReset();
+    transaction.market.findUniqueOrThrow.mockReset();
     transaction.market.update.mockReset();
     transaction.marketOutcome.update.mockReset();
     transaction.marketPosition.deleteMany.mockReset();
@@ -180,6 +182,7 @@ describe('market service', () => {
       id: 'guild_config_1',
     });
     transaction.market.findUnique.mockResolvedValue(market);
+    transaction.market.findUniqueOrThrow.mockResolvedValue(market);
     transaction.marketOutcome.update.mockResolvedValue(undefined);
     transaction.marketPosition.deleteMany.mockResolvedValue({ count: 0 });
     transaction.marketPosition.upsert.mockResolvedValue(undefined);
@@ -374,6 +377,63 @@ describe('market service', () => {
     }));
   });
 
+  it('rejects trading an outcome that has already been resolved', async () => {
+    transaction.market.findUnique.mockResolvedValue({
+      ...market,
+      outcomes: [
+        { ...market.outcomes[0], settlementValue: 0, resolvedAt: new Date('2099-03-30T00:00:00.000Z') },
+        market.outcomes[1],
+      ],
+    });
+    runTransaction();
+
+    await expect(executeMarketTrade({
+      marketId: 'market_1',
+      userId: 'user_2',
+      outcomeId: 'outcome_yes',
+      action: 'buy',
+      amount: 20,
+    })).rejects.toThrow('Trading on Yes is closed because that outcome has already been resolved.');
+  });
+
+  it('rejects buying an outcome above the 98% lock threshold', async () => {
+    transaction.market.findUnique.mockResolvedValue({
+      ...market,
+      outcomes: [
+        { ...market.outcomes[0], outstandingShares: 583.62 },
+        { ...market.outcomes[1], outstandingShares: 0 },
+      ],
+    });
+    runTransaction();
+
+    await expect(executeMarketTrade({
+      marketId: 'market_1',
+      userId: 'user_2',
+      outcomeId: 'outcome_yes',
+      action: 'buy',
+      amount: 20,
+    })).rejects.toThrow('Yes on **Yes** is locked above 98%.');
+  });
+
+  it('rejects shorting an outcome below the 2% lock threshold', async () => {
+    transaction.market.findUnique.mockResolvedValue({
+      ...market,
+      outcomes: [
+        { ...market.outcomes[0], outstandingShares: -583.62 },
+        { ...market.outcomes[1], outstandingShares: 0 },
+      ],
+    });
+    runTransaction();
+
+    await expect(executeMarketTrade({
+      marketId: 'market_1',
+      userId: 'user_2',
+      outcomeId: 'outcome_yes',
+      action: 'short',
+      amount: 20,
+    })).rejects.toThrow('No on **Yes** is locked above 98%.');
+  });
+
   it('rejects shorts that cannot be fully collateralized', async () => {
     transaction.marketAccount.upsert.mockResolvedValue({
       ...baseAccount,
@@ -513,6 +573,63 @@ describe('market service', () => {
       data: expect.objectContaining({
         bankroll: 1_000,
         realizedProfit: -2,
+      }),
+    }));
+  });
+
+  it('resolves an eliminated outcome without closing the whole market', async () => {
+    const openMarket = {
+      ...market,
+      positions: [
+        makeLongPosition(),
+        makeShortPosition({ outcomeId: 'outcome_no', proceeds: 4, collateralLocked: 6, shares: 6 }),
+      ],
+    };
+    const updatedMarket = {
+      ...openMarket,
+      outcomes: [
+        { ...openMarket.outcomes[0], outstandingShares: 0, settlementValue: 0, resolvedAt: new Date('2099-03-30T12:00:00.000Z') },
+        openMarket.outcomes[1],
+      ],
+      positions: [
+        makeShortPosition({ outcomeId: 'outcome_no', proceeds: 4, collateralLocked: 6, shares: 6 }),
+      ],
+    };
+
+    transaction.market.findUnique.mockResolvedValue(openMarket);
+    transaction.market.findUniqueOrThrow.mockResolvedValue(updatedMarket);
+    runTransaction();
+
+    const result = await resolveMarketOutcome({
+      marketId: 'market_1',
+      actorId: 'user_1',
+      outcomeId: 'outcome_yes',
+      note: 'Knocked out in the semifinal.',
+    });
+
+    expect(result.market.resolvedAt).toBeNull();
+    expect(result.outcome.settlementValue).toBe(0);
+    expect(result.payouts).toEqual([
+      {
+        userId: 'user_2',
+        payout: 0,
+        profit: -60,
+      },
+    ]);
+    expect(transaction.marketPosition.deleteMany).toHaveBeenCalledWith({
+      where: {
+        marketId: 'market_1',
+        outcomeId: 'outcome_yes',
+      },
+    });
+    expect(transaction.marketOutcome.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        id: 'outcome_yes',
+      },
+      data: expect.objectContaining({
+        outstandingShares: 0,
+        settlementValue: 0,
+        resolutionNote: 'Knocked out in the semifinal.',
       }),
     }));
   });
