@@ -36,4 +36,8 @@ describe('market parser', () => {
   it('parses valid integer strings for points-only buy amounts', () => {
     expect(parseTradeAmount('50')).toBe(50);
   });
+
+  it('parses points-suffixed strings for points-only buy amounts', () => {
+    expect(parseTradeAmount('50 pts')).toBe(50);
+  });
 });
