@@ -45,6 +45,17 @@ export const solveBuySharesForAmount = (
   return clampSmall(high);
 };
 
+export const computeBuyCost = (
+  shares: number[],
+  outcomeIndex: number,
+  sharesToBuy: number,
+  liquidity: number,
+): number => {
+  const baseline = computeLmsrCost(shares, liquidity);
+  const nextShares = shares.map((value, index) => index === outcomeIndex ? value + sharesToBuy : value);
+  return clampSmall(computeLmsrCost(nextShares, liquidity) - baseline);
+};
+
 export const computeSellPayout = (
   shares: number[],
   outcomeIndex: number,
@@ -70,6 +81,32 @@ export const solveSellSharesForAmount = (
 
   let low = 0;
   let high = ownedShares;
+
+  for (let index = 0; index < binarySearchIterations; index += 1) {
+    const mid = (low + high) / 2;
+    const payout = computeSellPayout(shares, outcomeIndex, mid, liquidity);
+    if (payout < desiredPayout) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  return clampSmall(high);
+};
+
+export const solveShortSharesForAmount = (
+  shares: number[],
+  outcomeIndex: number,
+  desiredPayout: number,
+  liquidity: number,
+): number => {
+  let low = 0;
+  let high = Math.max(1, desiredPayout);
+
+  while (computeSellPayout(shares, outcomeIndex, high, liquidity) < desiredPayout) {
+    high *= 2;
+  }
 
   for (let index = 0; index < binarySearchIterations; index += 1) {
     const mid = (low + high) / 2;

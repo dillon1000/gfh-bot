@@ -4,6 +4,7 @@ import {
   type MarketAccount,
   type MarketOutcome,
   type MarketPosition,
+  type MarketPositionSide,
   type MarketTradeSide,
 } from '@prisma/client';
 
@@ -11,7 +12,14 @@ import { PermissionFlagsBits, type PermissionsBitField } from 'discord.js';
 
 import { marketCloseQueue, marketGraceQueue, marketRefreshQueue } from '../../lib/queue.js';
 import { prisma } from '../../lib/prisma.js';
-import { computeLmsrProbabilities, computeSellPayout, solveBuySharesForAmount, solveSellSharesForAmount } from './math.js';
+import {
+  computeBuyCost,
+  computeLmsrProbabilities,
+  computeSellPayout,
+  solveBuySharesForAmount,
+  solveSellSharesForAmount,
+  solveShortSharesForAmount,
+} from './math.js';
 import { parseMarketLookup } from './parser.js';
 import type {
   MarketAccountWithOpenPositions,
@@ -233,7 +241,14 @@ const getMarketForUpdate = async (
   });
 
 const getPositionMap = (positions: MarketPosition[]): Map<string, MarketPosition> =>
-  new Map(positions.map((position) => [position.outcomeId, position]));
+  new Map(positions.map((position) => [`${position.outcomeId}:${position.side}`, position]));
+
+const getPosition = (
+  positions: Map<string, MarketPosition>,
+  outcomeId: string,
+  side: MarketPositionSide,
+): MarketPosition | undefined =>
+  positions.get(`${outcomeId}:${side}`);
 
 const getOutstandingShares = (market: MarketWithRelations): number[] =>
   market.outcomes.map((outcome) => outcome.outstandingShares);
@@ -269,16 +284,23 @@ const upsertPosition = async (
     marketId: string;
     outcomeId: string;
     userId: string;
+    side: MarketPositionSide;
     shares: number;
     costBasis: number;
+    proceeds: number;
+    collateralLocked: number;
   },
 ): Promise<void> => {
-  if (input.shares <= 1e-6 && input.costBasis <= 1e-6) {
+  if (input.shares <= 1e-6
+    && input.costBasis <= 1e-6
+    && input.proceeds <= 1e-6
+    && input.collateralLocked <= 1e-6) {
     await tx.marketPosition.deleteMany({
       where: {
         marketId: input.marketId,
         outcomeId: input.outcomeId,
         userId: input.userId,
+        side: input.side,
       },
     });
     return;
@@ -286,22 +308,28 @@ const upsertPosition = async (
 
   await tx.marketPosition.upsert({
     where: {
-      marketId_outcomeId_userId: {
+      marketId_outcomeId_userId_side: {
         marketId: input.marketId,
         outcomeId: input.outcomeId,
         userId: input.userId,
+        side: input.side,
       },
     },
     create: {
       marketId: input.marketId,
       outcomeId: input.outcomeId,
       userId: input.userId,
+      side: input.side,
       shares: roundCurrency(input.shares),
       costBasis: roundCurrency(input.costBasis),
+      proceeds: roundCurrency(input.proceeds),
+      collateralLocked: roundCurrency(input.collateralLocked),
     },
     update: {
       shares: roundCurrency(input.shares),
       costBasis: roundCurrency(input.costBasis),
+      proceeds: roundCurrency(input.proceeds),
+      collateralLocked: roundCurrency(input.collateralLocked),
     },
   });
 };
@@ -478,7 +506,7 @@ export const executeMarketTrade = async (input: {
   outcomeId: string;
   action: MarketTradeSide;
   amount: number;
-  sellMode?: 'points' | 'shares';
+  amountMode?: 'points' | 'shares';
 }): Promise<MarketTradeResult> =>
   runSerializableTransaction(async (tx) => {
     const market = await getMarketForUpdate(tx, input.marketId);
@@ -494,51 +522,138 @@ export const executeMarketTrade = async (input: {
     }
 
     const account = await ensureMarketAccountTx(tx, market.guildId, input.userId);
-    if (input.action === 'buy' && account.bankroll < input.amount) {
-      throw new Error('You do not have enough bankroll for that trade.');
-    }
-
     const shares = getOutstandingShares(market);
-    const position = getPositionMap(market.positions).get(outcome.id);
+    const positions = getPositionMap(market.positions);
+    const longPosition = getPosition(positions, outcome.id, 'long');
+    const shortPosition = getPosition(positions, outcome.id, 'short');
     let shareDelta = 0;
     let nextShares = [...shares];
-    let nextPositionShares = position?.shares ?? 0;
-    let nextPositionCostBasis = position?.costBasis ?? 0;
+    let nextLongShares = longPosition?.shares ?? 0;
+    let nextLongCostBasis = longPosition?.costBasis ?? 0;
+    let nextShortShares = shortPosition?.shares ?? 0;
+    let nextShortProceeds = shortPosition?.proceeds ?? 0;
+    let nextShortCollateral = shortPosition?.collateralLocked ?? 0;
     let nextBankroll = account.bankroll;
     let realizedProfitDelta = 0;
     let cashAmount = input.amount;
+    let positionSide: MarketPositionSide = 'long';
 
-    if (input.action === 'buy') {
-      shareDelta = solveBuySharesForAmount(shares, outcomeIndex, input.amount, market.liquidityParameter);
-      nextShares[outcomeIndex] = (nextShares[outcomeIndex] ?? 0) + shareDelta;
-      nextPositionShares += shareDelta;
-      nextPositionCostBasis += input.amount;
-      nextBankroll -= input.amount;
-    } else {
-      const ownedShares = position?.shares ?? 0;
-      if (ownedShares <= 1e-6) {
-        throw new Error('You do not own shares in that outcome yet.');
+    switch (input.action) {
+      case 'buy': {
+        if (shortPosition && shortPosition.shares > 1e-6) {
+          throw new Error('You must cover your short position in that outcome before buying it.');
+        }
+
+        if (account.bankroll < input.amount) {
+          throw new Error('You do not have enough bankroll for that trade.');
+        }
+
+        shareDelta = solveBuySharesForAmount(shares, outcomeIndex, input.amount, market.liquidityParameter);
+        nextShares[outcomeIndex] = (nextShares[outcomeIndex] ?? 0) + shareDelta;
+        nextLongShares += shareDelta;
+        nextLongCostBasis += input.amount;
+        nextBankroll -= input.amount;
+        positionSide = 'long';
+        break;
       }
+      case 'sell': {
+        const ownedShares = longPosition?.shares ?? 0;
+        if (ownedShares <= 1e-6) {
+          throw new Error('You do not own a long position in that outcome yet.');
+        }
 
-      const requestedSharesToSell = input.sellMode === 'shares'
-        ? input.amount
-        : solveSellSharesForAmount(shares, outcomeIndex, input.amount, ownedShares, market.liquidityParameter);
-      if (requestedSharesToSell > ownedShares + 1e-6) {
-        throw new Error('You do not have enough shares in that outcome to sell that much.');
+        const requestedSharesToSell = input.amountMode === 'shares'
+          ? input.amount
+          : solveSellSharesForAmount(shares, outcomeIndex, input.amount, ownedShares, market.liquidityParameter);
+        if (requestedSharesToSell > ownedShares + 1e-6) {
+          throw new Error('You do not have enough shares in that outcome to sell that much.');
+        }
+
+        shareDelta = -requestedSharesToSell;
+        nextShares[outcomeIndex] = (nextShares[outcomeIndex] ?? 0) + shareDelta;
+        const sharesSold = Math.abs(shareDelta);
+        const averageCostBasis = (longPosition?.costBasis ?? 0) / ownedShares;
+        const releasedCostBasis = averageCostBasis * sharesSold;
+        nextLongShares -= sharesSold;
+        nextLongCostBasis -= releasedCostBasis;
+        cashAmount = input.amountMode === 'shares'
+          ? roundCurrency(computeSellPayout(shares, outcomeIndex, sharesSold, market.liquidityParameter))
+          : input.amount;
+        nextBankroll += cashAmount;
+        realizedProfitDelta = roundCurrency(cashAmount - releasedCostBasis);
+        positionSide = 'long';
+        break;
       }
+      case 'short': {
+        if (longPosition && longPosition.shares > 1e-6) {
+          throw new Error('You must sell your long position in that outcome before shorting it.');
+        }
 
-      shareDelta = -requestedSharesToSell;
-      nextShares[outcomeIndex] = (nextShares[outcomeIndex] ?? 0) + shareDelta;
-      const sharesSold = Math.abs(shareDelta);
-      const averageCostBasis = (position?.costBasis ?? 0) / ownedShares;
-      const releasedCostBasis = averageCostBasis * sharesSold;
-      nextPositionShares -= sharesSold;
-      nextPositionCostBasis -= releasedCostBasis;
-      cashAmount = input.sellMode === 'shares'
-        ? roundCurrency(computeSellPayout(shares, outcomeIndex, sharesSold, market.liquidityParameter))
-        : input.amount;
-      nextBankroll += cashAmount;
-      realizedProfitDelta = roundCurrency(cashAmount - releasedCostBasis);
+        const sharesToShort = input.amountMode === 'shares'
+          ? input.amount
+          : solveShortSharesForAmount(shares, outcomeIndex, input.amount, market.liquidityParameter);
+        const proceedsReceived = input.amountMode === 'shares'
+          ? roundCurrency(computeSellPayout(shares, outcomeIndex, sharesToShort, market.liquidityParameter))
+          : input.amount;
+        const collateralToLock = roundCurrency(sharesToShort);
+        if ((account.bankroll + proceedsReceived - collateralToLock) < -1e-6) {
+          throw new Error('You do not have enough bankroll to collateralize that short.');
+        }
+
+        shareDelta = -sharesToShort;
+        nextShares[outcomeIndex] = (nextShares[outcomeIndex] ?? 0) + shareDelta;
+        nextShortShares += sharesToShort;
+        nextShortProceeds += proceedsReceived;
+        nextShortCollateral += collateralToLock;
+        nextBankroll += proceedsReceived - collateralToLock;
+        cashAmount = roundCurrency(proceedsReceived);
+        positionSide = 'short';
+        break;
+      }
+      case 'cover': {
+        const ownedShortShares = shortPosition?.shares ?? 0;
+        if (ownedShortShares <= 1e-6) {
+          throw new Error('You do not have a short position in that outcome yet.');
+        }
+
+        if (input.amountMode !== 'shares') {
+          const maxCoverCost = computeBuyCost(shares, outcomeIndex, ownedShortShares, market.liquidityParameter);
+          if (input.amount > maxCoverCost + 1e-6) {
+            throw new Error('You do not have enough short shares in that outcome to cover that much.');
+          }
+        }
+
+        const sharesToCover = input.amountMode === 'shares'
+          ? input.amount
+          : solveBuySharesForAmount(shares, outcomeIndex, input.amount, market.liquidityParameter);
+        if (sharesToCover > ownedShortShares + 1e-6) {
+          throw new Error('You do not have enough short shares in that outcome to cover that much.');
+        }
+
+        const coverCost = input.amountMode === 'shares'
+          ? roundCurrency(computeBuyCost(shares, outcomeIndex, sharesToCover, market.liquidityParameter))
+          : input.amount;
+        const averageProceeds = (shortPosition?.proceeds ?? 0) / ownedShortShares;
+        const averageCollateral = (shortPosition?.collateralLocked ?? 0) / ownedShortShares;
+        const releasedProceeds = averageProceeds * sharesToCover;
+        const releasedCollateral = averageCollateral * sharesToCover;
+        if (account.bankroll + releasedCollateral < coverCost - 1e-6) {
+          throw new Error('You do not have enough bankroll to cover that short.');
+        }
+
+        shareDelta = sharesToCover;
+        nextShares[outcomeIndex] = (nextShares[outcomeIndex] ?? 0) + shareDelta;
+        nextShortShares -= sharesToCover;
+        nextShortProceeds -= releasedProceeds;
+        nextShortCollateral -= releasedCollateral;
+        nextBankroll += releasedCollateral - coverCost;
+        cashAmount = roundCurrency(coverCost);
+        realizedProfitDelta = roundCurrency(releasedProceeds - coverCost);
+        positionSide = 'short';
+        break;
+      }
+      default:
+        throw new Error('Unsupported market trade action.');
     }
 
     const probabilities = computeLmsrProbabilities(nextShares, market.liquidityParameter);
@@ -551,8 +666,22 @@ export const executeMarketTrade = async (input: {
       marketId: market.id,
       outcomeId: outcome.id,
       userId: input.userId,
-      shares: nextPositionShares,
-      costBasis: nextPositionCostBasis,
+      side: 'long',
+      shares: nextLongShares,
+      costBasis: nextLongCostBasis,
+      proceeds: 0,
+      collateralLocked: 0,
+    });
+
+    await upsertPosition(tx, {
+      marketId: market.id,
+      outcomeId: outcome.id,
+      userId: input.userId,
+      side: 'short',
+      shares: nextShortShares,
+      costBasis: 0,
+      proceeds: nextShortProceeds,
+      collateralLocked: nextShortCollateral,
     });
 
     const updatedAccount = await tx.marketAccount.update({
@@ -576,7 +705,7 @@ export const executeMarketTrade = async (input: {
             userId: input.userId,
             outcomeId: outcome.id,
             side: input.action,
-            cashDelta: input.action === 'buy' ? -cashAmount : cashAmount,
+            cashDelta: input.action === 'buy' || input.action === 'cover' ? -cashAmount : cashAmount,
             shareDelta: roundCurrency(shareDelta),
             probabilitySnapshot: probabilities[outcomeIndex] ?? 0,
             cumulativeVolume: market.totalVolume + cashAmount,
@@ -590,6 +719,7 @@ export const executeMarketTrade = async (input: {
       market: updatedMarket,
       outcome,
       account: updatedAccount,
+      positionSide,
       shareDelta: roundCurrency(shareDelta),
       cashAmount: roundCurrency(cashAmount),
       realizedProfitDelta,
@@ -666,10 +796,18 @@ export const resolveMarket = async (input: {
       let profit = 0;
 
       for (const position of positions) {
-        const isWinner = position.outcomeId === winningOutcome.id;
-        const positionPayout = isWinner ? position.shares : 0;
-        payout += positionPayout;
-        profit += positionPayout - position.costBasis;
+        if (position.side === 'long') {
+          const isWinner = position.outcomeId === winningOutcome.id;
+          const positionPayout = isWinner ? position.shares : 0;
+          payout += positionPayout;
+          profit += positionPayout - position.costBasis;
+          continue;
+        }
+
+        const shortWins = position.outcomeId !== winningOutcome.id;
+        const releasedCollateral = shortWins ? position.collateralLocked : 0;
+        payout += releasedCollateral;
+        profit += shortWins ? position.proceeds : position.proceeds - position.shares;
       }
 
       await tx.marketAccount.update({
@@ -751,8 +889,9 @@ export const cancelMarket = async (input: {
     }
 
     for (const [userId, positions] of positionsByUser) {
-      const refund = roundCurrency(positions.reduce((sum, position) => sum + position.costBasis, 0));
-      if (refund <= 0) {
+      const refundDelta = roundCurrency(positions.reduce((sum, position) =>
+        sum + (position.side === 'long' ? position.costBasis : position.collateralLocked - position.proceeds), 0));
+      if (Math.abs(refundDelta) <= 1e-6) {
         continue;
       }
 
@@ -762,7 +901,7 @@ export const cancelMarket = async (input: {
           id: account.id,
         },
         data: {
-          bankroll: roundCurrency(account.bankroll + refund),
+          bankroll: roundCurrency(account.bankroll + refundDelta),
         },
       });
     }
@@ -823,6 +962,9 @@ export const getMarketAccountSummary = async (guildId: string, userId: string): 
 
     return {
       ...account,
+      lockedCollateral: roundCurrency(openPositions
+        .filter((position) => position.side === 'short')
+        .reduce((sum, position) => sum + position.collateralLocked, 0)),
       openPositions,
     };
   });

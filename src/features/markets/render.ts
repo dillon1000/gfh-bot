@@ -12,13 +12,17 @@ import {
 import { buildFeedbackEmbed } from '../polls/poll-embeds.js';
 import {
   marketBuyButtonCustomId,
+  marketCoverButtonCustomId,
   marketCancelButtonCustomId,
   marketCancelModalCustomId,
   marketPortfolioButtonCustomId,
+  marketPortfolioSelectCustomId,
+  marketQuickTradeButtonCustomId,
   marketRefreshButtonCustomId,
   marketResolveButtonCustomId,
   marketResolveModalCustomId,
   marketSellButtonCustomId,
+  marketShortButtonCustomId,
   marketTradeModalCustomId,
   marketTradeSelectCustomId,
 } from './custom-ids.js';
@@ -27,6 +31,51 @@ import { computeMarketSummary, getMarketStatus } from './service.js';
 import type { MarketAccountWithOpenPositions, MarketWithRelations } from './types.js';
 
 const formatMoney = (value: number): string => `${value.toFixed(2)} pts`;
+const truncateLabel = (value: string, max = 16): string =>
+  value.length <= max ? value : `${value.slice(0, Math.max(1, max - 1))}\u2026`;
+
+const getTradeCopy = (action: 'buy' | 'sell' | 'short' | 'cover'): {
+  title: string;
+  description: string;
+  color: number;
+  amountLabel: string;
+  placeholder: string;
+} => {
+  switch (action) {
+    case 'buy':
+      return {
+        title: 'Buy Position',
+        description: 'Choose the outcome you want to buy.',
+        color: 0x57f287,
+        amountLabel: 'Points to spend',
+        placeholder: '50',
+      };
+    case 'sell':
+      return {
+        title: 'Sell Position',
+        description: 'Choose the long position you want to sell.',
+        color: 0x60a5fa,
+        amountLabel: 'Amount to sell',
+        placeholder: '10 pts or 2.5 shares',
+      };
+    case 'short':
+      return {
+        title: 'Short Position',
+        description: 'Choose the outcome you want to short.',
+        color: 0xf59e0b,
+        amountLabel: 'Amount to short',
+        placeholder: '10 pts or 2.5 shares',
+      };
+    case 'cover':
+      return {
+        title: 'Cover Position',
+        description: 'Choose the short position you want to cover.',
+        color: 0xeb459e,
+        amountLabel: 'Amount to cover',
+        placeholder: '10 pts or 2.5 shares',
+      };
+  }
+};
 
 const getStatusColor = (market: MarketWithRelations): number => {
   const status = getMarketStatus(market);
@@ -67,7 +116,7 @@ export const buildMarketEmbed = (market: MarketWithRelations): EmbedBuilder => {
       {
         name: 'Current Probabilities',
         value: summary.probabilities
-          .map((entry, index) => `${index + 1}. **${entry.label}** — ${formatProbabilityPercent(entry.probability)} (${entry.shares.toFixed(2)} shares)`)
+          .map((entry, index) => `${index + 1}. **${entry.label}** — ${formatProbabilityPercent(entry.probability)} (${entry.shares.toFixed(2)} net shares)`)
           .join('\n'),
       },
     )
@@ -80,21 +129,35 @@ export const buildMarketMessage = (
   market: MarketWithRelations,
 ): {
   embeds: [EmbedBuilder];
-  components: [ActionRowBuilder<ButtonBuilder>];
+  components: ActionRowBuilder<ButtonBuilder>[];
 } => {
   const status = getMarketStatus(market);
   const tradingClosed = status !== 'open';
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(marketBuyButtonCustomId(market.id))
-      .setLabel('Buy')
-      .setStyle(ButtonStyle.Success)
-      .setDisabled(tradingClosed),
-    new ButtonBuilder()
-      .setCustomId(marketSellButtonCustomId(market.id))
-      .setLabel('Sell')
-      .setStyle(ButtonStyle.Primary)
-      .setDisabled(tradingClosed),
+  const summary = computeMarketSummary(market);
+  const tradeRows: ActionRowBuilder<ButtonBuilder>[] = [];
+
+  if (!tradingClosed) {
+    for (let index = 0; index < summary.probabilities.length; index += 2) {
+      const chunk = summary.probabilities.slice(index, index + 2);
+      const row = new ActionRowBuilder<ButtonBuilder>();
+      for (const entry of chunk) {
+        const outcomeLabel = truncateLabel(entry.label);
+        row.addComponents(
+          new ButtonBuilder()
+            .setCustomId(marketQuickTradeButtonCustomId('buy', market.id, entry.outcomeId))
+            .setLabel(`${outcomeLabel} Yes ${formatProbabilityPercent(entry.probability)}`)
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId(marketQuickTradeButtonCustomId('short', market.id, entry.outcomeId))
+            .setLabel(`${outcomeLabel} No ${formatProbabilityPercent(1 - entry.probability)}`)
+            .setStyle(ButtonStyle.Danger),
+        );
+      }
+      tradeRows.push(row);
+    }
+  }
+
+  const utilityRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(marketPortfolioButtonCustomId(market.id))
       .setLabel('Portfolio')
@@ -107,7 +170,7 @@ export const buildMarketMessage = (
 
   return {
     embeds: [buildMarketEmbed(market)],
-    components: [row],
+    components: [...tradeRows, utilityRow],
   };
 };
 
@@ -138,56 +201,59 @@ export const buildMarketResolvePrompt = (market: MarketWithRelations): {
 
 export const buildMarketTradeSelector = (
   market: MarketWithRelations,
-  action: 'buy' | 'sell',
+  action: 'buy' | 'sell' | 'short' | 'cover',
 ): {
   embeds: [EmbedBuilder];
   components: [ActionRowBuilder<StringSelectMenuBuilder>];
-} => ({
-  embeds: [
-    buildMarketStatusEmbed(
-      action === 'buy' ? 'Buy Position' : 'Sell Position',
-      `Choose the outcome you want to ${action}.`,
-      action === 'buy' ? 0x57f287 : 0x60a5fa,
-    ),
-  ],
-  components: [
-    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(marketTradeSelectCustomId(action, market.id))
-        .setPlaceholder(`Select an outcome to ${action}`)
-        .setMinValues(1)
-        .setMaxValues(1)
-        .addOptions(
-          market.outcomes.map((outcome, index) => ({
-            label: `${index + 1}. ${outcome.label}`,
-            value: outcome.id,
-            description: `Outstanding shares: ${outcome.outstandingShares.toFixed(2)}`,
-          })),
-        ),
-    ),
-  ],
-});
+} => {
+  const copy = getTradeCopy(action);
+
+  return {
+    embeds: [
+      buildMarketStatusEmbed(copy.title, copy.description, copy.color),
+    ],
+    components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(marketTradeSelectCustomId(action, market.id))
+          .setPlaceholder(`Select an outcome to ${action}`)
+          .setMinValues(1)
+          .setMaxValues(1)
+          .addOptions(
+            market.outcomes.map((outcome, index) => ({
+              label: `${index + 1}. ${outcome.label}`,
+              value: outcome.id,
+              description: `Net shares: ${outcome.outstandingShares.toFixed(2)}`,
+            })),
+          ),
+      ),
+    ],
+  };
+};
 
 export const buildMarketTradeModal = (
-  action: 'buy' | 'sell',
+  action: 'buy' | 'sell' | 'short' | 'cover',
   marketId: string,
   outcomeId: string,
-): ModalBuilder =>
-  new ModalBuilder()
+): ModalBuilder => {
+  const copy = getTradeCopy(action);
+
+  return new ModalBuilder()
     .setCustomId(marketTradeModalCustomId(action, marketId, outcomeId))
-    .setTitle(action === 'buy' ? 'Buy Position' : 'Sell Position')
+    .setTitle(copy.title)
     .addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
           .setCustomId('amount')
-          .setLabel(action === 'buy' ? 'Points to spend' : 'Amount to sell')
+          .setLabel(copy.amountLabel)
           .setStyle(TextInputStyle.Short)
           .setRequired(true)
-          .setPlaceholder(action === 'buy' ? '10' : '10 pts or 2.5 shares')
-          .setMinLength(2)
+          .setPlaceholder(copy.placeholder)
+          .setMinLength(1)
           .setMaxLength(20),
       ),
     );
+};
 
 export const buildMarketResolveModal = (
   marketId: string,
@@ -250,14 +316,53 @@ export const buildPortfolioEmbed = (
       [
         `User: <@${userId}>`,
         `Bankroll: **${formatMoney(portfolio.bankroll)}**`,
+        `Locked Collateral: **${formatMoney(portfolio.lockedCollateral)}**`,
         `Realized Profit: **${formatMoney(portfolio.realizedProfit)}**`,
         '',
         portfolio.openPositions.length === 0
           ? 'No open positions right now.'
           : portfolio.openPositions.slice(0, 10).map((position) =>
-            `• **${position.market.title}** — ${position.outcome.label}: ${position.shares.toFixed(2)} shares (${formatMoney(position.costBasis)} basis)`).join('\n'),
+            position.side === 'long'
+              ? `• **${position.market.title}** — LONG ${position.outcome.label}: ${position.shares.toFixed(2)} shares (${formatMoney(position.costBasis)} basis)`
+              : `• **${position.market.title}** — SHORT ${position.outcome.label}: ${position.shares.toFixed(2)} shares (${formatMoney(position.proceeds)} proceeds, ${formatMoney(position.collateralLocked)} locked)`).join('\n'),
       ].join('\n'),
     );
+
+export const buildPortfolioMessage = (
+  userId: string,
+  portfolio: MarketAccountWithOpenPositions,
+  canManage = false,
+): {
+  embeds: [EmbedBuilder];
+  components: ActionRowBuilder<StringSelectMenuBuilder>[];
+} => {
+  const components: ActionRowBuilder<StringSelectMenuBuilder>[] = [];
+  const manageablePositions = portfolio.openPositions.filter((position) => !position.market.tradingClosedAt);
+
+  if (canManage && manageablePositions.length > 0) {
+    components.push(
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(marketPortfolioSelectCustomId())
+          .setPlaceholder('Manage an open position')
+          .setMinValues(1)
+          .setMaxValues(1)
+          .addOptions(
+            manageablePositions.slice(0, 25).map((position) => ({
+              label: `${position.side === 'long' ? 'Sell' : 'Cover'} ${truncateLabel(position.market.title, 40)}`,
+              value: `${position.side === 'long' ? 'sell' : 'cover'}:${position.marketId}:${position.outcomeId}`,
+              description: `${position.outcome.label} • ${position.shares.toFixed(2)} shares`,
+            })),
+          ),
+      ),
+    );
+  }
+
+  return {
+    embeds: [buildPortfolioEmbed(userId, portfolio)],
+    components,
+  };
+};
 
 export const buildMarketListEmbed = (
   title: string,

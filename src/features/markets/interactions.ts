@@ -8,7 +8,7 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 
-import { buildLeaderboardEmbed, buildMarketCancelModal, buildMarketListEmbed, buildMarketResolveModal, buildMarketStatusEmbed, buildMarketTradeModal, buildMarketTradeSelector, buildPortfolioEmbed } from './render.js';
+import { buildLeaderboardEmbed, buildMarketCancelModal, buildMarketListEmbed, buildMarketResolveModal, buildMarketStatusEmbed, buildMarketTradeModal, buildMarketTradeSelector, buildPortfolioMessage } from './render.js';
 import { disableMarketConfig, describeMarketConfig, getMarketConfig, setMarketConfig } from './config-service.js';
 import { buildMarketViewResponse, clearMarketLifecycle, hydrateMarketMessage, refreshMarketMessage } from './service-lifecycle.js';
 import {
@@ -31,12 +31,14 @@ import {
   parseMarketCloseDuration,
   parseMarketOutcomes,
   parseMarketTags,
+  parseFlexibleTradeAmount,
   parseOutcomeSelection,
-  parseSellTradeAmount,
   parseTradeAmount,
   sanitizeMarketDescription,
   sanitizeMarketTitle,
 } from './parser.js';
+
+type TradeAction = 'buy' | 'sell' | 'short' | 'cover';
 
 const assertManageGuild = (interaction: ChatInputCommandInteraction): void => {
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
@@ -46,42 +48,57 @@ const assertManageGuild = (interaction: ChatInputCommandInteraction): void => {
 
 const parseTradeCustomId = (
   customId: string,
-): { action: 'buy' | 'sell'; marketId: string } | null => {
-  const match = /^market:(buy|sell):(.+)$/.exec(customId);
+): { action: TradeAction; marketId: string } | null => {
+  const match = /^market:(buy|sell|short|cover):(.+)$/.exec(customId);
   if (!match?.[1] || !match[2]) {
     return null;
   }
 
   return {
-    action: match[1] as 'buy' | 'sell',
+    action: match[1] as TradeAction,
     marketId: match[2],
+  };
+};
+
+const parseQuickTradeCustomId = (
+  customId: string,
+): { action: 'buy' | 'short'; marketId: string; outcomeId: string } | null => {
+  const match = /^market:quick:(buy|short):([^:]+):([^:]+)$/.exec(customId);
+  if (!match?.[1] || !match[2] || !match[3]) {
+    return null;
+  }
+
+  return {
+    action: match[1] as 'buy' | 'short',
+    marketId: match[2],
+    outcomeId: match[3],
   };
 };
 
 const parseTradeSelectCustomId = (
   customId: string,
-): { action: 'buy' | 'sell'; marketId: string } | null => {
-  const match = /^market:trade-select:(buy|sell):(.+)$/.exec(customId);
+): { action: TradeAction; marketId: string } | null => {
+  const match = /^market:trade-select:(buy|sell|short|cover):(.+)$/.exec(customId);
   if (!match?.[1] || !match[2]) {
     return null;
   }
 
   return {
-    action: match[1] as 'buy' | 'sell',
+    action: match[1] as TradeAction,
     marketId: match[2],
   };
 };
 
 const parseTradeModalCustomId = (
   customId: string,
-): { action: 'buy' | 'sell'; marketId: string; outcomeId: string } | null => {
-  const match = /^market:trade-modal:(buy|sell):([^:]+):([^:]+)$/.exec(customId);
+): { action: TradeAction; marketId: string; outcomeId: string } | null => {
+  const match = /^market:trade-modal:(buy|sell|short|cover):([^:]+):([^:]+)$/.exec(customId);
   if (!match?.[1] || !match[2] || !match[3]) {
     return null;
   }
 
   return {
-    action: match[1] as 'buy' | 'sell',
+    action: match[1] as TradeAction,
     marketId: match[2],
     outcomeId: match[3],
   };
@@ -90,6 +107,21 @@ const parseTradeModalCustomId = (
 const parseSimpleMarketId = (prefix: string, customId: string): string | null => {
   const match = new RegExp(`^${prefix}:(.+)$`).exec(customId);
   return match?.[1] ?? null;
+};
+
+const parsePortfolioSelectionValue = (
+  value: string,
+): { action: 'sell' | 'cover'; marketId: string; outcomeId: string } | null => {
+  const match = /^(sell|cover):([^:]+):([^:]+)$/.exec(value);
+  if (!match?.[1] || !match[2] || !match[3]) {
+    return null;
+  }
+
+  return {
+    action: match[1] as 'sell' | 'cover',
+    marketId: match[2],
+    outcomeId: match[3],
+  };
 };
 
 const validateEvidenceUrl = (value: string | null | undefined): string | null => {
@@ -107,6 +139,19 @@ const validateEvidenceUrl = (value: string | null | undefined): string | null =>
     return url.toString();
   } catch {
     throw new Error('Evidence URL must be a valid http or https URL.');
+  }
+};
+
+const getTradeFeedback = (action: TradeAction): { title: string; color: number } => {
+  switch (action) {
+    case 'buy':
+      return { title: 'Position Bought', color: 0x57f287 };
+    case 'sell':
+      return { title: 'Position Sold', color: 0x60a5fa };
+    case 'short':
+      return { title: 'Position Shorted', color: 0xf59e0b };
+    case 'cover':
+      return { title: 'Position Covered', color: 0xeb459e };
   }
 };
 
@@ -276,27 +321,39 @@ export const handleMarketCommand = async (
         throw new Error('Market not found.');
       }
 
+      const action = interaction.options.getString('action', true) as TradeAction;
+      const rawAmount = interaction.options.getString('amount', true);
+      const parsedAmount = action === 'buy'
+        ? { amount: parseTradeAmount(rawAmount), amountMode: 'points' as const }
+        : (() => {
+            const parsed = parseFlexibleTradeAmount(rawAmount);
+            return {
+              amount: parsed.amount,
+              amountMode: parsed.mode,
+            };
+          })();
       const outcome = parseOutcomeSelection(interaction.options.getString('outcome', true), market.outcomes);
       const result = await executeMarketTrade({
         marketId: market.id,
         userId: interaction.user.id,
         outcomeId: outcome.id,
-        action: interaction.options.getString('action', true) as 'buy' | 'sell',
-        amount: parseTradeAmount(interaction.options.getInteger('amount', true)),
-        ...(interaction.options.getString('action', true) === 'sell' ? { sellMode: 'points' as const } : {}),
+        action,
+        amount: parsedAmount.amount,
+        amountMode: parsedAmount.amountMode,
       });
+      const feedback = getTradeFeedback(action);
       await scheduleMarketRefresh(market.id);
       await interaction.editReply({
         embeds: [
           buildMarketStatusEmbed(
-            result.shareDelta > 0 ? 'Position Bought' : 'Position Sold',
+            feedback.title,
             [
               `Outcome: **${outcome.label}**`,
               `Cash: ${result.cashAmount} pts`,
               `Shares: ${Math.abs(result.shareDelta).toFixed(2)}`,
               `Bankroll: ${result.account.bankroll.toFixed(2)} pts`,
             ].join('\n'),
-            result.shareDelta > 0 ? 0x57f287 : 0x60a5fa,
+            feedback.color,
           ),
         ],
       });
@@ -362,7 +419,7 @@ export const handleMarketCommand = async (
       const portfolio = await getMarketAccountSummary(interaction.guildId, user.id);
       await interaction.reply({
         flags: MessageFlags.Ephemeral,
-        embeds: [buildPortfolioEmbed(user.id, portfolio)],
+        ...buildPortfolioMessage(user.id, portfolio, user.id === interaction.user.id),
         allowedMentions: {
           parse: [],
         },
@@ -392,6 +449,21 @@ export const handleMarketCommand = async (
 export const handleMarketButton = async (
   interaction: ButtonInteraction,
 ): Promise<void> => {
+  const quickTrade = parseQuickTradeCustomId(interaction.customId);
+  if (quickTrade) {
+    const market = await getMarketById(quickTrade.marketId);
+    if (!market) {
+      throw new Error('Market not found.');
+    }
+
+    await interaction.showModal(buildMarketTradeModal(
+      quickTrade.action,
+      quickTrade.marketId,
+      quickTrade.outcomeId,
+    ));
+    return;
+  }
+
   const tradeAction = parseTradeCustomId(interaction.customId);
   if (tradeAction) {
     const market = await getMarketById(tradeAction.marketId);
@@ -419,7 +491,7 @@ export const handleMarketButton = async (
     const portfolio = await getMarketAccountSummary(market.guildId, interaction.user.id);
     await interaction.reply({
       flags: MessageFlags.Ephemeral,
-      embeds: [buildPortfolioEmbed(interaction.user.id, portfolio)],
+      ...buildPortfolioMessage(interaction.user.id, portfolio, true),
       allowedMentions: {
         parse: [],
       },
@@ -449,6 +521,30 @@ export const handleMarketButton = async (
 export const handleMarketSelect = async (
   interaction: StringSelectMenuInteraction,
 ): Promise<void> => {
+  if (interaction.customId === 'market:portfolio-select') {
+    const value = interaction.values[0];
+    if (!value) {
+      throw new Error('Choose a position first.');
+    }
+
+    const parsedValue = parsePortfolioSelectionValue(value);
+    if (!parsedValue) {
+      throw new Error('Unknown portfolio action.');
+    }
+
+    const market = await getMarketById(parsedValue.marketId);
+    if (!market) {
+      throw new Error('Market not found.');
+    }
+
+    await interaction.showModal(buildMarketTradeModal(
+      parsedValue.action,
+      parsedValue.marketId,
+      parsedValue.outcomeId,
+    ));
+    return;
+  }
+
   const parsed = parseTradeSelectCustomId(interaction.customId);
   if (!parsed) {
     throw new Error('Unknown market select action.');
@@ -481,29 +577,31 @@ export const handleMarketModal = async (
       ...(trade.action === 'buy'
         ? {
             amount: parseTradeAmount(interaction.fields.getTextInputValue('amount')),
+            amountMode: 'points' as const,
           }
         : (() => {
-            const parsedAmount = parseSellTradeAmount(interaction.fields.getTextInputValue('amount'));
+            const parsedAmount = parseFlexibleTradeAmount(interaction.fields.getTextInputValue('amount'));
             return {
               amount: parsedAmount.amount,
-              sellMode: parsedAmount.mode,
+              amountMode: parsedAmount.mode,
             };
           })()),
     });
     await scheduleMarketRefresh(trade.marketId);
     const outcome = market.outcomes.find((entry) => entry.id === trade.outcomeId);
+    const feedback = getTradeFeedback(trade.action);
     await interaction.reply({
       flags: MessageFlags.Ephemeral,
       embeds: [
         buildMarketStatusEmbed(
-          trade.action === 'buy' ? 'Position Bought' : 'Position Sold',
+          feedback.title,
             [
               `Outcome: **${outcome?.label ?? 'Unknown'}**`,
               `Cash: ${result.cashAmount} pts`,
               `Shares: ${Math.abs(result.shareDelta).toFixed(2)}`,
               `Bankroll: ${result.account.bankroll.toFixed(2)} pts`,
             ].join('\n'),
-          trade.action === 'buy' ? 0x57f287 : 0x60a5fa,
+          feedback.color,
         ),
       ],
     });

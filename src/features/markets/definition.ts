@@ -163,6 +163,8 @@ export const marketCommand = new SlashCommandBuilder()
           .addChoices(
             { name: 'Buy', value: 'buy' },
             { name: 'Sell', value: 'sell' },
+            { name: 'Short', value: 'short' },
+            { name: 'Cover', value: 'cover' },
           ),
       )
       .addStringOption((option) =>
@@ -171,12 +173,11 @@ export const marketCommand = new SlashCommandBuilder()
           .setDescription('Outcome number, outcome ID, or exact label')
           .setRequired(true),
       )
-      .addIntegerOption((option) =>
+      .addStringOption((option) =>
         option
           .setName('amount')
-          .setDescription('Points to spend or receive (sell uses payout points)')
+          .setDescription('Trade amount, for example 50 or 10 pts or 2.5 shares')
           .setRequired(true)
-          .setMinValue(10),
       ),
   )
   .addSubcommand((subcommand) =>

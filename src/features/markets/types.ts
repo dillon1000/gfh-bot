@@ -2,6 +2,7 @@ import type {
   Market,
   MarketAccount,
   MarketOutcome,
+  MarketPositionSide,
   MarketPosition,
   MarketTrade,
 } from '@prisma/client';
@@ -14,6 +15,7 @@ export type MarketWithRelations = Market & {
 };
 
 export type MarketAccountWithOpenPositions = MarketAccount & {
+  lockedCollateral: number;
   openPositions: Array<MarketPosition & {
     market: Market;
     outcome: MarketOutcome;
@@ -38,6 +40,7 @@ export type MarketTradeResult = {
   market: MarketWithRelations;
   outcome: MarketOutcome;
   account: MarketAccount;
+  positionSide: MarketPositionSide;
   shareDelta: number;
   cashAmount: number;
   realizedProfitDelta: number;

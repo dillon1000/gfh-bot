@@ -168,7 +168,7 @@ export const parseTradeAmount = (value: string | number): number => {
   return normalized;
 };
 
-export type ParsedSellAmount =
+export type ParsedTradeAmount =
   | {
       mode: 'points';
       amount: number;
@@ -178,10 +178,10 @@ export type ParsedSellAmount =
       amount: number;
     };
 
-export const parseSellTradeAmount = (value: string): ParsedSellAmount => {
+export const parseFlexibleTradeAmount = (value: string): ParsedTradeAmount => {
   const trimmed = value.trim();
   if (!trimmed) {
-    throw new Error('Sell amount cannot be empty. Use formats like 10 pts or 2.5 shares.');
+    throw new Error('Trade amount cannot be empty. Use formats like 10 pts or 2.5 shares.');
   }
 
   const pointsMatch = sellPointsPattern.exec(trimmed);
@@ -205,8 +205,10 @@ export const parseSellTradeAmount = (value: string): ParsedSellAmount => {
     };
   }
 
-  throw new Error('Sell amount must look like 10 pts or 2.5 shares.');
+  throw new Error('Trade amount must look like 10 pts or 2.5 shares.');
 };
+
+export const parseSellTradeAmount = parseFlexibleTradeAmount;
 
 export const parseOutcomeSelection = (
   value: string,

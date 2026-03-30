@@ -50,6 +50,13 @@ enum AuditLogDeliveryStatus {
 enum MarketTradeSide {
   buy
   sell
+  short
+  cover
+}
+
+enum MarketPositionSide {
+  long
+  short
 }
 
 model GuildConfig {
@@ -317,18 +324,21 @@ model MarketTrade {
 }
 
 model MarketPosition {
-  id         String        @id @default(cuid())
-  marketId   String
-  outcomeId  String
-  userId     String
-  shares     Float         @default(0)
-  costBasis  Float         @default(0)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-  market     Market        @relation(fields: [marketId], references: [id], onDelete: Cascade)
-  outcome    MarketOutcome @relation(fields: [outcomeId], references: [id], onDelete: Cascade)
+  id               String             @id @default(cuid())
+  marketId         String
+  outcomeId        String
+  userId           String
+  side             MarketPositionSide @default(long)
+  shares           Float              @default(0)
+  costBasis        Float              @default(0)
+  proceeds         Float              @default(0)
+  collateralLocked Float              @default(0)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  market           Market             @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  outcome          MarketOutcome      @relation(fields: [outcomeId], references: [id], onDelete: Cascade)
 
-  @@unique([marketId, outcomeId, userId])
+  @@unique([marketId, outcomeId, userId, side])
   @@index([marketId, userId])
 }
 
