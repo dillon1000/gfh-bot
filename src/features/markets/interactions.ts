@@ -98,9 +98,14 @@ const validateEvidenceUrl = (value: string | null | undefined): string | null =>
   }
 
   try {
-    return new URL(trimmed).toString();
+    const url = new URL(trimmed);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      throw new Error('Evidence URL must use http or https.');
+    }
+
+    return url.toString();
   } catch {
-    throw new Error('Evidence URL must be a valid URL.');
+    throw new Error('Evidence URL must be a valid http or https URL.');
   }
 };
 
@@ -168,6 +173,7 @@ export const handleMarketCommand = async (
 
   switch (subcommand) {
     case 'create': {
+      await interaction.deferReply();
       const config = await getMarketConfig(interaction.guildId);
       if (!config.enabled || !config.channelId) {
         throw new Error('Prediction markets are not configured yet. Ask a server manager to run /market config set.');
@@ -191,7 +197,7 @@ export const handleMarketCommand = async (
         await deleteMarketRecord(market.id).catch(() => undefined);
         throw error;
       }
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [
           buildMarketStatusEmbed(
             'Market Created',

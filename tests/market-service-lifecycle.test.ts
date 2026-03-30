@@ -10,6 +10,14 @@ const {
   getMarketById: vi.fn(),
 }));
 
+const {
+  findMany,
+  update,
+} = vi.hoisted(() => ({
+  findMany: vi.fn(),
+  update: vi.fn(),
+}));
+
 const { buildMarketMessage } = vi.hoisted(() => ({
   buildMarketMessage: vi.fn(),
 }));
@@ -27,8 +35,8 @@ vi.mock('../src/app/logger.js', () => ({
 vi.mock('../src/lib/prisma.js', () => ({
   prisma: {
     market: {
-      findMany: vi.fn(),
-      update: vi.fn(),
+      findMany,
+      update,
     },
   },
 }));
@@ -53,7 +61,7 @@ vi.mock('../src/features/markets/visualize.js', () => ({
   buildMarketDiagram,
 }));
 
-import { hydrateMarketMessage, refreshMarketMessage } from '../src/features/markets/service-lifecycle.js';
+import { hydrateMarketMessage, refreshMarketMessage, sendMarketGraceNotice } from '../src/features/markets/service-lifecycle.js';
 
 const market = {
   id: 'market_1',
@@ -93,6 +101,8 @@ describe('market service lifecycle', () => {
     attachMarketMessage.mockReset();
     scheduleMarketClose.mockReset();
     getMarketById.mockReset();
+    findMany.mockReset();
+    update.mockReset();
     buildMarketMessage.mockReset();
     buildMarketDiagram.mockReset();
   });
@@ -161,5 +171,26 @@ describe('market service lifecycle', () => {
     } as never, market)).rejects.toThrow('database update failed');
 
     expect(sentMessage.delete).toHaveBeenCalledTimes(1);
+  });
+
+  it('only marks grace notifications as sent after a successful post', async () => {
+    getMarketById.mockResolvedValue({
+      ...market,
+      resolutionGraceEndsAt: new Date('2099-03-31T00:00:00.000Z'),
+    });
+
+    const send = vi.fn().mockRejectedValue(new Error('discord outage'));
+
+    await sendMarketGraceNotice({
+      channels: {
+        fetch: vi.fn().mockResolvedValue({
+          isTextBased: () => true,
+          send,
+        }),
+      },
+    } as never, market.id);
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(update).not.toHaveBeenCalled();
   });
 });
