@@ -174,7 +174,7 @@ export const marketCommand = new SlashCommandBuilder()
       .addIntegerOption((option) =>
         option
           .setName('amount')
-          .setDescription('Points to spend or receive')
+          .setDescription('Points to spend or receive (sell uses payout points)')
           .setRequired(true)
           .setMinValue(10),
       ),

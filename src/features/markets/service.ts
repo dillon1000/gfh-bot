@@ -478,6 +478,7 @@ export const executeMarketTrade = async (input: {
   outcomeId: string;
   action: MarketTradeSide;
   amount: number;
+  sellMode?: 'points' | 'shares';
 }): Promise<MarketTradeResult> =>
   runSerializableTransaction(async (tx) => {
     const market = await getMarketForUpdate(tx, input.marketId);
@@ -505,6 +506,7 @@ export const executeMarketTrade = async (input: {
     let nextPositionCostBasis = position?.costBasis ?? 0;
     let nextBankroll = account.bankroll;
     let realizedProfitDelta = 0;
+    let cashAmount = input.amount;
 
     if (input.action === 'buy') {
       shareDelta = solveBuySharesForAmount(shares, outcomeIndex, input.amount, market.liquidityParameter);
@@ -518,15 +520,25 @@ export const executeMarketTrade = async (input: {
         throw new Error('You do not own shares in that outcome yet.');
       }
 
-      shareDelta = -solveSellSharesForAmount(shares, outcomeIndex, input.amount, ownedShares, market.liquidityParameter);
+      const requestedSharesToSell = input.sellMode === 'shares'
+        ? input.amount
+        : solveSellSharesForAmount(shares, outcomeIndex, input.amount, ownedShares, market.liquidityParameter);
+      if (requestedSharesToSell > ownedShares + 1e-6) {
+        throw new Error('You do not have enough shares in that outcome to sell that much.');
+      }
+
+      shareDelta = -requestedSharesToSell;
       nextShares[outcomeIndex] = (nextShares[outcomeIndex] ?? 0) + shareDelta;
       const sharesSold = Math.abs(shareDelta);
       const averageCostBasis = (position?.costBasis ?? 0) / ownedShares;
       const releasedCostBasis = averageCostBasis * sharesSold;
       nextPositionShares -= sharesSold;
       nextPositionCostBasis -= releasedCostBasis;
-      nextBankroll += input.amount;
-      realizedProfitDelta = roundCurrency(input.amount - releasedCostBasis);
+      cashAmount = input.sellMode === 'shares'
+        ? roundCurrency(computeSellPayout(shares, outcomeIndex, sharesSold, market.liquidityParameter))
+        : input.amount;
+      nextBankroll += cashAmount;
+      realizedProfitDelta = roundCurrency(cashAmount - releasedCostBasis);
     }
 
     const probabilities = computeLmsrProbabilities(nextShares, market.liquidityParameter);
@@ -558,16 +570,16 @@ export const executeMarketTrade = async (input: {
         id: market.id,
       },
       data: {
-        totalVolume: market.totalVolume + input.amount,
+        totalVolume: market.totalVolume + cashAmount,
         trades: {
           create: {
             userId: input.userId,
             outcomeId: outcome.id,
             side: input.action,
-            cashDelta: input.action === 'buy' ? -input.amount : input.amount,
+            cashDelta: input.action === 'buy' ? -cashAmount : cashAmount,
             shareDelta: roundCurrency(shareDelta),
             probabilitySnapshot: probabilities[outcomeIndex] ?? 0,
-            cumulativeVolume: market.totalVolume + input.amount,
+            cumulativeVolume: market.totalVolume + cashAmount,
           },
         },
       },
@@ -579,7 +591,7 @@ export const executeMarketTrade = async (input: {
       outcome,
       account: updatedAccount,
       shareDelta: roundCurrency(shareDelta),
-      cashAmount: input.amount,
+      cashAmount: roundCurrency(cashAmount),
       realizedProfitDelta,
     };
   });

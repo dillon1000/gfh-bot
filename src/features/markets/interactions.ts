@@ -32,6 +32,7 @@ import {
   parseMarketOutcomes,
   parseMarketTags,
   parseOutcomeSelection,
+  parseSellTradeAmount,
   parseTradeAmount,
   sanitizeMarketDescription,
   sanitizeMarketTitle,
@@ -282,6 +283,7 @@ export const handleMarketCommand = async (
         outcomeId: outcome.id,
         action: interaction.options.getString('action', true) as 'buy' | 'sell',
         amount: parseTradeAmount(interaction.options.getInteger('amount', true)),
+        ...(interaction.options.getString('action', true) === 'sell' ? { sellMode: 'points' as const } : {}),
       });
       await scheduleMarketRefresh(market.id);
       await interaction.editReply({
@@ -291,7 +293,7 @@ export const handleMarketCommand = async (
             [
               `Outcome: **${outcome.label}**`,
               `Cash: ${result.cashAmount} pts`,
-              `Shares: ${result.shareDelta.toFixed(2)}`,
+              `Shares: ${Math.abs(result.shareDelta).toFixed(2)}`,
               `Bankroll: ${result.account.bankroll.toFixed(2)} pts`,
             ].join('\n'),
             result.shareDelta > 0 ? 0x57f287 : 0x60a5fa,
@@ -476,7 +478,17 @@ export const handleMarketModal = async (
       userId: interaction.user.id,
       outcomeId: trade.outcomeId,
       action: trade.action,
-      amount: parseTradeAmount(interaction.fields.getTextInputValue('amount')),
+      ...(trade.action === 'buy'
+        ? {
+            amount: parseTradeAmount(interaction.fields.getTextInputValue('amount')),
+          }
+        : (() => {
+            const parsedAmount = parseSellTradeAmount(interaction.fields.getTextInputValue('amount'));
+            return {
+              amount: parsedAmount.amount,
+              sellMode: parsedAmount.mode,
+            };
+          })()),
     });
     await scheduleMarketRefresh(trade.marketId);
     const outcome = market.outcomes.find((entry) => entry.id === trade.outcomeId);
@@ -485,12 +497,12 @@ export const handleMarketModal = async (
       embeds: [
         buildMarketStatusEmbed(
           trade.action === 'buy' ? 'Position Bought' : 'Position Sold',
-          [
-            `Outcome: **${outcome?.label ?? 'Unknown'}**`,
-            `Cash: ${result.cashAmount} pts`,
-            `Shares: ${result.shareDelta.toFixed(2)}`,
-            `Bankroll: ${result.account.bankroll.toFixed(2)} pts`,
-          ].join('\n'),
+            [
+              `Outcome: **${outcome?.label ?? 'Unknown'}**`,
+              `Cash: ${result.cashAmount} pts`,
+              `Shares: ${Math.abs(result.shareDelta).toFixed(2)}`,
+              `Bankroll: ${result.account.bankroll.toFixed(2)} pts`,
+            ].join('\n'),
           trade.action === 'buy' ? 0x57f287 : 0x60a5fa,
         ),
       ],

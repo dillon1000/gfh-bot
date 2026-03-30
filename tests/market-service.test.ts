@@ -186,4 +186,73 @@ describe('market service', () => {
     expect(result.cashAmount).toBe(50);
     expect(transaction.market.findUnique).toHaveBeenCalledTimes(1);
   });
+
+  it('supports selling a specific number of shares', async () => {
+    const positionedMarket = {
+      ...market,
+      totalVolume: 100,
+      outcomes: [
+        { ...market.outcomes[0], outstandingShares: 5 },
+        market.outcomes[1],
+      ],
+      positions: [
+        {
+          id: 'position_1',
+          marketId: 'market_1',
+          outcomeId: 'outcome_yes',
+          userId: 'user_2',
+          shares: 5,
+          costBasis: 60,
+          createdAt: new Date('2099-03-29T00:00:00.000Z'),
+          updatedAt: new Date('2099-03-29T00:00:00.000Z'),
+        },
+      ],
+    };
+
+    transaction.market.findUnique.mockResolvedValue(positionedMarket);
+    transaction.marketAccount.update.mockResolvedValue({
+      id: 'account_1',
+      guildConfigId: 'guild_config_1',
+      guildId: 'guild_1',
+      userId: 'user_2',
+      bankroll: 960,
+      realizedProfit: 0,
+      lastTopUpAt: null,
+      createdAt: new Date('2099-03-29T00:00:00.000Z'),
+      updatedAt: new Date('2099-03-29T00:00:00.000Z'),
+    });
+    transaction.market.update
+      .mockResolvedValueOnce({
+        ...positionedMarket,
+        updatedAt: new Date('2099-03-29T00:00:01.000Z'),
+      })
+      .mockResolvedValueOnce({
+        ...positionedMarket,
+        totalVolume: 140,
+      });
+    prisma.$transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<unknown>) =>
+      callback(transaction));
+
+    const result = await executeMarketTrade({
+      marketId: 'market_1',
+      userId: 'user_2',
+      outcomeId: 'outcome_yes',
+      action: 'sell',
+      amount: 2.5,
+      sellMode: 'shares',
+    });
+
+    expect(result.shareDelta).toBeCloseTo(-2.5, 2);
+    expect(result.cashAmount).toBeGreaterThan(0);
+    expect(transaction.market.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        totalVolume: positionedMarket.totalVolume + result.cashAmount,
+        trades: expect.objectContaining({
+          create: expect.objectContaining({
+            cashDelta: result.cashAmount,
+          }),
+        }),
+      }),
+    }));
+  });
 });

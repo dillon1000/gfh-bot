@@ -10,6 +10,8 @@ const maxTagLength = 24;
 const minTradeAmount = 10;
 const marketMinDurationMs = 5 * 60_000;
 const marketMaxDurationMs = 365 * 24 * 60 * 60 * 1_000;
+const sellSharesPattern = /^(?<amount>\d+(?:\.\d+)?)\s*(?<unit>share|shares|sh)$/i;
+const sellPointsPattern = /^(?<amount>\d+)\s*(?<unit>pt|pts|point|points)?$/i;
 
 const discordMessageLinkPattern =
   /^https?:\/\/(?:(?:ptb|canary)\.)?discord(?:app)?\.com\/channels\/(?<guildId>\d+)\/(?<channelId>\d+)\/(?<messageId>\d+)$/i;
@@ -164,6 +166,46 @@ export const parseTradeAmount = (value: string | number): number => {
   }
 
   return normalized;
+};
+
+export type ParsedSellAmount =
+  | {
+      mode: 'points';
+      amount: number;
+    }
+  | {
+      mode: 'shares';
+      amount: number;
+    };
+
+export const parseSellTradeAmount = (value: string): ParsedSellAmount => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new Error('Sell amount cannot be empty. Use formats like 10 pts or 2.5 shares.');
+  }
+
+  const pointsMatch = sellPointsPattern.exec(trimmed);
+  if (pointsMatch?.groups?.amount) {
+    return {
+      mode: 'points',
+      amount: parseTradeAmount(Number(pointsMatch.groups.amount)),
+    };
+  }
+
+  const sharesMatch = sellSharesPattern.exec(trimmed);
+  if (sharesMatch?.groups?.amount) {
+    const amount = Number(sharesMatch.groups.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new Error('Sell share amount must be greater than 0.');
+    }
+
+    return {
+      mode: 'shares',
+      amount,
+    };
+  }
+
+  throw new Error('Sell amount must look like 10 pts or 2.5 shares.');
 };
 
 export const parseOutcomeSelection = (

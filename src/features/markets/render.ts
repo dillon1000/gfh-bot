@@ -180,12 +180,12 @@ export const buildMarketTradeModal = (
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
           .setCustomId('amount')
-          .setLabel(action === 'buy' ? 'Points to spend' : 'Points to receive')
+          .setLabel(action === 'buy' ? 'Points to spend' : 'Amount to sell')
           .setStyle(TextInputStyle.Short)
           .setRequired(true)
-          .setPlaceholder('10')
+          .setPlaceholder(action === 'buy' ? '10' : '10 pts or 2.5 shares')
           .setMinLength(2)
-          .setMaxLength(8),
+          .setMaxLength(20),
       ),
     );
 
