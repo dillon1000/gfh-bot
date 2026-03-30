@@ -47,6 +47,13 @@ describe('market parser', () => {
     )).toThrow('Market close time cannot be more than 365 days in the future.');
   });
 
+  it('rejects invalid calendar dates with explicit offsets or abbreviations', () => {
+    expect(() => parseMarketCloseAt(
+      'February 30 2026 10:00pm CDT',
+      new Date('2026-02-01T12:00:00.000Z'),
+    )).toThrow('Could not parse market close time.');
+  });
+
   it('parses flexible trade amounts expressed in shares', () => {
     expect(parseFlexibleTradeAmount('2.5 shares')).toEqual({
       mode: 'shares',

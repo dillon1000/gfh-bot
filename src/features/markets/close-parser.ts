@@ -160,6 +160,28 @@ const getTimeZoneOffsetMs = (date: Date, timeZone: string): number => {
   return asUtc - date.getTime();
 };
 
+const offsetDateTimeToUtc = (
+  input: ParsedAbsoluteDateTime,
+  timezoneOffsetMinutes: number,
+): Date => {
+  const resolved = new Date(
+    Date.UTC(input.year, input.month - 1, input.day, input.hour, input.minute, 0, 0) - (timezoneOffsetMinutes * 60_000),
+  );
+  const shifted = new Date(resolved.getTime() + (timezoneOffsetMinutes * 60_000));
+
+  if (
+    shifted.getUTCFullYear() !== input.year
+    || shifted.getUTCMonth() + 1 !== input.month
+    || shifted.getUTCDate() !== input.day
+    || shifted.getUTCHours() !== input.hour
+    || shifted.getUTCMinutes() !== input.minute
+  ) {
+    throw new Error(`Could not parse market close time. ${getAbsoluteCloseHelp()}`);
+  }
+
+  return resolved;
+};
+
 const zonedDateTimeToUtc = (
   input: Omit<ParsedAbsoluteDateTime, 'timezone'>,
   timeZone: string,
@@ -272,7 +294,7 @@ export const parseMarketCloseAt = (value: string, now = new Date()): Date => {
     ? timezoneAbbreviationOffsets.get(parsed.timezone) ?? parseOffsetTimezone(parsed.timezone)
     : null;
   const closeAt = timezoneOffset !== null
-    ? new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day, parsed.hour, parsed.minute, 0, 0) - (timezoneOffset * 60_000))
+    ? offsetDateTimeToUtc(parsed, timezoneOffset)
     : zonedDateTimeToUtc(parsed, env.MARKET_DEFAULT_TIMEZONE);
 
   if (Number.isNaN(closeAt.getTime())) {
