@@ -31,8 +31,21 @@ import { computeMarketSummary, getMarketStatus } from './service.js';
 import type { MarketAccountWithOpenPositions, MarketWithRelations } from './types.js';
 
 const formatMoney = (value: number): string => `${value.toFixed(2)} pts`;
-const truncateLabel = (value: string, max = 16): string =>
-  value.length <= max ? value : `${value.slice(0, Math.max(1, max - 1))}\u2026`;
+const truncateLabel = (value: string, max = 16): string => {
+  if (max <= 0) {
+    return '';
+  }
+
+  if (value.length <= max) {
+    return value;
+  }
+
+  if (max === 1) {
+    return '\u2026';
+  }
+
+  return `${value.slice(0, max - 1)}\u2026`;
+};
 
 const getTradeCopy = (action: 'buy' | 'sell' | 'short' | 'cover'): {
   title: string;

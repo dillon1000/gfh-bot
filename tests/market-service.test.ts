@@ -184,7 +184,7 @@ describe('market service', () => {
     transaction.marketPosition.deleteMany.mockResolvedValue({ count: 0 });
     transaction.marketPosition.upsert.mockResolvedValue(undefined);
     transaction.marketAccount.upsert.mockResolvedValue(baseAccount);
-    transaction.marketAccount.update.mockImplementation(async ({ data }: { data: object }) => ({
+    transaction.marketAccount.update.mockImplementation(async ({ data }: { data: Partial<typeof baseAccount> }) => ({
       ...baseAccount,
       ...data,
     }));

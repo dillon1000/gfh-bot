@@ -32,4 +32,8 @@ describe('market parser', () => {
   it('rejects share syntax for points-only buy amounts', () => {
     expect(() => parseTradeAmount('2 shares')).toThrow('Trade amount must be a whole number of at least 10 points.');
   });
+
+  it('parses valid integer strings for points-only buy amounts', () => {
+    expect(parseTradeAmount('50')).toBe(50);
+  });
 });

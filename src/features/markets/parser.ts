@@ -208,8 +208,6 @@ export const parseFlexibleTradeAmount = (value: string): ParsedTradeAmount => {
   throw new Error('Trade amount must look like 10 pts or 2.5 shares.');
 };
 
-export const parseSellTradeAmount = parseFlexibleTradeAmount;
-
 export const parseOutcomeSelection = (
   value: string,
   outcomes: Array<{ id: string; label: string }>,
