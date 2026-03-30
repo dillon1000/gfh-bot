@@ -8,6 +8,8 @@ import {
   handleEmojiBuilderModal,
 } from '../features/emojis/interactions.js';
 import { handleLatexCommand } from '../features/meta/latex.js';
+import { handleMarketInteractionError } from '../features/markets/interaction-errors.js';
+import { handleMarketButton, handleMarketCommand, handleMarketModal, handleMarketSelect } from '../features/markets/interactions.js';
 import { handleMeowCommand } from '../features/meta/meow.js';
 import { handlePingCommand } from '../features/meta/ping.js';
 import {
@@ -85,6 +87,9 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'latex':
             await handleLatexCommand(interaction);
+            return;
+          case 'market':
+            await handleMarketCommand(client, interaction);
             return;
           case 'ping':
             await handlePingCommand(interaction);
@@ -249,6 +254,11 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
+        if (interaction.customId.startsWith('market:')) {
+          await handleMarketButton(interaction);
+          return;
+        }
+
       }
 
       if (interaction.isStringSelectMenu()) {
@@ -259,6 +269,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('reaction-role:select:')) {
           await handleReactionRoleSelect(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('market:trade-select:')) {
+          await handleMarketSelect(interaction);
           return;
         }
       }
@@ -286,6 +301,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('poll:manage-modal:')) {
           await handlePollManageModal(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('market:')) {
+          await handleMarketModal(client, interaction);
         }
       }
     } catch (error) {
@@ -320,6 +340,13 @@ export const registerInteractionRouter = (client: Client): void => {
           (interaction.isStringSelectMenu() && interaction.customId.startsWith('reaction-role:'))
         ) {
           await handleReactionRoleInteractionError(interaction, error);
+        } else if (
+          (interaction.isChatInputCommand() && interaction.commandName === 'market')
+          || (interaction.isButton() && interaction.customId.startsWith('market:'))
+          || (interaction.isStringSelectMenu() && interaction.customId.startsWith('market:'))
+          || (interaction.isModalSubmit() && interaction.customId.startsWith('market:'))
+        ) {
+          await handleMarketInteractionError(interaction, error);
         } else {
           await handlePollInteractionError(interaction, error);
         }

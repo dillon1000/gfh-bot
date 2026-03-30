@@ -47,6 +47,11 @@ enum AuditLogDeliveryStatus {
   failed
 }
 
+enum MarketTradeSide {
+  buy
+  sell
+}
+
 model GuildConfig {
   id                 String           @id @default(cuid())
   guildId            String           @unique
@@ -58,12 +63,15 @@ model GuildConfig {
   searchIgnoredChannelIds String[]    @default([])
   auditLogChannelId  String?
   auditLogNoisyChannelId String?
+  marketEnabled      Boolean          @default(false)
+  marketChannelId    String?
   starboardEmojiId   String?
   starboardEmojiName String?
   memberRoleId       String?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
   starboardEntries   StarboardEntry[]
+  marketAccounts     MarketAccount[]
 }
 
 model Poll {
@@ -238,6 +246,107 @@ model RemovalVoteSupport {
 
   @@unique([requestId, supporterId])
   @@index([requestId, createdAt])
+}
+
+model Market {
+  id                     String           @id @default(cuid())
+  guildId                String
+  creatorId              String
+  originChannelId        String
+  marketChannelId        String
+  messageId              String?          @unique
+  title                  String
+  description            String?
+  tags                   String[]         @default([])
+  liquidityParameter     Int              @default(150)
+  closeAt                DateTime
+  tradingClosedAt        DateTime?
+  resolutionGraceEndsAt  DateTime?
+  graceNotifiedAt        DateTime?
+  resolvedAt             DateTime?
+  cancelledAt            DateTime?
+  resolutionNote         String?
+  resolutionEvidenceUrl  String?
+  resolvedByUserId       String?
+  winningOutcomeId       String?
+  totalVolume            Int              @default(0)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  winningOutcome         MarketOutcome?   @relation("MarketWinningOutcome", fields: [winningOutcomeId], references: [id], onDelete: SetNull)
+  outcomes               MarketOutcome[]
+  trades                 MarketTrade[]
+  positions              MarketPosition[]
+
+  @@index([guildId, closeAt, tradingClosedAt])
+  @@index([guildId, resolvedAt, cancelledAt])
+  @@index([guildId, creatorId, createdAt])
+}
+
+model MarketOutcome {
+  id                String           @id @default(cuid())
+  marketId          String
+  label             String
+  sortOrder         Int
+  outstandingShares Float            @default(0)
+  createdAt         DateTime         @default(now())
+  market            Market           @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  trades            MarketTrade[]
+  positions         MarketPosition[]
+  wonMarkets        Market[]         @relation("MarketWinningOutcome")
+
+  @@unique([marketId, sortOrder])
+  @@index([marketId])
+}
+
+model MarketTrade {
+  id                   String           @id @default(cuid())
+  marketId             String
+  outcomeId            String
+  userId               String
+  side                 MarketTradeSide
+  cashDelta            Int
+  shareDelta           Float
+  probabilitySnapshot  Float
+  cumulativeVolume     Int
+  createdAt            DateTime         @default(now())
+  market               Market           @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  outcome              MarketOutcome    @relation(fields: [outcomeId], references: [id], onDelete: Cascade)
+
+  @@index([marketId, createdAt])
+  @@index([marketId, userId, createdAt])
+}
+
+model MarketPosition {
+  id         String        @id @default(cuid())
+  marketId   String
+  outcomeId  String
+  userId     String
+  shares     Float         @default(0)
+  costBasis  Float         @default(0)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  market     Market        @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  outcome    MarketOutcome @relation(fields: [outcomeId], references: [id], onDelete: Cascade)
+
+  @@unique([marketId, outcomeId, userId])
+  @@index([marketId, userId])
+}
+
+model MarketAccount {
+  id              String      @id @default(cuid())
+  guildConfigId   String
+  guildId         String
+  userId          String
+  bankroll        Float       @default(1000)
+  realizedProfit  Float       @default(0)
+  lastTopUpAt     DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  guildConfig     GuildConfig @relation(fields: [guildConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@index([guildConfigId])
+  @@index([guildId, bankroll, realizedProfit])
 }
 
 model GuildEventLogEntry {
