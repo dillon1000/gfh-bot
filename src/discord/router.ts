@@ -272,7 +272,7 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
-        if (interaction.customId.startsWith('market:trade-select:')) {
+        if (interaction.customId.startsWith('market:')) {
           await handleMarketSelect(interaction);
           return;
         }

@@ -1,0 +1,209 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const handlers = vi.hoisted(() => ({
+  handleAuditLogCommand: vi.fn(),
+  handleEmojiBuilderButton: vi.fn(),
+  handleEmojiBuilderCommand: vi.fn(),
+  handleEmojiBuilderInteractionError: vi.fn(),
+  handleEmojiBuilderModal: vi.fn(),
+  handleLatexCommand: vi.fn(),
+  handleMarketInteractionError: vi.fn(),
+  handleMarketButton: vi.fn(),
+  handleMarketCommand: vi.fn(),
+  handleMarketModal: vi.fn(),
+  handleMarketSelect: vi.fn(),
+  handleMeowCommand: vi.fn(),
+  handlePingCommand: vi.fn(),
+  handlePollAnalyticsCommand: vi.fn(),
+  handlePollBuilderButton: vi.fn(),
+  handlePollBuilderCommand: vi.fn(),
+  handlePollBuilderModal: vi.fn(),
+  handlePollCommand: vi.fn(),
+  handlePollFromMessageContext: vi.fn(),
+  handlePollInteractionError: vi.fn(),
+  handlePollCancelContext: vi.fn(),
+  handlePollDuplicateContext: vi.fn(),
+  handlePollEditContext: vi.fn(),
+  handlePollExtendContext: vi.fn(),
+  handlePollManageCommand: vi.fn(),
+  handlePollManageModal: vi.fn(),
+  handlePollReopenContext: vi.fn(),
+  handlePollAuditCommand: vi.fn(),
+  handlePollAuditContext: vi.fn(),
+  handlePollCloseContext: vi.fn(),
+  handlePollCloseModal: vi.fn(),
+  handlePollExportCommand: vi.fn(),
+  handlePollExportContext: vi.fn(),
+  handlePollResultsCommand: vi.fn(),
+  handlePollResultsButton: vi.fn(),
+  handlePollResultsContext: vi.fn(),
+  handlePollChoiceButton: vi.fn(),
+  handlePollRankAddButton: vi.fn(),
+  handlePollRankClearButton: vi.fn(),
+  handlePollRankOpenButton: vi.fn(),
+  handlePollRankSubmitButton: vi.fn(),
+  handlePollRankUndoButton: vi.fn(),
+  handlePollVoteSelect: vi.fn(),
+  handleReactionRoleClear: vi.fn(),
+  handleReactionRoleBuilderButton: vi.fn(),
+  handleReactionRoleBuilderCommand: vi.fn(),
+  handleReactionRoleBuilderModal: vi.fn(),
+  handleReactionRoleInteractionError: vi.fn(),
+  handleReactionRoleManage: vi.fn(),
+  handleReactionRolesCommand: vi.fn(),
+  handleReactionRoleSelect: vi.fn(),
+  handleRemoveCommand: vi.fn(),
+  handleRemovalInteractionError: vi.fn(),
+  handleSearchCommand: vi.fn(),
+  handleSearchInteractionError: vi.fn(),
+  handleSearchPaginationButton: vi.fn(),
+  handleStarboardCommand: vi.fn(),
+}));
+
+vi.mock('../src/features/audit-log/commands.js', () => ({
+  handleAuditLogCommand: handlers.handleAuditLogCommand,
+}));
+
+vi.mock('../src/features/emojis/interactions.js', () => ({
+  handleEmojiBuilderButton: handlers.handleEmojiBuilderButton,
+  handleEmojiBuilderCommand: handlers.handleEmojiBuilderCommand,
+  handleEmojiBuilderInteractionError: handlers.handleEmojiBuilderInteractionError,
+  handleEmojiBuilderModal: handlers.handleEmojiBuilderModal,
+}));
+
+vi.mock('../src/features/meta/latex.js', () => ({
+  handleLatexCommand: handlers.handleLatexCommand,
+}));
+
+vi.mock('../src/features/markets/interaction-errors.js', () => ({
+  handleMarketInteractionError: handlers.handleMarketInteractionError,
+}));
+
+vi.mock('../src/features/markets/interactions.js', () => ({
+  handleMarketButton: handlers.handleMarketButton,
+  handleMarketCommand: handlers.handleMarketCommand,
+  handleMarketModal: handlers.handleMarketModal,
+  handleMarketSelect: handlers.handleMarketSelect,
+}));
+
+vi.mock('../src/features/meta/meow.js', () => ({
+  handleMeowCommand: handlers.handleMeowCommand,
+}));
+
+vi.mock('../src/features/meta/ping.js', () => ({
+  handlePingCommand: handlers.handlePingCommand,
+}));
+
+vi.mock('../src/features/polls/analytics-interactions.js', () => ({
+  handlePollAnalyticsCommand: handlers.handlePollAnalyticsCommand,
+}));
+
+vi.mock('../src/features/polls/builder-interactions.js', () => ({
+  handlePollBuilderButton: handlers.handlePollBuilderButton,
+  handlePollBuilderCommand: handlers.handlePollBuilderCommand,
+  handlePollBuilderModal: handlers.handlePollBuilderModal,
+  handlePollCommand: handlers.handlePollCommand,
+  handlePollFromMessageContext: handlers.handlePollFromMessageContext,
+}));
+
+vi.mock('../src/features/polls/interaction-errors.js', () => ({
+  handlePollInteractionError: handlers.handlePollInteractionError,
+}));
+
+vi.mock('../src/features/polls/management-interactions.js', () => ({
+  handlePollCancelContext: handlers.handlePollCancelContext,
+  handlePollDuplicateContext: handlers.handlePollDuplicateContext,
+  handlePollEditContext: handlers.handlePollEditContext,
+  handlePollExtendContext: handlers.handlePollExtendContext,
+  handlePollManageCommand: handlers.handlePollManageCommand,
+  handlePollManageModal: handlers.handlePollManageModal,
+  handlePollReopenContext: handlers.handlePollReopenContext,
+}));
+
+vi.mock('../src/features/polls/query-interactions.js', () => ({
+  handlePollAuditCommand: handlers.handlePollAuditCommand,
+  handlePollAuditContext: handlers.handlePollAuditContext,
+  handlePollCloseContext: handlers.handlePollCloseContext,
+  handlePollCloseModal: handlers.handlePollCloseModal,
+  handlePollExportCommand: handlers.handlePollExportCommand,
+  handlePollExportContext: handlers.handlePollExportContext,
+  handlePollResultsCommand: handlers.handlePollResultsCommand,
+  handlePollResultsButton: handlers.handlePollResultsButton,
+  handlePollResultsContext: handlers.handlePollResultsContext,
+}));
+
+vi.mock('../src/features/polls/voting-interactions.js', () => ({
+  handlePollChoiceButton: handlers.handlePollChoiceButton,
+  handlePollRankAddButton: handlers.handlePollRankAddButton,
+  handlePollRankClearButton: handlers.handlePollRankClearButton,
+  handlePollRankOpenButton: handlers.handlePollRankOpenButton,
+  handlePollRankSubmitButton: handlers.handlePollRankSubmitButton,
+  handlePollRankUndoButton: handlers.handlePollRankUndoButton,
+  handlePollVoteSelect: handlers.handlePollVoteSelect,
+}));
+
+vi.mock('../src/features/reaction-roles/interactions.js', () => ({
+  handleReactionRoleClear: handlers.handleReactionRoleClear,
+  handleReactionRoleBuilderButton: handlers.handleReactionRoleBuilderButton,
+  handleReactionRoleBuilderCommand: handlers.handleReactionRoleBuilderCommand,
+  handleReactionRoleBuilderModal: handlers.handleReactionRoleBuilderModal,
+  handleReactionRoleInteractionError: handlers.handleReactionRoleInteractionError,
+  handleReactionRoleManage: handlers.handleReactionRoleManage,
+  handleReactionRolesCommand: handlers.handleReactionRolesCommand,
+  handleReactionRoleSelect: handlers.handleReactionRoleSelect,
+}));
+
+vi.mock('../src/features/removals/interactions.js', () => ({
+  handleRemoveCommand: handlers.handleRemoveCommand,
+}));
+
+vi.mock('../src/features/removals/interaction-errors.js', () => ({
+  handleRemovalInteractionError: handlers.handleRemovalInteractionError,
+}));
+
+vi.mock('../src/features/search/interactions.js', () => ({
+  handleSearchCommand: handlers.handleSearchCommand,
+  handleSearchInteractionError: handlers.handleSearchInteractionError,
+  handleSearchPaginationButton: handlers.handleSearchPaginationButton,
+}));
+
+vi.mock('../src/features/starboard/commands.js', () => ({
+  handleStarboardCommand: handlers.handleStarboardCommand,
+}));
+
+import { registerInteractionRouter } from '../src/discord/router.js';
+
+const createStringSelectInteraction = (customId: string) => ({
+  customId,
+  isChatInputCommand: () => false,
+  isMessageContextMenuCommand: () => false,
+  isButton: () => false,
+  isStringSelectMenu: () => true,
+  isModalSubmit: () => false,
+});
+
+describe('discord router', () => {
+  beforeEach(() => {
+    Object.values(handlers).forEach((handler) => {
+      handler.mockReset();
+    });
+  });
+
+  it('routes portfolio select menus to the market select handler', async () => {
+    const client = {
+      on: vi.fn(),
+    };
+
+    registerInteractionRouter(client as never);
+
+    const interactionHandler = client.on.mock.calls[0]?.[1];
+    expect(interactionHandler).toBeTypeOf('function');
+
+    const interaction = createStringSelectInteraction('market:portfolio-select');
+    await interactionHandler?.(interaction);
+
+    expect(handlers.handleMarketSelect).toHaveBeenCalledWith(interaction);
+    expect(handlers.handlePollVoteSelect).not.toHaveBeenCalled();
+    expect(handlers.handleReactionRoleSelect).not.toHaveBeenCalled();
+  });
+});
