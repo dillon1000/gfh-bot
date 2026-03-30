@@ -1,10 +1,18 @@
 export const marketBuyButtonCustomId = (marketId: string): string => `market:buy:${marketId}`;
 export const marketSellButtonCustomId = (marketId: string): string => `market:sell:${marketId}`;
+export const marketShortButtonCustomId = (marketId: string): string => `market:short:${marketId}`;
+export const marketCoverButtonCustomId = (marketId: string): string => `market:cover:${marketId}`;
+export const marketQuickTradeButtonCustomId = (
+  action: 'buy' | 'short',
+  marketId: string,
+  outcomeId: string,
+): string => `market:quick:${action}:${marketId}:${outcomeId}`;
 export const marketPortfolioButtonCustomId = (marketId: string): string => `market:portfolio:${marketId}`;
+export const marketPortfolioSelectCustomId = (): string => 'market:portfolio-select';
 export const marketRefreshButtonCustomId = (marketId: string): string => `market:refresh:${marketId}`;
-export const marketTradeSelectCustomId = (action: 'buy' | 'sell', marketId: string): string =>
+export const marketTradeSelectCustomId = (action: 'buy' | 'sell' | 'short' | 'cover', marketId: string): string =>
   `market:trade-select:${action}:${marketId}`;
-export const marketTradeModalCustomId = (action: 'buy' | 'sell', marketId: string, outcomeId: string): string =>
+export const marketTradeModalCustomId = (action: 'buy' | 'sell' | 'short' | 'cover', marketId: string, outcomeId: string): string =>
   `market:trade-modal:${action}:${marketId}:${outcomeId}`;
 export const marketResolveButtonCustomId = (marketId: string): string => `market:resolve:${marketId}`;
 export const marketCancelButtonCustomId = (marketId: string): string => `market:cancel:${marketId}`;

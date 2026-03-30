@@ -126,6 +126,8 @@ docker compose --profile autoupdate up -d
 - `/market view query:<message link|message id|market id>`
 - `/market list status:open creator:@user tag:meta`
 - `/market trade query:... action:buy outcome:1 amount:50`
+- `/market trade query:... action:short outcome:1 amount:"10 pts"`
+- `/market trade query:... action:cover outcome:1 amount:"2.5 shares"`
 - `/market resolve query:... winning_outcome:1 note:... evidence_url:https://...`
 - `/market cancel query:... reason:...`
 - `/market portfolio user:@user`

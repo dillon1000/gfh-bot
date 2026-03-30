@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeLmsrCost, computeLmsrProbabilities, computeSellPayout, solveBuySharesForAmount, solveSellSharesForAmount } from '../src/features/markets/math.js';
+import { computeBuyCost, computeLmsrCost, computeLmsrProbabilities, computeSellPayout, solveBuySharesForAmount, solveSellSharesForAmount, solveShortSharesForAmount } from '../src/features/markets/math.js';
 
 describe('market math', () => {
   it('keeps probabilities normalized', () => {
@@ -38,5 +38,21 @@ describe('market math', () => {
     const boughtShares = solveBuySharesForAmount(shares, 0, 25, 150);
 
     expect(() => solveSellSharesForAmount([boughtShares, 0], 0, 30, boughtShares / 4, 150)).toThrow(/enough shares/);
+  });
+
+  it('solves short share amounts against desired proceeds', () => {
+    const shares = [0, 0];
+    const shortShares = solveShortSharesForAmount(shares, 0, 40, 150);
+    const proceeds = computeSellPayout(shares, 0, shortShares, 150);
+
+    expect(shortShares).toBeGreaterThan(0);
+    expect(proceeds).toBeCloseTo(40, 5);
+  });
+
+  it('computes cover cost for a specific share amount', () => {
+    const shares = [-8, 0];
+    const cost = computeBuyCost(shares, 0, 3, 150);
+
+    expect(cost).toBeGreaterThan(0);
   });
 });
