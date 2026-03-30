@@ -160,7 +160,13 @@ export const parseMarketLookup = (value: string): MarketLookup => {
 };
 
 export const parseTradeAmount = (value: string | number): number => {
-  const normalized = typeof value === 'number' ? value : Number(value.trim());
+  const normalized = typeof value === 'number'
+    ? value
+    : (() => {
+        const trimmed = value.trim();
+        const match = sellPointsPattern.exec(trimmed);
+        return match?.groups?.amount ? Number(match.groups.amount) : Number.NaN;
+      })();
   if (!Number.isInteger(normalized) || normalized < minTradeAmount) {
     throw new Error(`Trade amount must be a whole number of at least ${minTradeAmount} points.`);
   }

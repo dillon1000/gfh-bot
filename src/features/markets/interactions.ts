@@ -10,6 +10,7 @@ import {
 
 import { buildLeaderboardEmbed, buildMarketCancelModal, buildMarketListEmbed, buildMarketResolveModal, buildMarketStatusEmbed, buildMarketTradeModal, buildMarketTradeSelector, buildPortfolioMessage } from './render.js';
 import { disableMarketConfig, describeMarketConfig, getMarketConfig, setMarketConfig } from './config-service.js';
+import { marketPortfolioSelectCustomId } from './custom-ids.js';
 import { buildMarketViewResponse, clearMarketLifecycle, hydrateMarketMessage, refreshMarketMessage } from './service-lifecycle.js';
 import {
   cancelMarket,
@@ -451,11 +452,6 @@ export const handleMarketButton = async (
 ): Promise<void> => {
   const quickTrade = parseQuickTradeCustomId(interaction.customId);
   if (quickTrade) {
-    const market = await getMarketById(quickTrade.marketId);
-    if (!market) {
-      throw new Error('Market not found.');
-    }
-
     await interaction.showModal(buildMarketTradeModal(
       quickTrade.action,
       quickTrade.marketId,
@@ -521,7 +517,7 @@ export const handleMarketButton = async (
 export const handleMarketSelect = async (
   interaction: StringSelectMenuInteraction,
 ): Promise<void> => {
-  if (interaction.customId === 'market:portfolio-select') {
+  if (interaction.customId === marketPortfolioSelectCustomId()) {
     const value = interaction.values[0];
     if (!value) {
       throw new Error('Choose a position first.');
@@ -530,11 +526,6 @@ export const handleMarketSelect = async (
     const parsedValue = parsePortfolioSelectionValue(value);
     if (!parsedValue) {
       throw new Error('Unknown portfolio action.');
-    }
-
-    const market = await getMarketById(parsedValue.marketId);
-    if (!market) {
-      throw new Error('Market not found.');
     }
 
     await interaction.showModal(buildMarketTradeModal(

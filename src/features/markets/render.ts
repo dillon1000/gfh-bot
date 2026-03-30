@@ -11,8 +11,6 @@ import {
 
 import { buildFeedbackEmbed } from '../polls/poll-embeds.js';
 import {
-  marketBuyButtonCustomId,
-  marketCoverButtonCustomId,
   marketCancelButtonCustomId,
   marketCancelModalCustomId,
   marketPortfolioButtonCustomId,
@@ -21,8 +19,6 @@ import {
   marketRefreshButtonCustomId,
   marketResolveButtonCustomId,
   marketResolveModalCustomId,
-  marketSellButtonCustomId,
-  marketShortButtonCustomId,
   marketTradeModalCustomId,
   marketTradeSelectCustomId,
 } from './custom-ids.js';
@@ -61,7 +57,7 @@ const getTradeCopy = (action: 'buy' | 'sell' | 'short' | 'cover'): {
         description: 'Choose the outcome you want to buy.',
         color: 0x57f287,
         amountLabel: 'Points to spend',
-        placeholder: '50',
+        placeholder: '50 or 50 pts',
       };
     case 'sell':
       return {
