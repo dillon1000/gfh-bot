@@ -1,4 +1,4 @@
-import { parseDurationToMs } from '../../lib/duration.js';
+import { parseDurationToMsWithLimits } from '../../lib/duration.js';
 
 const maxOutcomes = 5;
 const minOutcomes = 2;
@@ -8,6 +8,8 @@ const maxOutcomeLength = 80;
 const maxTags = 10;
 const maxTagLength = 24;
 const minTradeAmount = 10;
+const marketMinDurationMs = 5 * 60_000;
+const marketMaxDurationMs = 365 * 24 * 60 * 60 * 1_000;
 
 const discordMessageLinkPattern =
   /^https?:\/\/(?:(?:ptb|canary)\.)?discord(?:app)?\.com\/channels\/(?<guildId>\d+)\/(?<channelId>\d+)\/(?<messageId>\d+)$/i;
@@ -110,17 +112,18 @@ export const parseMarketTags = (value: string | null | undefined): string[] => {
 
 export const parseMarketCloseDuration = (value: string): number => {
   try {
-    return parseDurationToMs(value);
+    return parseDurationToMsWithLimits(value, {
+      minMs: marketMinDurationMs,
+      maxMs: marketMaxDurationMs,
+      tooShortMessage: 'Market duration must be at least 5 minutes.',
+      tooLongMessage: 'Market duration cannot exceed 365 days.',
+    });
   } catch (error) {
     if (!(error instanceof Error)) {
       throw error;
     }
 
-    throw new Error(
-      error.message
-        .replace(/^Poll duration must be at least/, 'Market duration must be at least')
-        .replace(/^Poll duration cannot exceed/, 'Market duration cannot exceed'),
-    );
+    throw new Error(error.message);
   }
 };
 

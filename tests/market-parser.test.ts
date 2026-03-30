@@ -7,7 +7,11 @@ describe('market parser', () => {
     expect(() => parseMarketCloseDuration('1m')).toThrow('Market duration must be at least 5 minutes.');
   });
 
-  it('uses market-specific validation for long durations', () => {
-    expect(() => parseMarketCloseDuration('40d')).toThrow('Market duration cannot exceed 32 days.');
+  it('allows market durations up to 365 days', () => {
+    expect(parseMarketCloseDuration('365d')).toBe(365 * 24 * 60 * 60 * 1000);
+  });
+
+  it('uses market-specific validation for durations above 365 days', () => {
+    expect(() => parseMarketCloseDuration('366d')).toThrow('Market duration cannot exceed 365 days.');
   });
 });
