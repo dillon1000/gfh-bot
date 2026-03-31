@@ -3,7 +3,7 @@ import { scaleOrdinal, schemeTableau10 } from 'd3';
 import sharp from 'sharp';
 
 import { computeLmsrProbabilities } from './math.js';
-import { computeMarketSummary } from './service.js';
+import { computeMarketSummary } from './service-shared.js';
 import type { MarketWithRelations } from './types.js';
 
 const width = 1100;

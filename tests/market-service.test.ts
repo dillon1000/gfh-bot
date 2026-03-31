@@ -25,8 +25,13 @@ const {
       findMany: vi.fn(),
     },
     marketAccount: {
+      findUnique: vi.fn(),
       upsert: vi.fn(),
       update: vi.fn(),
+      findMany: vi.fn(),
+    },
+    marketForecastRecord: {
+      upsert: vi.fn(),
       findMany: vi.fn(),
     },
   };
@@ -42,6 +47,10 @@ const {
         findMany: vi.fn(),
       },
       marketAccount: {
+        findUnique: vi.fn(),
+        findMany: vi.fn(),
+      },
+      marketForecastRecord: {
         findMany: vi.fn(),
       },
     },
@@ -68,10 +77,14 @@ vi.mock('../src/lib/queue.js', () => ({
   },
 }));
 
-let cancelMarket: typeof import('../src/features/markets/service.js').cancelMarket;
-let executeMarketTrade: typeof import('../src/features/markets/service.js').executeMarketTrade;
-let resolveMarket: typeof import('../src/features/markets/service.js').resolveMarket;
-let resolveMarketOutcome: typeof import('../src/features/markets/service.js').resolveMarketOutcome;
+let cancelMarket: typeof import('../src/features/markets/trade-service.js').cancelMarket;
+let calculateMarketTradeQuote: typeof import('../src/features/markets/trade-service.js').calculateMarketTradeQuote;
+let executeMarketTrade: typeof import('../src/features/markets/trade-service.js').executeMarketTrade;
+let getMarketForecastLeaderboard: typeof import('../src/features/markets/forecast-service.js').getMarketForecastLeaderboard;
+let getMarketForecastProfile: typeof import('../src/features/markets/forecast-service.js').getMarketForecastProfile;
+let resolveMarket: typeof import('../src/features/markets/trade-service.js').resolveMarket;
+let resolveMarketOutcome: typeof import('../src/features/markets/trade-service.js').resolveMarketOutcome;
+let summarizeMarketTraders: typeof import('../src/features/markets/record-service.js').summarizeMarketTraders;
 
 const baseAccount = {
   id: 'account_1',
@@ -172,10 +185,18 @@ describe('market service', () => {
   beforeAll(async () => {
     ({
       cancelMarket,
+      calculateMarketTradeQuote,
       executeMarketTrade,
       resolveMarket,
       resolveMarketOutcome,
-    } = await import('../src/features/markets/service.js'));
+    } = await import('../src/features/markets/trade-service.js'));
+    ({
+      getMarketForecastLeaderboard,
+      getMarketForecastProfile,
+    } = await import('../src/features/markets/forecast-service.js'));
+    ({
+      summarizeMarketTraders,
+    } = await import('../src/features/markets/record-service.js'));
   });
 
   beforeEach(() => {
@@ -187,8 +208,12 @@ describe('market service', () => {
     transaction.marketOutcome.update.mockReset();
     transaction.marketPosition.deleteMany.mockReset();
     transaction.marketPosition.upsert.mockReset();
+    transaction.marketAccount.findUnique.mockReset();
     transaction.marketAccount.upsert.mockReset();
     transaction.marketAccount.update.mockReset();
+    transaction.marketForecastRecord.upsert.mockReset();
+    prisma.marketAccount.findUnique.mockReset();
+    prisma.marketForecastRecord.findMany.mockReset();
 
     transaction.guildConfig.upsert.mockResolvedValue({
       id: 'guild_config_1',
@@ -198,11 +223,15 @@ describe('market service', () => {
     transaction.marketOutcome.update.mockResolvedValue(undefined);
     transaction.marketPosition.deleteMany.mockResolvedValue({ count: 0 });
     transaction.marketPosition.upsert.mockResolvedValue(undefined);
+    transaction.marketAccount.findUnique.mockResolvedValue(baseAccount);
     transaction.marketAccount.upsert.mockResolvedValue(baseAccount);
     transaction.marketAccount.update.mockImplementation(async ({ data }: { data: Partial<typeof baseAccount> }) => ({
       ...baseAccount,
       ...data,
     }));
+    transaction.marketForecastRecord.upsert.mockResolvedValue(undefined);
+    prisma.marketAccount.findUnique.mockResolvedValue(baseAccount);
+    prisma.marketForecastRecord.findMany.mockResolvedValue([]);
     transaction.market.update
       .mockResolvedValueOnce({
         ...market,
@@ -280,6 +309,86 @@ describe('market service', () => {
       }),
     );
     expect(result.outcome.settlementValue).toBe(0);
+  });
+
+  it('summarizes market traders by outgoing spend and trade count', () => {
+    const summary = summarizeMarketTraders({
+      ...market,
+      trades: [
+        {
+          id: 'trade_1',
+          marketId: 'market_1',
+          outcomeId: 'outcome_yes',
+          userId: 'user_2',
+          side: 'buy',
+          shareDelta: 5,
+          cashDelta: -40,
+          probabilitySnapshot: 0.55,
+          cumulativeVolume: 40,
+          createdAt: new Date('2099-03-29T01:00:00.000Z'),
+        },
+        {
+          id: 'trade_2',
+          marketId: 'market_1',
+          outcomeId: 'outcome_yes',
+          userId: 'user_2',
+          side: 'sell',
+          shareDelta: -2,
+          cashDelta: 15,
+          probabilitySnapshot: 0.58,
+          cumulativeVolume: 55,
+          createdAt: new Date('2099-03-29T02:00:00.000Z'),
+        },
+        {
+          id: 'trade_3',
+          marketId: 'market_1',
+          outcomeId: 'outcome_no',
+          userId: 'user_3',
+          side: 'short',
+          shareDelta: -3,
+          cashDelta: 20,
+          probabilitySnapshot: 0.35,
+          cumulativeVolume: 75,
+          createdAt: new Date('2099-03-29T03:00:00.000Z'),
+        },
+        {
+          id: 'trade_4',
+          marketId: 'market_1',
+          outcomeId: 'outcome_no',
+          userId: 'user_4',
+          side: 'buy',
+          shareDelta: 1,
+          cashDelta: -10,
+          probabilitySnapshot: 0.31,
+          cumulativeVolume: 85,
+          createdAt: new Date('2099-03-29T04:00:00.000Z'),
+        },
+      ],
+    });
+
+    expect(summary).toMatchObject({
+      marketId: 'market_1',
+      marketTitle: 'Will turnout exceed 40%?',
+      traderCount: 3,
+      totalSpent: 50,
+    });
+    expect(summary.entries).toEqual([
+      expect.objectContaining({
+        userId: 'user_2',
+        amountSpent: 40,
+        tradeCount: 2,
+      }),
+      expect.objectContaining({
+        userId: 'user_4',
+        amountSpent: 10,
+        tradeCount: 1,
+      }),
+      expect.objectContaining({
+        userId: 'user_3',
+        amountSpent: 0,
+        tradeCount: 1,
+      }),
+    ]);
   });
 
   it('supports selling a specific number of long shares', async () => {
@@ -688,6 +797,32 @@ describe('market service', () => {
     const shortMarket = {
       ...market,
       tradingClosedAt: new Date('2099-03-30T00:00:00.000Z'),
+      trades: [
+        {
+          id: 'trade_1',
+          marketId: 'market_1',
+          outcomeId: 'outcome_yes',
+          userId: 'user_2',
+          side: 'short' as const,
+          cashDelta: 20,
+          shareDelta: -3,
+          probabilitySnapshot: 0.4,
+          cumulativeVolume: 20,
+          createdAt: new Date('2099-03-29T01:00:00.000Z'),
+        },
+        {
+          id: 'trade_2',
+          marketId: 'market_1',
+          outcomeId: 'outcome_no',
+          userId: 'user_2',
+          side: 'buy' as const,
+          cashDelta: -10,
+          shareDelta: 2,
+          probabilitySnapshot: 0.6,
+          cumulativeVolume: 30,
+          createdAt: new Date('2099-03-29T02:00:00.000Z'),
+        },
+      ],
       positions: [makeShortPosition({ proceeds: 3, collateralLocked: 5 })],
     };
 
@@ -717,6 +852,183 @@ describe('market service', () => {
         bankroll: 1_005,
         realizedProfit: 3,
       }),
+    }));
+  });
+
+  it('quotes a buy trade with payout information before execution', async () => {
+    prisma.market.findUnique.mockResolvedValue(market);
+    prisma.marketAccount.findUnique.mockResolvedValue(baseAccount);
+
+    const quote = await calculateMarketTradeQuote({
+      marketId: 'market_1',
+      userId: 'user_2',
+      outcomeId: 'outcome_yes',
+      action: 'buy',
+      amount: 50,
+      amountMode: 'points',
+      rawAmount: '50',
+    });
+
+    expect(quote.action).toBe('buy');
+    expect(quote.immediateCash).toBe(50);
+    expect(quote.settlementIfChosen).toBeGreaterThan(0);
+    expect(quote.maxLossIfNotChosen).toBe(50);
+  });
+
+  it('quotes a short trade with both outcome scenarios', async () => {
+    prisma.market.findUnique.mockResolvedValue(market);
+    prisma.marketAccount.findUnique.mockResolvedValue(baseAccount);
+
+    const quote = await calculateMarketTradeQuote({
+      marketId: 'market_1',
+      userId: 'user_2',
+      outcomeId: 'outcome_yes',
+      action: 'short',
+      amount: 10,
+      amountMode: 'points',
+      rawAmount: '10 pts',
+    });
+
+    expect(quote.action).toBe('short');
+    expect(quote.immediateCash).toBe(10);
+    expect(quote.collateralLocked).toBeGreaterThan(0);
+    expect(quote.settlementIfChosen).toBe(0);
+    expect(quote.settlementIfNotChosen).toBeGreaterThan(0);
+  });
+
+  it('builds forecast leaderboard and profile aggregates from stored forecast records', async () => {
+    const now = new Date();
+    prisma.market.findMany.mockResolvedValue([]);
+    prisma.marketForecastRecord.findMany.mockResolvedValue([
+      {
+        id: 'forecast_1',
+        guildId: 'guild_1',
+        marketId: 'market_1',
+        userId: 'user_2',
+        resolvedAt: new Date(now.getTime() - (5 * 24 * 60 * 60 * 1_000)),
+        marketTagSnapshot: ['meta'],
+        forecastVector: [{ outcomeId: 'outcome_yes', probability: 0.7 }, { outcomeId: 'outcome_no', probability: 0.3 }],
+        winningOutcomeId: 'outcome_yes',
+        winningOutcomeProbability: 0.7,
+        predictedOutcomeId: 'outcome_yes',
+        brierScore: 0.12,
+        wasCorrect: true,
+        realizedProfit: 5,
+        tradeCount: 3,
+        stakeWeight: 80,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'forecast_2',
+        guildId: 'guild_1',
+        marketId: 'market_2',
+        userId: 'user_2',
+        resolvedAt: new Date(now.getTime() - (3 * 24 * 60 * 60 * 1_000)),
+        marketTagSnapshot: ['meta'],
+        forecastVector: [{ outcomeId: 'outcome_yes', probability: 0.4 }, { outcomeId: 'outcome_no', probability: 0.6 }],
+        winningOutcomeId: 'outcome_no',
+        winningOutcomeProbability: 0.6,
+        predictedOutcomeId: 'outcome_no',
+        brierScore: 0.2,
+        wasCorrect: true,
+        realizedProfit: 2,
+        tradeCount: 2,
+        stakeWeight: 40,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'forecast_3',
+        guildId: 'guild_1',
+        marketId: 'market_3',
+        userId: 'user_2',
+        resolvedAt: new Date(now.getTime() - (1 * 24 * 60 * 60 * 1_000)),
+        marketTagSnapshot: ['meta'],
+        forecastVector: [{ outcomeId: 'outcome_yes', probability: 0.8 }, { outcomeId: 'outcome_no', probability: 0.2 }],
+        winningOutcomeId: 'outcome_no',
+        winningOutcomeProbability: 0.2,
+        predictedOutcomeId: 'outcome_yes',
+        brierScore: 0.3,
+        wasCorrect: false,
+        realizedProfit: -3,
+        tradeCount: 4,
+        stakeWeight: 60,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'forecast_4',
+        guildId: 'guild_1',
+        marketId: 'market_4',
+        userId: 'user_3',
+        resolvedAt: new Date(now.getTime() - (2 * 24 * 60 * 60 * 1_000)),
+        marketTagSnapshot: ['meta'],
+        forecastVector: [{ outcomeId: 'outcome_yes', probability: 0.55 }, { outcomeId: 'outcome_no', probability: 0.45 }],
+        winningOutcomeId: 'outcome_yes',
+        winningOutcomeProbability: 0.55,
+        predictedOutcomeId: 'outcome_yes',
+        brierScore: 0.16,
+        wasCorrect: true,
+        realizedProfit: 1,
+        tradeCount: 2,
+        stakeWeight: 30,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'forecast_5',
+        guildId: 'guild_1',
+        marketId: 'market_5',
+        userId: 'user_2',
+        resolvedAt: new Date(now.getTime() - (35 * 24 * 60 * 60 * 1_000)),
+        marketTagSnapshot: ['meta'],
+        forecastVector: [{ outcomeId: 'outcome_yes', probability: 0.6 }, { outcomeId: 'outcome_no', probability: 0.4 }],
+        winningOutcomeId: 'outcome_yes',
+        winningOutcomeProbability: 0.6,
+        predictedOutcomeId: 'outcome_yes',
+        brierScore: 0.1,
+        wasCorrect: true,
+        realizedProfit: 4,
+        tradeCount: 2,
+        stakeWeight: 35,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'forecast_6',
+        guildId: 'guild_1',
+        marketId: 'market_6',
+        userId: 'user_2',
+        resolvedAt: new Date(now.getTime() - (20 * 24 * 60 * 60 * 1_000)),
+        marketTagSnapshot: ['meta'],
+        forecastVector: [{ outcomeId: 'outcome_yes', probability: 0.52 }, { outcomeId: 'outcome_no', probability: 0.48 }],
+        winningOutcomeId: 'outcome_yes',
+        winningOutcomeProbability: 0.52,
+        predictedOutcomeId: 'outcome_yes',
+        brierScore: 0.18,
+        wasCorrect: true,
+        realizedProfit: 3,
+        tradeCount: 2,
+        stakeWeight: 35,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+
+    const profile = await getMarketForecastProfile('guild_1', 'user_2');
+    const leaderboard = await getMarketForecastLeaderboard({
+      guildId: 'guild_1',
+      window: 'all_time',
+      tag: 'meta',
+    });
+
+    expect(profile.allTimeSampleCount).toBe(5);
+    expect(profile.topTags[0]).toEqual(expect.objectContaining({
+      tag: 'meta',
+    }));
+    expect(leaderboard[0]).toEqual(expect.objectContaining({
+      userId: 'user_2',
     }));
   });
 

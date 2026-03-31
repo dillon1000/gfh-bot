@@ -1,6 +1,7 @@
 import type {
   Market,
   MarketAccount,
+  MarketForecastRecord,
   MarketOutcome,
   MarketPositionSide,
   MarketPosition,
@@ -44,6 +45,116 @@ export type MarketTradeResult = {
   shareDelta: number;
   cashAmount: number;
   realizedProfitDelta: number;
+};
+
+export type MarketTradeQuoteAction = 'buy' | 'short';
+
+export type MarketTradeQuote = {
+  action: MarketTradeQuoteAction;
+  marketId: string;
+  marketTitle: string;
+  outcomeId: string;
+  outcomeLabel: string;
+  userId: string;
+  guildId: string;
+  amount: number;
+  amountMode: 'points' | 'shares';
+  rawAmount: string;
+  shares: number;
+  averagePrice: number | null;
+  immediateCash: number;
+  collateralLocked: number;
+  netBankrollChange: number;
+  settlementIfChosen: number;
+  settlementIfNotChosen: number;
+  maxProfitIfChosen: number;
+  maxProfitIfNotChosen: number;
+  maxLossIfChosen: number;
+  maxLossIfNotChosen: number;
+};
+
+export type MarketTradeQuoteSession = {
+  sessionId: string;
+  action: MarketTradeQuoteAction;
+  guildId: string;
+  marketId: string;
+  marketTitle: string;
+  outcomeId: string;
+  outcomeLabel: string;
+  userId: string;
+  rawAmount: string;
+  amount: number;
+  amountMode: 'points' | 'shares';
+  shares: number;
+  averagePrice: number | null;
+  immediateCash: number;
+  collateralLocked: number;
+  netBankrollChange: number;
+  settlementIfChosen: number;
+  settlementIfNotChosen: number;
+  maxProfitIfChosen: number;
+  maxProfitIfNotChosen: number;
+  maxLossIfChosen: number;
+  maxLossIfNotChosen: number;
+  expiresAt: string;
+};
+
+export type MarketForecastVectorEntry = {
+  outcomeId: string;
+  probability: number;
+};
+
+export type MarketForecastProfile = {
+  userId: string;
+  allTimeMeanBrier: number | null;
+  thirtyDayMeanBrier: number | null;
+  allTimeSampleCount: number;
+  thirtyDaySampleCount: number;
+  percentileRank: number | null;
+  rank: number | null;
+  rankedUserCount: number;
+  currentCorrectPickStreak: number;
+  bestCorrectPickStreak: number;
+  currentProfitableMarketStreak: number;
+  bestProfitableMarketStreak: number;
+  calibrationBuckets: Array<{
+    label: string;
+    sampleCount: number;
+    averageConfidence: number;
+    actualRate: number;
+  }>;
+  topTags: Array<{
+    tag: string;
+    meanBrier: number;
+    sampleCount: number;
+  }>;
+};
+
+export type MarketForecastLeaderboardEntry = {
+  userId: string;
+  meanBrier: number;
+  sampleCount: number;
+  correctPickRate: number;
+  currentCorrectPickStreak: number;
+};
+
+export type MarketTraderSummaryEntry = {
+  userId: string;
+  amountSpent: number;
+  tradeCount: number;
+  lastTradedAt: Date;
+};
+
+export type MarketTraderSummary = {
+  marketId: string;
+  marketTitle: string;
+  traderCount: number;
+  totalSpent: number;
+  entries: MarketTraderSummaryEntry[];
+};
+
+export type MarketForecastRecordWithVector = MarketForecastRecord & {
+  forecastVector: MarketForecastVectorEntry[];
 };
 
 export type MarketResolutionResult = {

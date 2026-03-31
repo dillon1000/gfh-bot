@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { MarketWithRelations } from '../src/features/markets/types.js';
 
-vi.mock('../src/features/markets/service.js', () => ({
+vi.mock('../src/features/markets/service-shared.js', () => ({
   getMarketStatus: vi.fn(() => 'open'),
   getTradeLockReason: vi.fn(() => null),
   computeMarketSummary: vi.fn((market: MarketWithRelations) => ({
