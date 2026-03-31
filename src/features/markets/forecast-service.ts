@@ -1,9 +1,11 @@
 import { type Market, type MarketOutcome, type MarketTrade, Prisma } from '@prisma/client';
 
+import { logger } from '../../app/logger.js';
 import { prisma } from '../../lib/prisma.js';
 import {
   clampSmall,
   getMarketForUpdate,
+  getMarketProbabilities,
   marketInclude,
   roundCurrency,
   roundProbability,
@@ -16,6 +18,7 @@ import type {
 } from './types.js';
 
 const thirtyDayWindowMs = 30 * 24 * 60 * 60 * 1_000;
+const forecastBackfillCooldownMs = 5 * 60 * 1_000;
 const minimumForecastTradeCount = 2;
 const minimumForecastStakeWeight = 25;
 
@@ -59,6 +62,8 @@ type HydratedForecastRecord = {
   tradeCount: number;
   stakeWeight: number;
 };
+
+const forecastBackfillState = new Map<string, { lastStartedAt: number; promise: Promise<number> | null }>();
 
 const normalizeForecastVector = (
   market: Pick<Market, 'winningOutcomeId'> & {
@@ -152,6 +157,32 @@ const hydrateForecastRecord = (
     ? (record.forecastVector as MarketForecastVectorEntry[])
     : [],
 });
+
+const buildHistoricalProbabilityVector = (
+  market: Pick<Market, 'liquidityParameter'> & {
+    outcomes: Array<Pick<MarketOutcome, 'id' | 'resolvedAt' | 'settlementValue'>>;
+  },
+  outstandingSharesByOutcomeId: Map<string, number>,
+  tradeCreatedAt: Date,
+): MarketForecastVectorEntry[] => {
+  const probabilities = getMarketProbabilities({
+    liquidityParameter: market.liquidityParameter,
+    resolvedAt: null,
+    winningOutcomeId: null,
+    outcomes: market.outcomes.map((outcome) => ({
+      id: outcome.id,
+      outstandingShares: outstandingSharesByOutcomeId.get(outcome.id) ?? 0,
+      settlementValue: outcome.resolvedAt && outcome.resolvedAt.getTime() <= tradeCreatedAt.getTime()
+        ? outcome.settlementValue
+        : null,
+    })),
+  });
+
+  return market.outcomes.map((outcome, index) => ({
+    outcomeId: outcome.id,
+    probability: roundProbability(probabilities[index] ?? 0),
+  }));
+};
 
 const reconstructMarketProfitByUser = (
   market: Pick<Market, 'winningOutcomeId'> & {
@@ -282,6 +313,9 @@ const buildForecastRecordsForMarket = (
   const winningOutcomeId = market.winningOutcomeId;
   const tradeCutoff = market.tradingClosedAt ?? market.closeAt;
   const tradesByUser = new Map<string, RunningForecastState>();
+  const outstandingSharesByOutcomeId = new Map<string, number>(
+    market.outcomes.map((outcome) => [outcome.id, 0]),
+  );
 
   for (const trade of market.trades) {
     if (trade.createdAt.getTime() > tradeCutoff.getTime()) {
@@ -299,12 +333,19 @@ const buildForecastRecordsForMarket = (
       tradesByUser.set(trade.userId, state);
     }
 
+    outstandingSharesByOutcomeId.set(
+      trade.outcomeId,
+      clampSmall((outstandingSharesByOutcomeId.get(trade.outcomeId) ?? 0) + trade.shareDelta),
+    );
+    const probabilityVector = buildHistoricalProbabilityVector(market, outstandingSharesByOutcomeId, trade.createdAt);
     state.tradeCount += 1;
     state.stakeWeight += weight;
-    const existing = state.weightedProbabilities.get(trade.outcomeId) ?? { weightedSum: 0, weight: 0 };
-    existing.weightedSum += trade.probabilitySnapshot * weight;
-    existing.weight += weight;
-    state.weightedProbabilities.set(trade.outcomeId, existing);
+    for (const probabilityEntry of probabilityVector) {
+      const existing = state.weightedProbabilities.get(probabilityEntry.outcomeId) ?? { weightedSum: 0, weight: 0 };
+      existing.weightedSum += probabilityEntry.probability * weight;
+      existing.weight += weight;
+      state.weightedProbabilities.set(probabilityEntry.outcomeId, existing);
+    }
   }
 
   const profits = reconstructMarketProfitByUser(market);
@@ -437,8 +478,42 @@ export const backfillMarketForecastRecords = async (guildId?: string): Promise<n
   return recordCount;
 };
 
+const scheduleForecastBackfill = (guildId: string): void => {
+  const now = Date.now();
+  const existing = forecastBackfillState.get(guildId);
+  if (existing?.promise) {
+    return;
+  }
+
+  if (existing && (now - existing.lastStartedAt) < forecastBackfillCooldownMs) {
+    return;
+  }
+
+  const promise = backfillMarketForecastRecords(guildId)
+    .catch((error) => {
+      logger.warn({ err: error, guildId }, 'Could not backfill market forecast records');
+      return 0;
+    })
+    .finally(() => {
+      const current = forecastBackfillState.get(guildId);
+      if (!current || current.promise !== promise) {
+        return;
+      }
+
+      forecastBackfillState.set(guildId, {
+        lastStartedAt: current.lastStartedAt,
+        promise: null,
+      });
+    });
+
+  forecastBackfillState.set(guildId, {
+    lastStartedAt: now,
+    promise,
+  });
+};
+
 const getForecastRecordsForGuild = async (guildId: string): Promise<HydratedForecastRecord[]> => {
-  await backfillMarketForecastRecords(guildId);
+  scheduleForecastBackfill(guildId);
   const records = await prisma.marketForecastRecord.findMany({
     where: {
       guildId,

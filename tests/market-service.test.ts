@@ -62,6 +62,12 @@ vi.mock('../src/lib/prisma.js', () => ({
   prisma,
 }));
 
+vi.mock('../src/app/logger.js', () => ({
+  logger: {
+    warn: vi.fn(),
+  },
+}));
+
 vi.mock('../src/lib/queue.js', () => ({
   marketCloseQueue: {
     getJob: vi.fn(),
@@ -80,6 +86,7 @@ vi.mock('../src/lib/queue.js', () => ({
 let cancelMarket: typeof import('../src/features/markets/trade-service.js').cancelMarket;
 let calculateMarketTradeQuote: typeof import('../src/features/markets/trade-service.js').calculateMarketTradeQuote;
 let executeMarketTrade: typeof import('../src/features/markets/trade-service.js').executeMarketTrade;
+let grantMarketBankroll: typeof import('../src/features/markets/account-service.js').grantMarketBankroll;
 let getMarketForecastLeaderboard: typeof import('../src/features/markets/forecast-service.js').getMarketForecastLeaderboard;
 let getMarketForecastProfile: typeof import('../src/features/markets/forecast-service.js').getMarketForecastProfile;
 let resolveMarket: typeof import('../src/features/markets/trade-service.js').resolveMarket;
@@ -195,6 +202,9 @@ describe('market service', () => {
       getMarketForecastProfile,
     } = await import('../src/features/markets/forecast-service.js'));
     ({
+      grantMarketBankroll,
+    } = await import('../src/features/markets/account-service.js'));
+    ({
       summarizeMarketTraders,
     } = await import('../src/features/markets/record-service.js'));
   });
@@ -205,6 +215,7 @@ describe('market service', () => {
     transaction.market.findUnique.mockReset();
     transaction.market.findUniqueOrThrow.mockReset();
     transaction.market.update.mockReset();
+    prisma.market.findMany.mockReset();
     transaction.marketOutcome.update.mockReset();
     transaction.marketPosition.deleteMany.mockReset();
     transaction.marketPosition.upsert.mockReset();
@@ -221,6 +232,7 @@ describe('market service', () => {
     transaction.market.findUnique.mockResolvedValue(market);
     transaction.market.findUniqueOrThrow.mockResolvedValue(market);
     transaction.marketOutcome.update.mockResolvedValue(undefined);
+    prisma.market.findMany.mockResolvedValue([]);
     transaction.marketPosition.deleteMany.mockResolvedValue({ count: 0 });
     transaction.marketPosition.upsert.mockResolvedValue(undefined);
     transaction.marketAccount.findUnique.mockResolvedValue(baseAccount);
@@ -387,6 +399,57 @@ describe('market service', () => {
         userId: 'user_3',
         amountSpent: 0,
         tradeCount: 1,
+      }),
+    ]);
+  });
+
+  it('returns an empty trader summary when a market has no trades', () => {
+    expect(summarizeMarketTraders(market)).toEqual({
+      marketId: 'market_1',
+      marketTitle: 'Will turnout exceed 40%?',
+      traderCount: 0,
+      totalSpent: 0,
+      entries: [],
+    });
+  });
+
+  it('does not count profitable trades as spend in the trader summary', () => {
+    const summary = summarizeMarketTraders({
+      ...market,
+      trades: [
+        {
+          id: 'trade_1',
+          marketId: 'market_1',
+          outcomeId: 'outcome_yes',
+          userId: 'user_2',
+          side: 'sell',
+          shareDelta: -2,
+          cashDelta: 15,
+          probabilitySnapshot: 0.58,
+          cumulativeVolume: 15,
+          createdAt: new Date('2099-03-29T02:00:00.000Z'),
+        },
+        {
+          id: 'trade_2',
+          marketId: 'market_1',
+          outcomeId: 'outcome_no',
+          userId: 'user_2',
+          side: 'short',
+          shareDelta: -3,
+          cashDelta: 20,
+          probabilitySnapshot: 0.35,
+          cumulativeVolume: 35,
+          createdAt: new Date('2099-03-29T03:00:00.000Z'),
+        },
+      ],
+    });
+
+    expect(summary.totalSpent).toBe(0);
+    expect(summary.entries).toEqual([
+      expect.objectContaining({
+        userId: 'user_2',
+        amountSpent: 0,
+        tradeCount: 2,
       }),
     ]);
   });
@@ -896,6 +959,80 @@ describe('market service', () => {
     expect(quote.settlementIfNotChosen).toBeGreaterThan(0);
   });
 
+  it('reconstructs the full probability vector for multi-outcome forecast records', async () => {
+    const resolvedAt = new Date('2099-03-30T12:00:00.000Z');
+    const threeOutcomeMarket = {
+      ...market,
+      outcomes: [
+        { ...market.outcomes[0], id: 'outcome_a', label: 'A' },
+        { ...market.outcomes[1], id: 'outcome_b', label: 'B' },
+        { ...market.outcomes[1], id: 'outcome_c', label: 'C', sortOrder: 2 },
+      ],
+      trades: [
+        {
+          id: 'trade_1',
+          marketId: 'market_1',
+          outcomeId: 'outcome_a',
+          userId: 'user_2',
+          side: 'buy' as const,
+          shareDelta: 30,
+          cashDelta: -30,
+          probabilitySnapshot: 0.3792,
+          cumulativeVolume: 30,
+          createdAt: new Date('2099-03-29T01:00:00.000Z'),
+        },
+        {
+          id: 'trade_2',
+          marketId: 'market_1',
+          outcomeId: 'outcome_b',
+          userId: 'user_2',
+          side: 'buy' as const,
+          shareDelta: 30,
+          cashDelta: -30,
+          probabilitySnapshot: 0.3649,
+          cumulativeVolume: 60,
+          createdAt: new Date('2099-03-29T02:00:00.000Z'),
+        },
+      ],
+      positions: [],
+    };
+    const resolvedMarket = {
+      ...threeOutcomeMarket,
+      resolvedAt,
+      tradingClosedAt: resolvedAt,
+      winningOutcomeId: 'outcome_b',
+      outcomes: threeOutcomeMarket.outcomes.map((outcome) => ({
+        ...outcome,
+        settlementValue: outcome.id === 'outcome_b' ? 1 : 0,
+        resolvedAt,
+        resolvedByUserId: 'user_1',
+      })),
+    };
+
+    transaction.market.findUnique.mockResolvedValue(threeOutcomeMarket);
+    transaction.market.update.mockReset();
+    transaction.market.update.mockResolvedValue(resolvedMarket);
+    runTransaction();
+
+    await resolveMarket({
+      marketId: 'market_1',
+      actorId: 'user_1',
+      winningOutcomeId: 'outcome_b',
+    });
+
+    const persistedRecord = transaction.marketForecastRecord.upsert.mock.calls[0]?.[0]?.create;
+    const forecastByOutcome = Object.fromEntries(
+      persistedRecord.forecastVector.map((entry: { outcomeId: string; probability: number }) => [entry.outcomeId, entry.probability]),
+    );
+
+    expect(forecastByOutcome.outcome_a).toBeGreaterThan(0.35);
+    expect(forecastByOutcome.outcome_a).toBeLessThan(0.38);
+    expect(forecastByOutcome.outcome_b).toBeGreaterThan(0.32);
+    expect(forecastByOutcome.outcome_b).toBeLessThan(0.34);
+    expect(forecastByOutcome.outcome_c).toBeGreaterThan(0.29);
+    expect(forecastByOutcome.outcome_c).toBeLessThan(0.31);
+  });
+
   it('builds forecast leaderboard and profile aggregates from stored forecast records', async () => {
     const now = new Date();
     prisma.market.findMany.mockResolvedValue([]);
@@ -1024,12 +1161,71 @@ describe('market service', () => {
     });
 
     expect(profile.allTimeSampleCount).toBe(5);
+    expect(profile.thirtyDaySampleCount).toBe(4);
+    expect(profile.thirtyDayMeanBrier).toBe(0.2);
     expect(profile.topTags[0]).toEqual(expect.objectContaining({
       tag: 'meta',
     }));
+    expect(leaderboard).toHaveLength(1);
     expect(leaderboard[0]).toEqual(expect.objectContaining({
       userId: 'user_2',
     }));
+  });
+
+  it('returns empty forecast metrics when no forecast records exist', async () => {
+    const profile = await getMarketForecastProfile('guild_empty', 'user_9');
+    const leaderboard = await getMarketForecastLeaderboard({
+      guildId: 'guild_empty',
+      window: '30d',
+    });
+
+    expect(profile).toEqual(expect.objectContaining({
+      allTimeMeanBrier: null,
+      thirtyDayMeanBrier: null,
+      allTimeSampleCount: 0,
+      thirtyDaySampleCount: 0,
+      rank: null,
+      percentileRank: null,
+    }));
+    expect(leaderboard).toEqual([]);
+  });
+
+  it('does not block forecast reads on a historical backfill pass', async () => {
+    prisma.market.findMany.mockImplementation(() => new Promise(() => undefined));
+    prisma.marketForecastRecord.findMany.mockResolvedValue([
+      {
+        id: 'forecast_pending',
+        guildId: 'guild_pending_backfill',
+        marketId: 'market_1',
+        userId: 'user_2',
+        resolvedAt: new Date('2099-03-29T00:00:00.000Z'),
+        marketTagSnapshot: ['meta'],
+        forecastVector: [{ outcomeId: 'outcome_yes', probability: 0.7 }, { outcomeId: 'outcome_no', probability: 0.3 }],
+        winningOutcomeId: 'outcome_yes',
+        winningOutcomeProbability: 0.7,
+        predictedOutcomeId: 'outcome_yes',
+        brierScore: 0.12,
+        wasCorrect: true,
+        realizedProfit: 5,
+        tradeCount: 3,
+        stakeWeight: 80,
+        createdAt: new Date('2099-03-29T00:00:00.000Z'),
+        updatedAt: new Date('2099-03-29T00:00:00.000Z'),
+      },
+    ]);
+
+    const profile = await getMarketForecastProfile('guild_pending_backfill', 'user_2');
+
+    expect(profile.allTimeSampleCount).toBe(1);
+    expect(profile.allTimeMeanBrier).toBe(0.12);
+  });
+
+  it('rejects grants above the configured maximum', async () => {
+    await expect(grantMarketBankroll({
+      guildId: 'guild_1',
+      userId: 'user_2',
+      amount: 1_000_000.01,
+    })).rejects.toThrow('Grant amount cannot exceed 1000000.00 points.');
   });
 
   it('cancels a market by refunding long basis and unwinding short proceeds', async () => {

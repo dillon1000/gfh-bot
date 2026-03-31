@@ -29,5 +29,5 @@ export const runSerializableTransaction = async <T>(
     }
   }
 
-  throw lastError;
+  throw lastError ?? new Error('Serializable transaction retry loop exited without returning a result.');
 };

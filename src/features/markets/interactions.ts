@@ -9,6 +9,7 @@ import {
 } from 'discord.js';
 
 import { env } from '../../app/config.js';
+import { logger } from '../../app/logger.js';
 import { redis } from '../../lib/redis.js';
 import {
   buildLeaderboardEmbed,
@@ -216,29 +217,28 @@ const buildTradeExecutionDescription = (
   action: TradeAction,
   outcomeLabel: string,
   result: Awaited<ReturnType<typeof executeMarketTrade>>,
-  payoutSummary?: {
-    ifChosen: number;
-    ifNotChosen: number;
-  },
 ): string =>
-  [
-    `Outcome: **${outcomeLabel}**`,
-    `Cash: ${result.cashAmount} pts`,
-    `Shares: ${Math.abs(result.shareDelta).toFixed(2)}`,
-    `Bankroll: ${result.account.bankroll.toFixed(2)} pts`,
-    ...(action === 'buy' && payoutSummary
-      ? [
-          `If ${outcomeLabel} is chosen: ${payoutSummary.ifChosen.toFixed(2)} pts`,
-          `If ${outcomeLabel} is not chosen: ${payoutSummary.ifNotChosen.toFixed(2)} pts`,
-        ]
-      : []),
-    ...(action === 'short' && payoutSummary
-      ? [
-          `If ${outcomeLabel} is chosen: ${payoutSummary.ifChosen.toFixed(2)} pts`,
-          `If ${outcomeLabel} is not chosen: ${payoutSummary.ifNotChosen.toFixed(2)} pts`,
-        ]
-      : []),
-  ].join('\n');
+  {
+    const settledShares = Math.abs(result.shareDelta);
+    const payoutSummary = action === 'buy'
+      ? { ifChosen: settledShares, ifNotChosen: 0 }
+      : action === 'short'
+        ? { ifChosen: 0, ifNotChosen: settledShares }
+        : null;
+
+    return [
+      `Outcome: **${outcomeLabel}**`,
+      `Cash: ${result.cashAmount} pts`,
+      `Shares: ${Math.abs(result.shareDelta).toFixed(2)}`,
+      `Bankroll: ${result.account.bankroll.toFixed(2)} pts`,
+      ...(payoutSummary
+        ? [
+            `If ${outcomeLabel} is chosen: ${payoutSummary.ifChosen.toFixed(2)} pts`,
+            `If ${outcomeLabel} is not chosen: ${payoutSummary.ifNotChosen.toFixed(2)} pts`,
+          ]
+        : []),
+    ].join('\n');
+  };
 
 export const handleMarketCommand = async (
   client: Client,
@@ -644,8 +644,12 @@ export const handleMarketCommand = async (
         allowedMentions: {
           parse: [],
         },
-      }).catch(() => {
+      }).catch((error) => {
         dmDelivered = false;
+        logger.warn(
+          { err: error, guildId: interaction.guildId, adminUserId: interaction.user.id, recipientUserId: user.id },
+          'Could not DM market grant recipient',
+        );
       });
 
       await interaction.reply({
@@ -741,10 +745,7 @@ export const handleMarketButton = async (
       embeds: [
         buildMarketStatusEmbed(
           feedback.title,
-          buildTradeExecutionDescription(session.action, session.outcomeLabel, result, {
-            ifChosen: session.settlementIfChosen,
-            ifNotChosen: session.settlementIfNotChosen,
-          }),
+          buildTradeExecutionDescription(session.action, session.outcomeLabel, result),
           feedback.color,
         ),
       ],
