@@ -46,14 +46,54 @@ import type {
   MarketWithRelations,
 } from './types.js';
 
-export const calculateMarketTradeQuote = async (input: {
+type CalculateMarketTradeQuoteInput =
+  | {
+      marketId: string;
+      userId: string;
+      outcomeId: string;
+      action: 'buy';
+      amount: number;
+      rawAmount: string;
+      amountMode?: 'points';
+    }
+  | {
+      marketId: string;
+      userId: string;
+      outcomeId: string;
+      action: 'short';
+      amount: number;
+      rawAmount: string;
+      amountMode?: 'points' | 'shares';
+    };
+
+const assertPositiveTradeAmount = (amount: number): void => {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error('Trade amount must be a finite value greater than zero.');
+  }
+};
+
+export const calculateMarketTradeQuote = async (input: CalculateMarketTradeQuoteInput): Promise<MarketTradeQuote> => {
+  assertPositiveTradeAmount(input.amount);
+  if (input.action === 'buy' && (input as { amountMode?: 'points' | 'shares' }).amountMode === 'shares') {
+    throw new Error('Buy quotes only support point amounts.');
+  }
+
+  const amountMode = input.amountMode ?? 'points';
+
+  return calculateMarketTradeQuoteUnsafe({
+    ...input,
+    amountMode,
+  });
+};
+
+const calculateMarketTradeQuoteUnsafe = async (input: {
   marketId: string;
   userId: string;
   outcomeId: string;
   action: MarketTradeQuoteAction;
   amount: number;
   rawAmount: string;
-  amountMode?: 'points' | 'shares';
+  amountMode: 'points' | 'shares';
 }): Promise<MarketTradeQuote> => {
   const market = await getMarketById(input.marketId);
   if (!market) {
@@ -84,7 +124,7 @@ export const calculateMarketTradeQuote = async (input: {
   const longPosition = getPosition(positions, outcome.id, 'long');
   const shortPosition = getPosition(positions, outcome.id, 'short');
   const account = await getEffectiveAccountPreview(market.guildId, input.userId);
-  const amountMode = input.amountMode ?? 'points';
+  const amountMode = input.amountMode;
 
   if (input.action === 'buy') {
     if (shortPosition && shortPosition.shares > 1e-6) {
@@ -170,6 +210,7 @@ export const executeMarketTrade = async (input: {
   amountMode?: 'points' | 'shares';
 }): Promise<MarketTradeResult> =>
   runSerializableTransaction(async (tx) => {
+    assertPositiveTradeAmount(input.amount);
     const market = await getMarketForUpdate(tx, input.marketId);
     if (!market) {
       throw new Error('Market not found.');
