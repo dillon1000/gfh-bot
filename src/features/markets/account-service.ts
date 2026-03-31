@@ -10,6 +10,8 @@ type EffectiveMarketAccount = {
   lastTopUpAt: Date | null;
 };
 
+const maximumGrantAmount = 1_000_000;
+
 const ensureGuildConfig = async (
   tx: Prisma.TransactionClient,
   guildId: string,
@@ -178,6 +180,10 @@ export const grantMarketBankroll = async (input: {
 }): Promise<MarketAccount> => {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     throw new Error('Grant amount must be greater than zero.');
+  }
+
+  if (input.amount > maximumGrantAmount) {
+    throw new Error(`Grant amount cannot exceed ${maximumGrantAmount.toFixed(2)} points.`);
   }
 
   const amount = roundCurrency(input.amount);

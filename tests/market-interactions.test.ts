@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
+  loggerWarn,
   env,
   getMarketConfig,
   setMarketConfig,
@@ -31,6 +32,7 @@ const {
   getMarketTradeQuoteSession,
   deleteMarketTradeQuoteSession,
 } = vi.hoisted(() => ({
+  loggerWarn: vi.fn(),
   env: {
     DISCORD_ADMIN_USER_IDS: ['user_1'],
   },
@@ -66,6 +68,12 @@ const {
 
 vi.mock('../src/app/config.js', () => ({
   env,
+}));
+
+vi.mock('../src/app/logger.js', () => ({
+  logger: {
+    warn: loggerWarn,
+  },
 }));
 
 vi.mock('../src/features/markets/config-service.js', () => ({
@@ -134,6 +142,8 @@ vi.mock('../src/features/markets/service-lifecycle.js', () => ({
 }));
 
 import { handleMarketButton, handleMarketCommand } from '../src/features/markets/interactions.js';
+
+const defaultAdminUserIds = ['user_1'];
 
 const baseMarket = {
   id: 'market_1',
@@ -254,7 +264,8 @@ const createButtonInteraction = (customId: string) => ({
 
 describe('market interactions', () => {
   beforeEach(() => {
-    env.DISCORD_ADMIN_USER_IDS = ['user_1'];
+    env.DISCORD_ADMIN_USER_IDS = [...defaultAdminUserIds];
+    loggerWarn.mockReset();
     getMarketConfig.mockReset();
     setMarketConfig.mockReset();
     disableMarketConfig.mockReset();
@@ -419,6 +430,10 @@ describe('market interactions', () => {
       outcome: baseMarket.outcomes[1],
       payouts: [],
     });
+  });
+
+  afterEach(() => {
+    env.DISCORD_ADMIN_USER_IDS = [...defaultAdminUserIds];
   });
 
   it('stores the official market channel through config set', async () => {
@@ -641,6 +656,15 @@ describe('market interactions', () => {
 
   it('confirms a quoted trade from the preview buttons', async () => {
     const interaction = createButtonInteraction('market:quote-confirm:quote_session_1');
+    executeMarketTrade.mockResolvedValue({
+      market: baseMarket,
+      outcome: baseMarket.outcomes[0],
+      account: { ...baseAccount, bankroll: 955 },
+      positionSide: 'long',
+      shareDelta: 70,
+      cashAmount: 45,
+      realizedProfitDelta: 0,
+    });
 
     await handleMarketButton(interaction as never);
 
@@ -658,6 +682,9 @@ describe('market interactions', () => {
       embeds: expect.any(Array),
       components: [],
     }));
+    const updatePayload = interaction.update.mock.calls[0]?.[0];
+    expect(updatePayload.embeds[0].data.description).toContain('Cash: 45 pts');
+    expect(updatePayload.embeds[0].data.description).toContain('If Yes is chosen: 70.00 pts');
   });
 
   it('grants market currency to a user and DMs them', async () => {
@@ -692,6 +719,34 @@ describe('market interactions', () => {
       flags: 64,
       embeds: expect.any(Array),
     }));
+  });
+
+  it('logs when a grant DM cannot be delivered', async () => {
+    const interaction = createInteraction({
+      subcommand: 'grant',
+      numbers: {
+        amount: 250,
+      },
+      strings: {
+        reason: 'Won the seasonal tournament',
+      },
+      users: {
+        user: {
+          id: 'user_2',
+          send: vi.fn().mockRejectedValue(new Error('DMs closed')),
+        },
+      },
+    });
+
+    await handleMarketCommand({} as never, interaction as never);
+
+    expect(loggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientUserId: 'user_2',
+        adminUserId: 'user_1',
+      }),
+      'Could not DM market grant recipient',
+    );
   });
 
   it('rejects non-admin users who try to grant market currency', async () => {

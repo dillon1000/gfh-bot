@@ -4,6 +4,8 @@ import type { Redis } from 'ioredis';
 
 import type { MarketTradeQuoteSession } from './types.js';
 
+// Quotes expire after 10 minutes so users can confirm deliberate trades
+// without leaving stale pricing around indefinitely as the board moves.
 const ttlSeconds = 60 * 10;
 const getSessionKey = (sessionId: string): string => `market-quote-session:${sessionId}`;
 
