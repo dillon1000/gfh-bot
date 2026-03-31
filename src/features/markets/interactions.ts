@@ -426,15 +426,25 @@ export const handleMarketCommand = async (
           })();
       const outcome = parseOutcomeSelection(interaction.options.getString('outcome', true), market.outcomes);
       if (action === 'buy' || action === 'short') {
-        const quote = await calculateMarketTradeQuote({
-          marketId: market.id,
-          userId: interaction.user.id,
-          outcomeId: outcome.id,
-          action,
-          amount: parsedAmount.amount,
-          amountMode: parsedAmount.amountMode,
-          rawAmount,
-        });
+        const quote = action === 'buy'
+          ? await calculateMarketTradeQuote({
+              marketId: market.id,
+              userId: interaction.user.id,
+              outcomeId: outcome.id,
+              action: 'buy',
+              amount: parsedAmount.amount,
+              amountMode: 'points',
+              rawAmount,
+            })
+          : await calculateMarketTradeQuote({
+              marketId: market.id,
+              userId: interaction.user.id,
+              outcomeId: outcome.id,
+              action: 'short',
+              amount: parsedAmount.amount,
+              amountMode: parsedAmount.amountMode,
+              rawAmount,
+            });
         const sessionId = createMarketTradeQuoteSessionId();
         await saveMarketTradeQuoteSession(redis, sessionId, {
           sessionId,
@@ -889,15 +899,25 @@ export const handleMarketModal = async (
         })();
 
     if (trade.action === 'buy' || trade.action === 'short') {
-      const quote = await calculateMarketTradeQuote({
-        marketId: trade.marketId,
-        userId: interaction.user.id,
-        outcomeId: trade.outcomeId,
-        action: trade.action,
-        amount: parsedAmount.amount,
-        amountMode: parsedAmount.amountMode,
-        rawAmount,
-      });
+      const quote = trade.action === 'buy'
+        ? await calculateMarketTradeQuote({
+            marketId: trade.marketId,
+            userId: interaction.user.id,
+            outcomeId: trade.outcomeId,
+            action: 'buy',
+            amount: parsedAmount.amount,
+            amountMode: 'points',
+            rawAmount,
+          })
+        : await calculateMarketTradeQuote({
+            marketId: trade.marketId,
+            userId: interaction.user.id,
+            outcomeId: trade.outcomeId,
+            action: 'short',
+            amount: parsedAmount.amount,
+            amountMode: parsedAmount.amountMode,
+            rawAmount,
+          });
       const sessionId = createMarketTradeQuoteSessionId();
       await saveMarketTradeQuoteSession(redis, sessionId, {
         sessionId,

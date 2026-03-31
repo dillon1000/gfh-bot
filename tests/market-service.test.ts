@@ -653,7 +653,7 @@ describe('market service', () => {
       outcomeId: 'outcome_yes',
       action: 'short',
       amount: 20,
-    })).rejects.toThrow('No on **Yes** is locked above 98%.');
+    })).rejects.toThrow('No on **Yes** is locked below 2%.');
   });
 
   it('rejects shorts that cannot be fully collateralized', async () => {
@@ -957,6 +957,41 @@ describe('market service', () => {
     expect(quote.collateralLocked).toBeGreaterThan(0);
     expect(quote.settlementIfChosen).toBe(0);
     expect(quote.settlementIfNotChosen).toBeGreaterThan(0);
+  });
+
+  it('rejects buy quotes requested in shares mode', async () => {
+    await expect(calculateMarketTradeQuote({
+      marketId: 'market_1',
+      userId: 'user_2',
+      outcomeId: 'outcome_yes',
+      action: 'buy',
+      amount: 5,
+      amountMode: 'shares',
+      rawAmount: '5 shares',
+    } as never)).rejects.toThrow('Buy quotes only support point amounts.');
+  });
+
+  it('rejects non-positive trade amounts in quote calculation', async () => {
+    await expect(calculateMarketTradeQuote({
+      marketId: 'market_1',
+      userId: 'user_2',
+      outcomeId: 'outcome_yes',
+      action: 'buy',
+      amount: 0,
+      rawAmount: '0',
+    })).rejects.toThrow('Trade amount must be a finite value greater than zero.');
+  });
+
+  it('rejects non-positive trade amounts in execution', async () => {
+    runTransaction();
+
+    await expect(executeMarketTrade({
+      marketId: 'market_1',
+      userId: 'user_2',
+      outcomeId: 'outcome_yes',
+      action: 'buy',
+      amount: -10,
+    })).rejects.toThrow('Trade amount must be a finite value greater than zero.');
   });
 
   it('reconstructs the full probability vector for multi-outcome forecast records', async () => {

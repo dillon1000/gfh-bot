@@ -235,7 +235,7 @@ export const getTradeLockReason = (
   }
 
   if (action === 'short' && outcome.probability <= minOpenProbability) {
-    return `No on **${outcome.label}** is locked above 98%.`;
+    return `No on **${outcome.label}** is locked below 2%.`;
   }
 
   return null;
