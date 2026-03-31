@@ -49,6 +49,15 @@ describe('market math', () => {
     expect(proceeds).toBeCloseTo(40, 5);
   });
 
+  it('rejects impossible short payouts in skewed markets', () => {
+    const shares = [0, 87.43];
+
+    expect(computeSellPayout(shares, 0, 1_000_000, 150)).toBeCloseTo(66.54, 2);
+    expect(() => solveShortSharesForAmount(shares, 0, 100, 150)).toThrow(
+      /cannot pay out that many points/i,
+    );
+  });
+
   it('computes cover cost for a specific share amount', () => {
     const shares = [-8, 0];
     const cost = computeBuyCost(shares, 0, 3, 150);

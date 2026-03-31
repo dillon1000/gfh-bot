@@ -67,6 +67,26 @@ export const computeSellPayout = (
   return clampSmall(baseline - computeLmsrCost(nextShares, liquidity));
 };
 
+const computeMaxShortPayout = (
+  shares: number[],
+  outcomeIndex: number,
+  liquidity: number,
+): number => {
+  const baseline = computeLmsrCost(shares, liquidity);
+  const remainingScaled = shares
+    .filter((_, index) => index !== outcomeIndex)
+    .map((value) => value / liquidity);
+
+  if (remainingScaled.length === 0) {
+    return 0;
+  }
+
+  const max = Math.max(...remainingScaled);
+  const total = remainingScaled.reduce((sum, value) => sum + Math.exp(value - max), 0);
+  const minCost = liquidity * (max + Math.log(total));
+  return clampSmall(baseline - minCost);
+};
+
 export const solveSellSharesForAmount = (
   shares: number[],
   outcomeIndex: number,
@@ -101,6 +121,11 @@ export const solveShortSharesForAmount = (
   desiredPayout: number,
   liquidity: number,
 ): number => {
+  const maxPayout = computeMaxShortPayout(shares, outcomeIndex, liquidity);
+  if (desiredPayout > maxPayout + 1e-6) {
+    throw new Error('That short cannot pay out that many points. Try a smaller point amount or specify shares.');
+  }
+
   let low = 0;
   let high = Math.max(1, desiredPayout);
 
