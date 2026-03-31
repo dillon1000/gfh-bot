@@ -50,14 +50,20 @@ vi.mock('../src/features/markets/render.js', () => ({
   buildMarketStatusEmbed: vi.fn(),
 }));
 
-vi.mock('../src/features/markets/service.js', () => ({
+vi.mock('../src/features/markets/record-service.js', () => ({
   attachMarketMessage,
   attachMarketThread,
-  clearMarketJobs: vi.fn(),
-  closeMarketTrading: vi.fn(),
   getMarketById,
+}));
+
+vi.mock('../src/features/markets/schedule-service.js', () => ({
+  clearMarketJobs: vi.fn(),
   scheduleMarketClose,
   scheduleMarketGrace: vi.fn(),
+}));
+
+vi.mock('../src/features/markets/trade-service.js', () => ({
+  closeMarketTrading: vi.fn(),
 }));
 
 vi.mock('../src/features/markets/visualize.js', () => ({

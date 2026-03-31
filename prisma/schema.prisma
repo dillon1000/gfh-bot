@@ -284,10 +284,38 @@ model Market {
   outcomes               MarketOutcome[]
   trades                 MarketTrade[]
   positions              MarketPosition[]
+  forecastRecords        MarketForecastRecord[]
 
   @@index([guildId, closeAt, tradingClosedAt])
   @@index([guildId, resolvedAt, cancelledAt])
   @@index([guildId, creatorId, createdAt])
+}
+
+model MarketForecastRecord {
+  id                       String   @id @default(cuid())
+  guildId                  String
+  marketId                 String
+  userId                   String
+  resolvedAt               DateTime
+  marketTagSnapshot        String[] @default([])
+  forecastVector           Json
+  winningOutcomeId         String
+  winningOutcomeProbability Float
+  predictedOutcomeId       String
+  brierScore               Float
+  wasCorrect               Boolean
+  realizedProfit           Float
+  tradeCount               Int
+  stakeWeight              Float
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  market                   Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, marketId, userId])
+  @@index([marketId])
+  @@index([guildId, userId, resolvedAt])
+  @@index([guildId, resolvedAt])
+  @@index([guildId, brierScore])
 }
 
 model MarketOutcome {

@@ -4,14 +4,16 @@ import { logger } from '../../app/logger.js';
 import { prisma } from '../../lib/prisma.js';
 import { buildMarketEmbed, buildMarketMessage, buildMarketResolvePrompt, buildMarketStatusEmbed } from './render.js';
 import {
-  attachMarketThread,
   attachMarketMessage,
-  clearMarketJobs,
-  closeMarketTrading,
+  attachMarketThread,
   getMarketById,
+} from './record-service.js';
+import {
+  clearMarketJobs,
   scheduleMarketClose,
   scheduleMarketGrace,
-} from './service.js';
+} from './schedule-service.js';
+import { closeMarketTrading } from './trade-service.js';
 import type { MarketWithRelations } from './types.js';
 import { buildMarketDiagram } from './visualize.js';
 

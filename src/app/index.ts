@@ -6,7 +6,7 @@ import { env } from './config.js';
 import { registerInteractionRouter } from '../discord/router.js';
 import { registerAuditLogEventHandlers, replayUndeliveredAuditLogEntries } from '../features/audit-log/service.js';
 import { recoverExpiredMarketGraceNotices, recoverExpiredMarkets } from '../features/markets/service-lifecycle.js';
-import { syncOpenMarketJobs } from '../features/markets/service.js';
+import { syncOpenMarketJobs } from '../features/markets/schedule-service.js';
 import { startMarketCloseWorker, startMarketGraceWorker, startMarketRefreshWorker } from '../features/markets/worker.js';
 import { recoverExpiredPolls, recoverMissedPollReminders } from '../features/polls/service-lifecycle.js';
 import { syncOpenPollCloseJobs, syncOpenPollReminderJobs } from '../features/polls/service-repository.js';

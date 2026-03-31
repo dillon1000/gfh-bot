@@ -14,6 +14,8 @@ export const marketTradeSelectCustomId = (action: 'buy' | 'sell' | 'short' | 'co
   `market:trade-select:${action}:${marketId}`;
 export const marketTradeModalCustomId = (action: 'buy' | 'sell' | 'short' | 'cover', marketId: string, outcomeId: string): string =>
   `market:trade-modal:${action}:${marketId}:${outcomeId}`;
+export const marketTradeQuoteConfirmCustomId = (sessionId: string): string => `market:quote-confirm:${sessionId}`;
+export const marketTradeQuoteCancelCustomId = (sessionId: string): string => `market:quote-cancel:${sessionId}`;
 export const marketResolveButtonCustomId = (marketId: string): string => `market:resolve:${marketId}`;
 export const marketCancelButtonCustomId = (marketId: string): string => `market:cancel:${marketId}`;
 export const marketResolveModalCustomId = (marketId: string): string => `market:resolve-modal:${marketId}`;

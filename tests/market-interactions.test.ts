@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
+  env,
   getMarketConfig,
   setMarketConfig,
   disableMarketConfig,
@@ -12,8 +13,13 @@ const {
   listMarkets,
   getMarketLeaderboard,
   getMarketAccountSummary,
+  grantMarketBankroll,
   getMarketByQuery,
   getMarketById,
+  summarizeMarketTraders,
+  calculateMarketTradeQuote,
+  getMarketForecastProfile,
+  getMarketForecastLeaderboard,
   executeMarketTrade,
   resolveMarket,
   resolveMarketOutcome,
@@ -21,7 +27,13 @@ const {
   scheduleMarketRefresh,
   hydrateMarketMessage,
   refreshMarketMessage,
+  saveMarketTradeQuoteSession,
+  getMarketTradeQuoteSession,
+  deleteMarketTradeQuoteSession,
 } = vi.hoisted(() => ({
+  env: {
+    DISCORD_ADMIN_USER_IDS: ['user_1'],
+  },
   getMarketConfig: vi.fn(),
   setMarketConfig: vi.fn(),
   disableMarketConfig: vi.fn(),
@@ -33,8 +45,13 @@ const {
   listMarkets: vi.fn(),
   getMarketLeaderboard: vi.fn(),
   getMarketAccountSummary: vi.fn(),
+  grantMarketBankroll: vi.fn(),
   getMarketByQuery: vi.fn(),
   getMarketById: vi.fn(),
+  summarizeMarketTraders: vi.fn(),
+  calculateMarketTradeQuote: vi.fn(),
+  getMarketForecastProfile: vi.fn(),
+  getMarketForecastLeaderboard: vi.fn(),
   executeMarketTrade: vi.fn(),
   resolveMarket: vi.fn(),
   resolveMarketOutcome: vi.fn(),
@@ -42,6 +59,13 @@ const {
   scheduleMarketRefresh: vi.fn(),
   hydrateMarketMessage: vi.fn(),
   refreshMarketMessage: vi.fn(),
+  saveMarketTradeQuoteSession: vi.fn(),
+  getMarketTradeQuoteSession: vi.fn(),
+  deleteMarketTradeQuoteSession: vi.fn(),
+}));
+
+vi.mock('../src/app/config.js', () => ({
+  env,
 }));
 
 vi.mock('../src/features/markets/config-service.js', () => ({
@@ -54,28 +78,50 @@ vi.mock('../src/features/markets/config-service.js', () => ({
       : 'Prediction markets are disabled for this server.'),
 }));
 
-vi.mock('../src/features/markets/service.js', () => ({
-  createMarketRecord,
-  deleteMarketRecord,
-  scheduleMarketClose,
-  clearMarketJobs,
-  editMarketRecord,
-  listMarkets,
+vi.mock('../src/features/markets/account-service.js', () => ({
   getMarketLeaderboard,
   getMarketAccountSummary,
+  grantMarketBankroll,
+}));
+
+vi.mock('../src/features/markets/forecast-service.js', () => ({
+  getMarketForecastProfile,
+  getMarketForecastLeaderboard,
+}));
+
+vi.mock('../src/features/markets/record-service.js', () => ({
+  createMarketRecord,
+  deleteMarketRecord,
+  editMarketRecord,
+  listMarkets,
   getMarketByQuery,
   getMarketById,
+  summarizeMarketTraders,
+}));
+
+vi.mock('../src/features/markets/schedule-service.js', () => ({
+  scheduleMarketClose,
+  clearMarketJobs,
+  scheduleMarketRefresh,
+}));
+
+vi.mock('../src/features/markets/trade-service.js', () => ({
+  calculateMarketTradeQuote,
   executeMarketTrade,
   resolveMarket,
   resolveMarketOutcome,
   cancelMarket,
-  scheduleMarketRefresh,
-  getMarketStatus: vi.fn(() => 'open'),
-  computeMarketSummary: vi.fn(() => ({
-    status: 'open',
-    probabilities: [],
-    totalVolume: 0,
-  })),
+}));
+
+vi.mock('../src/features/markets/quote-session-store.js', () => ({
+  createMarketTradeQuoteSessionId: vi.fn(() => 'quote_session_1'),
+  saveMarketTradeQuoteSession,
+  getMarketTradeQuoteSession,
+  deleteMarketTradeQuoteSession,
+}));
+
+vi.mock('../src/lib/redis.js', () => ({
+  redis: {},
 }));
 
 vi.mock('../src/features/markets/service-lifecycle.js', () => ({
@@ -87,7 +133,7 @@ vi.mock('../src/features/markets/service-lifecycle.js', () => ({
   clearMarketLifecycle: vi.fn(),
 }));
 
-import { handleMarketCommand } from '../src/features/markets/interactions.js';
+import { handleMarketButton, handleMarketCommand } from '../src/features/markets/interactions.js';
 
 const baseMarket = {
   id: 'market_1',
@@ -123,14 +169,30 @@ const baseMarket = {
   positions: [],
 };
 
+const baseAccount = {
+  id: 'account_1',
+  guildConfigId: 'guild_config_1',
+  guildId: 'guild_1',
+  userId: 'user_1',
+  bankroll: 1_000,
+  realizedProfit: 0,
+  lastTopUpAt: null,
+  createdAt: new Date('2099-03-29T00:00:00.000Z'),
+  updatedAt: new Date('2099-03-29T00:00:00.000Z'),
+};
+
 const createInteraction = (options: {
   subcommand: string;
   subcommandGroup?: string | null;
   strings?: Record<string, string | null>;
+  numbers?: Record<string, number | null>;
+  users?: Record<string, { id: string; send?: ReturnType<typeof vi.fn> } | null>;
   channels?: Record<string, { id: string; isTextBased: () => boolean } | null>;
   canManageGuild?: boolean;
 }) => {
   const strings = options.strings ?? {};
+  const numbers = options.numbers ?? {};
+  const users = options.users ?? {};
   const channels = options.channels ?? {};
 
   return {
@@ -155,7 +217,22 @@ const createInteraction = (options: {
 
         return value ?? null;
       }),
-      getUser: vi.fn(() => null),
+      getUser: vi.fn((name: string, required?: boolean) => {
+        const value = users[name];
+        if (required && !value) {
+          throw new Error(`Missing required user option ${name}`);
+        }
+
+        return value ?? null;
+      }),
+      getNumber: vi.fn((name: string, required?: boolean) => {
+        const value = numbers[name];
+        if (required && (value === null || value === undefined)) {
+          throw new Error(`Missing required number option ${name}`);
+        }
+
+        return value ?? null;
+      }),
       getInteger: vi.fn(() => null),
     },
     reply: vi.fn(),
@@ -164,8 +241,20 @@ const createInteraction = (options: {
   };
 };
 
+const createButtonInteraction = (customId: string) => ({
+  customId,
+  user: {
+    id: 'user_1',
+  },
+  showModal: vi.fn(),
+  reply: vi.fn(),
+  update: vi.fn(),
+  deferUpdate: vi.fn(),
+});
+
 describe('market interactions', () => {
   beforeEach(() => {
+    env.DISCORD_ADMIN_USER_IDS = ['user_1'];
     getMarketConfig.mockReset();
     setMarketConfig.mockReset();
     disableMarketConfig.mockReset();
@@ -178,14 +267,22 @@ describe('market interactions', () => {
     listMarkets.mockReset();
     getMarketLeaderboard.mockReset();
     getMarketAccountSummary.mockReset();
+    grantMarketBankroll.mockReset();
     getMarketByQuery.mockReset();
     getMarketById.mockReset();
+    summarizeMarketTraders.mockReset();
+    calculateMarketTradeQuote.mockReset();
+    getMarketForecastProfile.mockReset();
+    getMarketForecastLeaderboard.mockReset();
     executeMarketTrade.mockReset();
     resolveMarket.mockReset();
     resolveMarketOutcome.mockReset();
     cancelMarket.mockReset();
     scheduleMarketRefresh.mockReset();
     refreshMarketMessage.mockReset();
+    saveMarketTradeQuoteSession.mockReset();
+    getMarketTradeQuoteSession.mockReset();
+    deleteMarketTradeQuoteSession.mockReset();
 
     getMarketConfig.mockResolvedValue({
       enabled: true,
@@ -207,6 +304,115 @@ describe('market interactions', () => {
     disableMarketConfig.mockResolvedValue({
       marketEnabled: false,
       marketChannelId: null,
+    });
+    calculateMarketTradeQuote.mockResolvedValue({
+      action: 'buy',
+      marketId: 'market_1',
+      marketTitle: baseMarket.title,
+      outcomeId: 'outcome_yes',
+      outcomeLabel: 'Yes',
+      userId: 'user_1',
+      guildId: 'guild_1',
+      amount: 50,
+      amountMode: 'points',
+      rawAmount: '50',
+      shares: 80,
+      averagePrice: 0.63,
+      immediateCash: 50,
+      collateralLocked: 0,
+      netBankrollChange: -50,
+      settlementIfChosen: 80,
+      settlementIfNotChosen: 0,
+      maxProfitIfChosen: 30,
+      maxProfitIfNotChosen: 0,
+      maxLossIfChosen: 0,
+      maxLossIfNotChosen: 50,
+    });
+    getMarketForecastProfile.mockResolvedValue({
+      userId: 'user_1',
+      allTimeMeanBrier: 0.1234,
+      thirtyDayMeanBrier: 0.101,
+      allTimeSampleCount: 12,
+      thirtyDaySampleCount: 4,
+      percentileRank: 88,
+      rank: 2,
+      rankedUserCount: 12,
+      currentCorrectPickStreak: 3,
+      bestCorrectPickStreak: 5,
+      currentProfitableMarketStreak: 2,
+      bestProfitableMarketStreak: 4,
+      calibrationBuckets: [],
+      topTags: [],
+    });
+    getMarketForecastLeaderboard.mockResolvedValue([
+      {
+        userId: 'user_1',
+        meanBrier: 0.1234,
+        sampleCount: 12,
+        correctPickRate: 0.75,
+        currentCorrectPickStreak: 3,
+      },
+    ]);
+    summarizeMarketTraders.mockReturnValue({
+      marketId: 'market_1',
+      marketTitle: baseMarket.title,
+      traderCount: 2,
+      totalSpent: 85,
+      entries: [
+        {
+          userId: 'user_2',
+          amountSpent: 60,
+          tradeCount: 2,
+          lastTradedAt: new Date('2099-03-29T01:00:00.000Z'),
+        },
+        {
+          userId: 'user_3',
+          amountSpent: 25,
+          tradeCount: 1,
+          lastTradedAt: new Date('2099-03-29T02:00:00.000Z'),
+        },
+      ],
+    });
+    saveMarketTradeQuoteSession.mockResolvedValue(undefined);
+    grantMarketBankroll.mockResolvedValue({
+      ...baseAccount,
+      userId: 'user_2',
+      bankroll: 1250,
+    });
+    getMarketTradeQuoteSession.mockResolvedValue({
+      sessionId: 'quote_session_1',
+      action: 'buy',
+      guildId: 'guild_1',
+      marketId: 'market_1',
+      marketTitle: baseMarket.title,
+      outcomeId: 'outcome_yes',
+      outcomeLabel: 'Yes',
+      userId: 'user_1',
+      rawAmount: '50',
+      amount: 50,
+      amountMode: 'points',
+      shares: 80,
+      averagePrice: 0.63,
+      immediateCash: 50,
+      collateralLocked: 0,
+      netBankrollChange: -50,
+      settlementIfChosen: 80,
+      settlementIfNotChosen: 0,
+      maxProfitIfChosen: 30,
+      maxProfitIfNotChosen: 0,
+      maxLossIfChosen: 0,
+      maxLossIfNotChosen: 50,
+      expiresAt: new Date('2099-03-29T01:00:00.000Z').toISOString(),
+    });
+    deleteMarketTradeQuoteSession.mockResolvedValue(undefined);
+    executeMarketTrade.mockResolvedValue({
+      market: baseMarket,
+      outcome: baseMarket.outcomes[0],
+      account: { ...baseAccount, bankroll: 950 },
+      positionSide: 'long',
+      shareDelta: 80,
+      cashAmount: 50,
+      realizedProfitDelta: 0,
     });
     resolveMarketOutcome.mockResolvedValue({
       market: baseMarket,
@@ -346,5 +552,170 @@ describe('market interactions', () => {
     );
 
     expect(resolveMarket).not.toHaveBeenCalled();
+  });
+
+  it('shows a quote preview instead of executing a buy trade immediately', async () => {
+    const interaction = createInteraction({
+      subcommand: 'trade',
+      strings: {
+        query: 'market_1',
+        action: 'buy',
+        amount: '50',
+        outcome: 'Yes',
+      },
+    });
+
+    getMarketByQuery.mockResolvedValue(baseMarket);
+
+    await handleMarketCommand({} as never, interaction as never);
+
+    expect(calculateMarketTradeQuote).toHaveBeenCalledWith(expect.objectContaining({
+      marketId: 'market_1',
+      action: 'buy',
+      rawAmount: '50',
+    }));
+    expect(saveMarketTradeQuoteSession).toHaveBeenCalledTimes(1);
+    expect(executeMarketTrade).not.toHaveBeenCalled();
+    expect(interaction.editReply).toHaveBeenCalledWith(expect.objectContaining({
+      embeds: expect.any(Array),
+      components: expect.any(Array),
+    }));
+  });
+
+  it('shows a forecasting profile through /market profile', async () => {
+    const interaction = createInteraction({
+      subcommand: 'profile',
+    });
+
+    await handleMarketCommand({} as never, interaction as never);
+
+    expect(getMarketForecastProfile).toHaveBeenCalledWith('guild_1', 'user_1');
+    expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({
+      flags: 64,
+      embeds: expect.any(Array),
+    }));
+  });
+
+  it('shows all traders and their spend through /market traders', async () => {
+    const interaction = createInteraction({
+      subcommand: 'traders',
+      strings: {
+        query: 'market_1',
+      },
+    });
+
+    getMarketByQuery.mockResolvedValue(baseMarket);
+
+    await handleMarketCommand({} as never, interaction as never);
+
+    expect(getMarketByQuery).toHaveBeenCalledWith('market_1', 'guild_1');
+    expect(summarizeMarketTraders).toHaveBeenCalledWith(baseMarket);
+    expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({
+      flags: 64,
+      embeds: expect.any(Array),
+    }));
+  });
+
+  it('shows the forecast leaderboard when requested', async () => {
+    const interaction = createInteraction({
+      subcommand: 'leaderboard',
+      strings: {
+        board: 'forecast',
+        window: '30d',
+        tag: 'meta',
+      },
+    });
+
+    await handleMarketCommand({} as never, interaction as never);
+
+    expect(getMarketForecastLeaderboard).toHaveBeenCalledWith({
+      guildId: 'guild_1',
+      window: '30d',
+      tag: 'meta',
+    });
+    expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({
+      flags: 64,
+      embeds: expect.any(Array),
+    }));
+  });
+
+  it('confirms a quoted trade from the preview buttons', async () => {
+    const interaction = createButtonInteraction('market:quote-confirm:quote_session_1');
+
+    await handleMarketButton(interaction as never);
+
+    expect(getMarketTradeQuoteSession).toHaveBeenCalledWith({}, 'quote_session_1');
+    expect(executeMarketTrade).toHaveBeenCalledWith({
+      marketId: 'market_1',
+      userId: 'user_1',
+      outcomeId: 'outcome_yes',
+      action: 'buy',
+      amount: 50,
+      amountMode: 'points',
+    });
+    expect(deleteMarketTradeQuoteSession).toHaveBeenCalledWith({}, 'quote_session_1');
+    expect(interaction.update).toHaveBeenCalledWith(expect.objectContaining({
+      embeds: expect.any(Array),
+      components: [],
+    }));
+  });
+
+  it('grants market currency to a user and DMs them', async () => {
+    const recipientSend = vi.fn().mockResolvedValue(undefined);
+    const interaction = createInteraction({
+      subcommand: 'grant',
+      numbers: {
+        amount: 250,
+      },
+      strings: {
+        reason: 'Won the seasonal tournament',
+      },
+      users: {
+        user: {
+          id: 'user_2',
+          send: recipientSend,
+        },
+      },
+    });
+
+    await handleMarketCommand({} as never, interaction as never);
+
+    expect(grantMarketBankroll).toHaveBeenCalledWith({
+      guildId: 'guild_1',
+      userId: 'user_2',
+      amount: 250,
+    });
+    expect(recipientSend).toHaveBeenCalledWith(expect.objectContaining({
+      embeds: expect.any(Array),
+    }));
+    expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({
+      flags: 64,
+      embeds: expect.any(Array),
+    }));
+  });
+
+  it('rejects non-admin users who try to grant market currency', async () => {
+    env.DISCORD_ADMIN_USER_IDS = ['someone_else'];
+    const interaction = createInteraction({
+      subcommand: 'grant',
+      numbers: {
+        amount: 50,
+      },
+      strings: {
+        reason: 'Test grant',
+      },
+      users: {
+        user: {
+          id: 'user_2',
+          send: vi.fn(),
+        },
+      },
+    });
+
+    await expect(handleMarketCommand({} as never, interaction as never)).rejects.toThrow(
+      'Only configured admin user IDs can grant market currency.',
+    );
+
+    expect(grantMarketBankroll).not.toHaveBeenCalled();
   });
 });

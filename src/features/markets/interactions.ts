@@ -8,27 +8,61 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 
-import { buildLeaderboardEmbed, buildMarketCancelModal, buildMarketListEmbed, buildMarketResolveModal, buildMarketStatusEmbed, buildMarketTradeModal, buildMarketTradeSelector, buildPortfolioMessage } from './render.js';
+import { env } from '../../app/config.js';
+import { redis } from '../../lib/redis.js';
+import {
+  buildLeaderboardEmbed,
+  buildMarketCancelModal,
+  buildMarketForecastLeaderboardEmbed,
+  buildMarketForecastProfileEmbed,
+  buildMarketListEmbed,
+  buildMarketResolveModal,
+  buildMarketStatusEmbed,
+  buildMarketTradeModal,
+  buildMarketTradeQuoteMessage,
+  buildMarketTradeSelector,
+  buildMarketTradersEmbeds,
+  buildPortfolioMessage,
+} from './render.js';
 import { disableMarketConfig, describeMarketConfig, getMarketConfig, setMarketConfig } from './config-service.js';
 import { marketPortfolioSelectCustomId } from './custom-ids.js';
+import {
+  createMarketTradeQuoteSessionId,
+  deleteMarketTradeQuoteSession,
+  getMarketTradeQuoteSession,
+  saveMarketTradeQuoteSession,
+} from './quote-session-store.js';
 import { buildMarketViewResponse, clearMarketLifecycle, hydrateMarketMessage, refreshMarketMessage } from './service-lifecycle.js';
 import {
-  cancelMarket,
-  clearMarketJobs,
+  getMarketAccountSummary,
+  grantMarketBankroll,
+  getMarketLeaderboard,
+} from './account-service.js';
+import {
+  getMarketForecastLeaderboard,
+  getMarketForecastProfile,
+} from './forecast-service.js';
+import {
   createMarketRecord,
   deleteMarketRecord,
   editMarketRecord,
-  executeMarketTrade,
-  getMarketAccountSummary,
   getMarketById,
   getMarketByQuery,
-  getMarketLeaderboard,
   listMarkets,
-  resolveMarket,
-  resolveMarketOutcome,
+  summarizeMarketTraders,
+} from './record-service.js';
+import {
+  clearMarketJobs,
   scheduleMarketClose,
   scheduleMarketRefresh,
-} from './service.js';
+} from './schedule-service.js';
+import {
+  calculateMarketTradeQuote,
+  cancelMarket,
+  executeMarketTrade,
+  resolveMarket,
+  resolveMarketOutcome,
+} from './trade-service.js';
 import {
   parseMarketCloseAt,
   parseMarketOutcomes,
@@ -41,6 +75,19 @@ import {
 } from './parser.js';
 
 type TradeAction = 'buy' | 'sell' | 'short' | 'cover';
+
+const isMarketAdmin = (userId: string): boolean =>
+  env.DISCORD_ADMIN_USER_IDS.includes(userId);
+
+const assertCanGrantMarketFunds = (userId: string): void => {
+  if (env.DISCORD_ADMIN_USER_IDS.length === 0) {
+    throw new Error('Market grants are disabled until DISCORD_ADMIN_USER_IDS is configured.');
+  }
+
+  if (!isMarketAdmin(userId)) {
+    throw new Error('Only configured admin user IDs can grant market currency.');
+  }
+};
 
 const assertManageGuild = (interaction: ChatInputCommandInteraction): void => {
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
@@ -111,6 +158,14 @@ const parseSimpleMarketId = (prefix: string, customId: string): string | null =>
   return match?.[1] ?? null;
 };
 
+const parseQuoteSessionId = (
+  prefix: 'market:quote-confirm' | 'market:quote-cancel',
+  customId: string,
+): string | null => {
+  const match = new RegExp(`^${prefix}:(.+)$`).exec(customId);
+  return match?.[1] ?? null;
+};
+
 const parsePortfolioSelectionValue = (
   value: string,
 ): { action: 'sell' | 'cover'; marketId: string; outcomeId: string } | null => {
@@ -156,6 +211,34 @@ const getTradeFeedback = (action: TradeAction): { title: string; color: number }
       return { title: 'Position Covered', color: 0xeb459e };
   }
 };
+
+const buildTradeExecutionDescription = (
+  action: TradeAction,
+  outcomeLabel: string,
+  result: Awaited<ReturnType<typeof executeMarketTrade>>,
+  payoutSummary?: {
+    ifChosen: number;
+    ifNotChosen: number;
+  },
+): string =>
+  [
+    `Outcome: **${outcomeLabel}**`,
+    `Cash: ${result.cashAmount} pts`,
+    `Shares: ${Math.abs(result.shareDelta).toFixed(2)}`,
+    `Bankroll: ${result.account.bankroll.toFixed(2)} pts`,
+    ...(action === 'buy' && payoutSummary
+      ? [
+          `If ${outcomeLabel} is chosen: ${payoutSummary.ifChosen.toFixed(2)} pts`,
+          `If ${outcomeLabel} is not chosen: ${payoutSummary.ifNotChosen.toFixed(2)} pts`,
+        ]
+      : []),
+    ...(action === 'short' && payoutSummary
+      ? [
+          `If ${outcomeLabel} is chosen: ${payoutSummary.ifChosen.toFixed(2)} pts`,
+          `If ${outcomeLabel} is not chosen: ${payoutSummary.ifNotChosen.toFixed(2)} pts`,
+        ]
+      : []),
+  ].join('\n');
 
 export const handleMarketCommand = async (
   client: Client,
@@ -342,6 +425,51 @@ export const handleMarketCommand = async (
             };
           })();
       const outcome = parseOutcomeSelection(interaction.options.getString('outcome', true), market.outcomes);
+      if (action === 'buy' || action === 'short') {
+        const quote = await calculateMarketTradeQuote({
+          marketId: market.id,
+          userId: interaction.user.id,
+          outcomeId: outcome.id,
+          action,
+          amount: parsedAmount.amount,
+          amountMode: parsedAmount.amountMode,
+          rawAmount,
+        });
+        const sessionId = createMarketTradeQuoteSessionId();
+        await saveMarketTradeQuoteSession(redis, sessionId, {
+          sessionId,
+          action: quote.action,
+          guildId: quote.guildId,
+          marketId: quote.marketId,
+          marketTitle: quote.marketTitle,
+          outcomeId: quote.outcomeId,
+          outcomeLabel: quote.outcomeLabel,
+          userId: quote.userId,
+          rawAmount: quote.rawAmount,
+          amount: quote.amount,
+          amountMode: quote.amountMode,
+          shares: quote.shares,
+          averagePrice: quote.averagePrice,
+          immediateCash: quote.immediateCash,
+          collateralLocked: quote.collateralLocked,
+          netBankrollChange: quote.netBankrollChange,
+          settlementIfChosen: quote.settlementIfChosen,
+          settlementIfNotChosen: quote.settlementIfNotChosen,
+          maxProfitIfChosen: quote.maxProfitIfChosen,
+          maxProfitIfNotChosen: quote.maxProfitIfNotChosen,
+          maxLossIfChosen: quote.maxLossIfChosen,
+          maxLossIfNotChosen: quote.maxLossIfNotChosen,
+          expiresAt: new Date(Date.now() + (10 * 60 * 1_000)).toISOString(),
+        });
+        await interaction.editReply({
+          ...buildMarketTradeQuoteMessage(sessionId, quote),
+          allowedMentions: {
+            parse: [],
+          },
+        });
+        return;
+      }
+
       const result = await executeMarketTrade({
         marketId: market.id,
         userId: interaction.user.id,
@@ -356,12 +484,7 @@ export const handleMarketCommand = async (
         embeds: [
           buildMarketStatusEmbed(
             feedback.title,
-            [
-              `Outcome: **${outcome.label}**`,
-              `Cash: ${result.cashAmount} pts`,
-              `Shares: ${Math.abs(result.shareDelta).toFixed(2)}`,
-              `Bankroll: ${result.account.bankroll.toFixed(2)} pts`,
-            ].join('\n'),
+            buildTradeExecutionDescription(action, outcome.label, result),
             feedback.color,
           ),
         ],
@@ -463,7 +586,109 @@ export const handleMarketCommand = async (
       });
       return;
     }
+    case 'traders': {
+      const market = await getMarketByQuery(interaction.options.getString('query', true), interaction.guildId);
+      if (!market) {
+        throw new Error('Market not found.');
+      }
+
+      await interaction.reply({
+        flags: MessageFlags.Ephemeral,
+        embeds: buildMarketTradersEmbeds(summarizeMarketTraders(market)),
+        allowedMentions: {
+          parse: [],
+        },
+      });
+      return;
+    }
+    case 'profile': {
+      const user = interaction.options.getUser('user') ?? interaction.user;
+      const profile = await getMarketForecastProfile(interaction.guildId, user.id);
+      await interaction.reply({
+        flags: MessageFlags.Ephemeral,
+        embeds: [buildMarketForecastProfileEmbed(profile)],
+        allowedMentions: {
+          parse: [],
+        },
+      });
+      return;
+    }
+    case 'grant': {
+      assertCanGrantMarketFunds(interaction.user.id);
+      const user = interaction.options.getUser('user', true);
+      const amount = interaction.options.getNumber('amount', true);
+      const reason = interaction.options.getString('reason', true).trim();
+      if (reason.length === 0) {
+        throw new Error('Grant reason must contain at least one non-space character.');
+      }
+
+      const account = await grantMarketBankroll({
+        guildId: interaction.guildId,
+        userId: user.id,
+        amount,
+      });
+
+      let dmDelivered = true;
+      await user.send({
+        embeds: [
+          buildMarketStatusEmbed(
+            'Market Currency Granted',
+            [
+              `You received **${amount.toFixed(2)} pts** in market currency.`,
+              `Reason: ${reason}`,
+              `New bankroll: **${account.bankroll.toFixed(2)} pts**`,
+            ].join('\n'),
+            0x57f287,
+          ),
+        ],
+        allowedMentions: {
+          parse: [],
+        },
+      }).catch(() => {
+        dmDelivered = false;
+      });
+
+      await interaction.reply({
+        flags: MessageFlags.Ephemeral,
+        embeds: [
+          buildMarketStatusEmbed(
+            'Market Currency Granted',
+            [
+              `Granted **${amount.toFixed(2)} pts** to <@${user.id}>.`,
+              `Reason: ${reason}`,
+              `New bankroll: **${account.bankroll.toFixed(2)} pts**`,
+              dmDelivered ? 'Recipient DM sent.' : 'Recipient DM could not be delivered.',
+            ].join('\n'),
+            0x57f287,
+          ),
+        ],
+        allowedMentions: {
+          parse: [],
+          users: [user.id],
+        },
+      });
+      return;
+    }
     case 'leaderboard': {
+      const board = interaction.options.getString('board') ?? 'bankroll';
+      if (board === 'forecast') {
+        const window = (interaction.options.getString('window') as 'all_time' | '30d' | null) ?? 'all_time';
+        const tag = interaction.options.getString('tag')?.trim().toLowerCase() ?? null;
+        const entries = await getMarketForecastLeaderboard({
+          guildId: interaction.guildId,
+          window,
+          ...(tag ? { tag } : {}),
+        });
+        await interaction.reply({
+          flags: MessageFlags.Ephemeral,
+          embeds: [buildMarketForecastLeaderboardEmbed(entries, window, tag)],
+          allowedMentions: {
+            parse: [],
+          },
+        });
+        return;
+      }
+
       const entries = await getMarketLeaderboard(interaction.guildId);
       await interaction.reply({
         flags: MessageFlags.Ephemeral,
@@ -486,6 +711,58 @@ export const handleMarketCommand = async (
 export const handleMarketButton = async (
   interaction: ButtonInteraction,
 ): Promise<void> => {
+  const confirmSessionId = parseQuoteSessionId('market:quote-confirm', interaction.customId);
+  if (confirmSessionId) {
+    const session = await getMarketTradeQuoteSession(redis, confirmSessionId);
+    if (!session) {
+      await interaction.update({
+        embeds: [buildMarketStatusEmbed('Quote Expired', 'Quote expired, request a new quote.', 0xef4444)],
+        components: [],
+      });
+      return;
+    }
+
+    if (session.userId !== interaction.user.id) {
+      throw new Error('That quote belongs to a different user.');
+    }
+
+    const result = await executeMarketTrade({
+      marketId: session.marketId,
+      userId: session.userId,
+      outcomeId: session.outcomeId,
+      action: session.action,
+      amount: session.amount,
+      amountMode: session.amountMode,
+    });
+    await deleteMarketTradeQuoteSession(redis, confirmSessionId);
+    await scheduleMarketRefresh(session.marketId);
+    const feedback = getTradeFeedback(session.action);
+    await interaction.update({
+      embeds: [
+        buildMarketStatusEmbed(
+          feedback.title,
+          buildTradeExecutionDescription(session.action, session.outcomeLabel, result, {
+            ifChosen: session.settlementIfChosen,
+            ifNotChosen: session.settlementIfNotChosen,
+          }),
+          feedback.color,
+        ),
+      ],
+      components: [],
+    });
+    return;
+  }
+
+  const cancelSessionId = parseQuoteSessionId('market:quote-cancel', interaction.customId);
+  if (cancelSessionId) {
+    await deleteMarketTradeQuoteSession(redis, cancelSessionId);
+    await interaction.update({
+      embeds: [buildMarketStatusEmbed('Trade Quote Cancelled', 'Cancelled that trade preview.', 0x60a5fa)],
+      components: [],
+    });
+    return;
+  }
+
   const quickTrade = parseQuickTradeCustomId(interaction.customId);
   if (quickTrade) {
     await interaction.showModal(buildMarketTradeModal(
@@ -596,23 +873,73 @@ export const handleMarketModal = async (
       throw new Error('Market not found.');
     }
 
+    const rawAmount = interaction.fields.getTextInputValue('amount');
+    const parsedAmount = trade.action === 'buy'
+      ? {
+          amount: parseTradeAmount(rawAmount),
+          amountMode: 'points' as const,
+        }
+      : (() => {
+          const parsed = parseFlexibleTradeAmount(rawAmount);
+          return {
+            amount: parsed.amount,
+            amountMode: parsed.mode,
+          };
+        })();
+
+    if (trade.action === 'buy' || trade.action === 'short') {
+      const quote = await calculateMarketTradeQuote({
+        marketId: trade.marketId,
+        userId: interaction.user.id,
+        outcomeId: trade.outcomeId,
+        action: trade.action,
+        amount: parsedAmount.amount,
+        amountMode: parsedAmount.amountMode,
+        rawAmount,
+      });
+      const sessionId = createMarketTradeQuoteSessionId();
+      await saveMarketTradeQuoteSession(redis, sessionId, {
+        sessionId,
+        action: quote.action,
+        guildId: quote.guildId,
+        marketId: quote.marketId,
+        marketTitle: quote.marketTitle,
+        outcomeId: quote.outcomeId,
+        outcomeLabel: quote.outcomeLabel,
+        userId: quote.userId,
+        rawAmount: quote.rawAmount,
+        amount: quote.amount,
+        amountMode: quote.amountMode,
+        shares: quote.shares,
+        averagePrice: quote.averagePrice,
+        immediateCash: quote.immediateCash,
+        collateralLocked: quote.collateralLocked,
+        netBankrollChange: quote.netBankrollChange,
+        settlementIfChosen: quote.settlementIfChosen,
+        settlementIfNotChosen: quote.settlementIfNotChosen,
+        maxProfitIfChosen: quote.maxProfitIfChosen,
+        maxProfitIfNotChosen: quote.maxProfitIfNotChosen,
+        maxLossIfChosen: quote.maxLossIfChosen,
+        maxLossIfNotChosen: quote.maxLossIfNotChosen,
+        expiresAt: new Date(Date.now() + (10 * 60 * 1_000)).toISOString(),
+      });
+      await interaction.reply({
+        flags: MessageFlags.Ephemeral,
+        ...buildMarketTradeQuoteMessage(sessionId, quote),
+        allowedMentions: {
+          parse: [],
+        },
+      });
+      return;
+    }
+
     const result = await executeMarketTrade({
       marketId: trade.marketId,
       userId: interaction.user.id,
       outcomeId: trade.outcomeId,
       action: trade.action,
-      ...(trade.action === 'buy'
-        ? {
-            amount: parseTradeAmount(interaction.fields.getTextInputValue('amount')),
-            amountMode: 'points' as const,
-          }
-        : (() => {
-            const parsedAmount = parseFlexibleTradeAmount(interaction.fields.getTextInputValue('amount'));
-            return {
-              amount: parsedAmount.amount,
-              amountMode: parsedAmount.mode,
-            };
-          })()),
+      amount: parsedAmount.amount,
+      amountMode: parsedAmount.amountMode,
     });
     await scheduleMarketRefresh(trade.marketId);
     const outcome = market.outcomes.find((entry) => entry.id === trade.outcomeId);
@@ -622,12 +949,7 @@ export const handleMarketModal = async (
       embeds: [
         buildMarketStatusEmbed(
           feedback.title,
-            [
-              `Outcome: **${outcome?.label ?? 'Unknown'}**`,
-              `Cash: ${result.cashAmount} pts`,
-              `Shares: ${Math.abs(result.shareDelta).toFixed(2)}`,
-              `Bankroll: ${result.account.bankroll.toFixed(2)} pts`,
-            ].join('\n'),
+          buildTradeExecutionDescription(trade.action, outcome?.label ?? 'Unknown', result),
           feedback.color,
         ),
       ],

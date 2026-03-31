@@ -257,6 +257,17 @@ export const marketCommand = new SlashCommandBuilder()
   )
   .addSubcommand((subcommand) =>
     subcommand
+      .setName('traders')
+      .setDescription('Show everyone who traded in a market and how much they spent.')
+      .addStringOption((option) =>
+        option
+          .setName('query')
+          .setDescription('Market ID, message ID, or message link')
+          .setRequired(true),
+      ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
       .setName('portfolio')
       .setDescription('Show a user portfolio and bankroll.')
       .addUserOption((option) =>
@@ -268,8 +279,70 @@ export const marketCommand = new SlashCommandBuilder()
   )
   .addSubcommand((subcommand) =>
     subcommand
+      .setName('profile')
+      .setDescription('Show a user forecasting profile.')
+      .addUserOption((option) =>
+        option
+          .setName('user')
+          .setDescription('Optional profile owner')
+          .setRequired(false),
+      ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('grant')
+      .setDescription('Grant market currency to a user and notify them by DM.')
+      .addUserOption((option) =>
+        option
+          .setName('user')
+          .setDescription('Recipient of the grant')
+          .setRequired(true),
+      )
+      .addNumberOption((option) =>
+        option
+          .setName('amount')
+          .setDescription('Amount of market currency to grant')
+          .setMinValue(0.01)
+          .setRequired(true),
+      )
+      .addStringOption((option) =>
+        option
+          .setName('reason')
+          .setDescription('Why this grant is being issued')
+          .setMaxLength(500)
+          .setRequired(true),
+      ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
       .setName('leaderboard')
-      .setDescription('Show the current market leaderboard.'),
+      .setDescription('Show the current market leaderboard.')
+      .addStringOption((option) =>
+        option
+          .setName('board')
+          .setDescription('Choose which leaderboard to display')
+          .setRequired(false)
+          .addChoices(
+            { name: 'Bankroll', value: 'bankroll' },
+            { name: 'Forecast', value: 'forecast' },
+          ),
+      )
+      .addStringOption((option) =>
+        option
+          .setName('window')
+          .setDescription('Forecast leaderboard time window')
+          .setRequired(false)
+          .addChoices(
+            { name: 'All Time', value: 'all_time' },
+            { name: 'Last 30 Days', value: '30d' },
+          ),
+      )
+      .addStringOption((option) =>
+        option
+          .setName('tag')
+          .setDescription('Optional forecast leaderboard tag filter')
+          .setRequired(false),
+      ),
   );
 
 marketCommand.setDefaultMemberPermissions(PermissionFlagsBits.SendMessages);

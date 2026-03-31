@@ -15,6 +15,8 @@ import {
   marketCancelModalCustomId,
   marketPortfolioButtonCustomId,
   marketPortfolioSelectCustomId,
+  marketTradeQuoteCancelCustomId,
+  marketTradeQuoteConfirmCustomId,
   marketQuickTradeButtonCustomId,
   marketRefreshButtonCustomId,
   marketResolveButtonCustomId,
@@ -23,10 +25,19 @@ import {
   marketTradeSelectCustomId,
 } from './custom-ids.js';
 import { formatProbabilityPercent } from './math.js';
-import { computeMarketSummary, getMarketStatus, getTradeLockReason } from './service.js';
-import type { MarketAccountWithOpenPositions, MarketWithRelations } from './types.js';
+import { computeMarketSummary, getMarketStatus, getTradeLockReason } from './service-shared.js';
+import type {
+  MarketAccountWithOpenPositions,
+  MarketForecastLeaderboardEntry,
+  MarketForecastProfile,
+  MarketTraderSummary,
+  MarketTradeQuote,
+  MarketWithRelations,
+} from './types.js';
 
 const formatMoney = (value: number): string => `${value.toFixed(2)} pts`;
+const formatPercent = (value: number): string => `${(value * 100).toFixed(1)}%`;
+const formatBrier = (value: number | null): string => value === null ? 'N/A' : value.toFixed(4);
 const truncateLabel = (value: string, max = 16): string => {
   if (max <= 0) {
     return '';
@@ -426,5 +437,146 @@ export const buildLeaderboardEmbed = (
       ? 'No market accounts exist yet.'
       : entries.map((entry, index) =>
         `${index + 1}. <@${entry.userId}> — ${formatMoney(entry.bankroll)} bankroll • ${formatMoney(entry.realizedProfit)} realized`).join('\n'),
+    0x57f287,
+  );
+
+export const buildMarketTradersEmbeds = (
+  summary: MarketTraderSummary,
+): EmbedBuilder[] => {
+  if (summary.entries.length === 0) {
+    return [
+      buildMarketStatusEmbed(
+        'Market Traders',
+        [
+          `Market: **${summary.marketTitle}**`,
+          `Market ID: \`${summary.marketId}\``,
+          '',
+          'No trades have been placed in this market yet.',
+        ].join('\n'),
+        0x60a5fa,
+      ),
+    ];
+  }
+
+  const chunks: MarketTraderSummary['entries'][] = [];
+  for (let index = 0; index < summary.entries.length; index += 20) {
+    chunks.push(summary.entries.slice(index, index + 20));
+  }
+
+  return chunks.map((chunk, chunkIndex) =>
+    new EmbedBuilder()
+      .setTitle(chunkIndex === 0 ? 'Market Traders' : `Market Traders (${chunkIndex + 1}/${chunks.length})`)
+      .setColor(0x60a5fa)
+      .setDescription(
+        [
+          ...(chunkIndex === 0
+            ? [
+                `Market: **${summary.marketTitle}**`,
+                `Market ID: \`${summary.marketId}\``,
+                `Traders: **${summary.traderCount}**`,
+                `Total Spent: **${formatMoney(summary.totalSpent)}**`,
+                '',
+              ]
+            : []),
+          ...chunk.map((entry, entryIndex) =>
+            `${(chunkIndex * 20) + entryIndex + 1}. <@${entry.userId}> — ${formatMoney(entry.amountSpent)} spent • ${entry.tradeCount} trade${entry.tradeCount === 1 ? '' : 's'}`),
+        ].join('\n'),
+      ));
+};
+
+export const buildMarketTradeQuoteMessage = (
+  sessionId: string,
+  quote: MarketTradeQuote,
+): {
+  embeds: [EmbedBuilder];
+  components: [ActionRowBuilder<ButtonBuilder>];
+} => {
+  const description = quote.action === 'buy'
+    ? [
+        `Outcome: **${quote.outcomeLabel}**`,
+        `Spend now: **${formatMoney(quote.immediateCash)}**`,
+        `Shares received: **${quote.shares.toFixed(2)}**`,
+        quote.averagePrice === null ? null : `Average price: **${formatMoney(quote.averagePrice)} / share**`,
+        '',
+        `If ${quote.outcomeLabel} is chosen: payout **${formatMoney(quote.settlementIfChosen)}**, max profit **${formatMoney(quote.maxProfitIfChosen)}**`,
+        `If ${quote.outcomeLabel} is not chosen: payout **${formatMoney(quote.settlementIfNotChosen)}**, max loss **${formatMoney(quote.maxLossIfNotChosen)}**`,
+        '',
+        'This quote is based on the current board and may change before you confirm.',
+      ].filter(Boolean).join('\n')
+    : [
+        `Outcome: **${quote.outcomeLabel}**`,
+        `Proceeds now: **${formatMoney(quote.immediateCash)}**`,
+        `Collateral locked: **${formatMoney(quote.collateralLocked)}**`,
+        `Net bankroll change now: **${formatMoney(quote.netBankrollChange)}**`,
+        `Shares shorted: **${quote.shares.toFixed(2)}**`,
+        '',
+        `If ${quote.outcomeLabel} is chosen: payout **${formatMoney(quote.settlementIfChosen)}**, max loss **${formatMoney(quote.maxLossIfChosen)}**`,
+        `If ${quote.outcomeLabel} is not chosen: payout **${formatMoney(quote.settlementIfNotChosen)}**, max profit **${formatMoney(quote.maxProfitIfNotChosen)}**`,
+        '',
+        'This quote is based on the current board and may change before you confirm.',
+      ].join('\n');
+
+  return {
+    embeds: [
+      buildMarketStatusEmbed(
+        quote.action === 'buy' ? 'Preview Buy Trade' : 'Preview Short Trade',
+        description,
+        quote.action === 'buy' ? 0x57f287 : 0xf59e0b,
+      ),
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(marketTradeQuoteConfirmCustomId(sessionId))
+          .setLabel('Confirm')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(marketTradeQuoteCancelCustomId(sessionId))
+          .setLabel('Cancel')
+          .setStyle(ButtonStyle.Secondary),
+      ),
+    ],
+  };
+};
+
+export const buildMarketForecastProfileEmbed = (
+  profile: MarketForecastProfile,
+): EmbedBuilder =>
+  new EmbedBuilder()
+    .setTitle('Market Forecast Profile')
+    .setColor(0x57f287)
+    .setDescription([
+      `User: <@${profile.userId}>`,
+      `All-Time Brier: **${formatBrier(profile.allTimeMeanBrier)}** across **${profile.allTimeSampleCount}** markets`,
+      `30-Day Brier: **${formatBrier(profile.thirtyDayMeanBrier)}** across **${profile.thirtyDaySampleCount}** markets`,
+      profile.rank === null
+        ? 'Percentile Rank: Need at least 5 scored markets to rank'
+        : `Percentile Rank: **${profile.percentileRank}%** (#${profile.rank} of ${profile.rankedUserCount})`,
+      `Correct-Pick Streak: **${profile.currentCorrectPickStreak}** current, **${profile.bestCorrectPickStreak}** best`,
+      `Profitable-Market Streak: **${profile.currentProfitableMarketStreak}** current, **${profile.bestProfitableMarketStreak}** best`,
+      '',
+      profile.topTags.length === 0
+        ? 'Top Tags: Need at least 5 scored markets in a tag'
+        : `Top Tags: ${profile.topTags.map((tag) =>
+          `\`${tag.tag}\` (${formatBrier(tag.meanBrier)} over ${tag.sampleCount})`).join(' • ')}`,
+      profile.calibrationBuckets.length === 0
+        ? 'Calibration: No forecast record buckets yet'
+        : `Calibration: ${profile.calibrationBuckets.map((bucket) =>
+          `${bucket.label} ${formatPercent(bucket.averageConfidence)} -> ${formatPercent(bucket.actualRate)} (${bucket.sampleCount})`).join(' | ')}`,
+    ].join('\n'));
+
+export const buildMarketForecastLeaderboardEmbed = (
+  entries: MarketForecastLeaderboardEntry[],
+  window: 'all_time' | '30d',
+  tag?: string | null,
+): EmbedBuilder =>
+  buildMarketStatusEmbed(
+    window === '30d'
+      ? `Forecast Leaderboard • Last 30 Days${tag ? ` • ${tag}` : ''}`
+      : `Forecast Leaderboard • All Time${tag ? ` • ${tag}` : ''}`,
+    entries.length === 0
+      ? 'No users meet the sample requirement for that forecast board yet.'
+      : entries.map((entry, index) =>
+        `${index + 1}. <@${entry.userId}> — Brier ${formatBrier(entry.meanBrier)} • ${entry.sampleCount} markets • ${(entry.correctPickRate * 100).toFixed(0)}% correct • ${entry.currentCorrectPickStreak} streak`).join('\n'),
     0x57f287,
   );
