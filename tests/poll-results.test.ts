@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { computePollOutcome, computePollResults } from '../src/features/polls/results.js';
-import type { PollWithRelations } from '../src/features/polls/types.js';
+import { computePollOutcome, computePollResults } from '../src/features/polls/core/results.js';
+import type { PollWithRelations } from '../src/features/polls/core/types.js';
 
 const poll = {
   id: 'poll_1',

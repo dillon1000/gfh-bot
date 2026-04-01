@@ -20,7 +20,7 @@ const {
   recordAuditLogEvent: vi.fn(),
 }));
 
-vi.mock('../src/features/removals/service.js', () => ({
+vi.mock('../src/features/removals/services/removals.js', () => ({
   createRemovalVoteRequest,
   secondRemovalVoteRequest,
   getLatestRemovalVoteRequest,
@@ -30,11 +30,11 @@ vi.mock('../src/features/removals/service.js', () => ({
   setRemovalMemberRole,
 }));
 
-vi.mock('../src/features/audit-log/service.js', () => ({
+vi.mock('../src/features/audit-log/services/events.js', () => ({
   recordAuditLogEvent,
 }));
 
-import { handleRemoveCommand } from '../src/features/removals/interactions.js';
+import { handleRemoveCommand } from '../src/features/removals/handlers/interactions.js';
 
 const createInteraction = (options: {
   subcommand: 'request' | 'second' | 'status' | 'configure';

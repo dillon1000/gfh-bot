@@ -55,17 +55,17 @@ vi.mock('../src/lib/redis.js', () => ({
   redis: {},
 }));
 
-vi.mock('../src/features/polls/service-repository.js', () => ({
+vi.mock('../src/features/polls/services/repository.js', () => ({
   createPollRecord,
   deletePollRecord,
   getPollById: vi.fn(),
 }));
 
-vi.mock('../src/features/polls/service-lifecycle.js', () => ({
+vi.mock('../src/features/polls/services/lifecycle.js', () => ({
   hydratePollMessage,
 }));
 
-import { attemptRemovalVoteStart, recoverDueRemovalVoteStarts, startRemovalVote } from '../src/features/removals/service.js';
+import { attemptRemovalVoteStart, recoverDueRemovalVoteStarts, startRemovalVote } from '../src/features/removals/services/removals.js';
 
 const baseRequest = {
   id: 'request_1',

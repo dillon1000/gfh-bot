@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { MarketWithRelations } from '../src/features/markets/types.js';
+import type { MarketWithRelations } from '../src/features/markets/core/types.js';
 
-vi.mock('../src/features/markets/service-shared.js', () => ({
+vi.mock('../src/features/markets/core/shared.js', () => ({
   getMarketStatus: vi.fn(() => 'open'),
   getTradeLockReason: vi.fn(() => null),
   computeMarketSummary: vi.fn((market: MarketWithRelations) => ({
@@ -18,7 +18,7 @@ vi.mock('../src/features/markets/service-shared.js', () => ({
   })),
 }));
 
-import { buildMarketMessage, buildPortfolioMessage } from '../src/features/markets/render.js';
+import { buildMarketMessage, buildPortfolioMessage } from '../src/features/markets/ui/render.js';
 
 const market = {
   id: 'market_1',

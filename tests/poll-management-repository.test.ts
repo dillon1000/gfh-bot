@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { PollWithRelations } from '../src/features/polls/types.js';
+import type { PollWithRelations } from '../src/features/polls/core/types.js';
 
 const {
   state,
@@ -177,7 +177,7 @@ vi.mock('../src/lib/redis.js', () => ({
   redis: {},
 }));
 
-vi.mock('../src/features/polls/query.js', () => ({
+vi.mock('../src/features/polls/parsing/query.js', () => ({
   parsePollLookup: vi.fn(),
 }));
 
@@ -186,7 +186,7 @@ import {
   editPollBeforeFirstVote,
   extendPollRecord,
   reopenPollRecord,
-} from '../src/features/polls/service-repository.js';
+} from '../src/features/polls/services/repository.js';
 
 const encodeJobId = (id: string): string => Buffer.from(id).toString('base64url');
 

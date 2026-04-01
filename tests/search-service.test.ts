@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChannelType } from 'discord.js';
 
-import { resolveSearchChannelIds, searchGuildMessages } from '../src/features/search/service.js';
+import { resolveSearchChannelIds, searchGuildMessages } from '../src/features/search/services/search.js';
 
 const createChannel = (
   id: string,

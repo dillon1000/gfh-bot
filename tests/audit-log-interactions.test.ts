@@ -12,7 +12,7 @@ const {
   recordAuditLogEvent: vi.fn(),
 }));
 
-vi.mock('../src/features/audit-log/config-service.js', () => ({
+vi.mock('../src/features/audit-log/services/config.js', () => ({
   getAuditLogConfig,
   setAuditLogConfig,
   disableAuditLog,
@@ -23,11 +23,11 @@ vi.mock('../src/features/audit-log/config-service.js', () => ({
   ),
 }));
 
-vi.mock('../src/features/audit-log/service.js', () => ({
+vi.mock('../src/features/audit-log/services/events.js', () => ({
   recordAuditLogEvent,
 }));
 
-import { handleAuditLogCommand } from '../src/features/audit-log/commands.js';
+import { handleAuditLogCommand } from '../src/features/audit-log/handlers/commands.js';
 
 const createInteraction = (subcommand: 'setup' | 'status' | 'disable') => ({
   inGuild: () => true,

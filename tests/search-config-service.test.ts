@@ -9,7 +9,7 @@ vi.mock('../src/lib/prisma.js', () => ({
   },
 }));
 
-import { describeSearchConfig } from '../src/features/search/config-service.js';
+import { describeSearchConfig } from '../src/features/search/services/config.js';
 
 describe('search config service', () => {
   it('truncates long ignored channel lists to fit Discord embed limits', () => {

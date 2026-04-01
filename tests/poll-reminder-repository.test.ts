@@ -34,11 +34,11 @@ vi.mock('../src/lib/redis.js', () => ({
   redis: {},
 }));
 
-vi.mock('../src/features/polls/query.js', () => ({
+vi.mock('../src/features/polls/parsing/query.js', () => ({
   parsePollLookup: vi.fn(),
 }));
 
-import { buildPollReminderRecords, schedulePollReminder } from '../src/features/polls/service-repository.js';
+import { buildPollReminderRecords, schedulePollReminder } from '../src/features/polls/services/repository.js';
 
 const encodeJobId = (id: string): string => Buffer.from(id).toString('base64url');
 

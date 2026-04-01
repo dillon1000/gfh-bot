@@ -76,7 +76,7 @@ vi.mock('../src/app/logger.js', () => ({
   },
 }));
 
-vi.mock('../src/features/markets/config-service.js', () => ({
+vi.mock('../src/features/markets/services/config.js', () => ({
   getMarketConfig,
   setMarketConfig,
   disableMarketConfig,
@@ -86,18 +86,18 @@ vi.mock('../src/features/markets/config-service.js', () => ({
       : 'Prediction markets are disabled for this server.'),
 }));
 
-vi.mock('../src/features/markets/account-service.js', () => ({
+vi.mock('../src/features/markets/services/account.js', () => ({
   getMarketLeaderboard,
   getMarketAccountSummary,
   grantMarketBankroll,
 }));
 
-vi.mock('../src/features/markets/forecast-service.js', () => ({
+vi.mock('../src/features/markets/services/forecast.js', () => ({
   getMarketForecastProfile,
   getMarketForecastLeaderboard,
 }));
 
-vi.mock('../src/features/markets/record-service.js', () => ({
+vi.mock('../src/features/markets/services/records.js', () => ({
   createMarketRecord,
   deleteMarketRecord,
   editMarketRecord,
@@ -107,13 +107,13 @@ vi.mock('../src/features/markets/record-service.js', () => ({
   summarizeMarketTraders,
 }));
 
-vi.mock('../src/features/markets/schedule-service.js', () => ({
+vi.mock('../src/features/markets/services/scheduler.js', () => ({
   scheduleMarketClose,
   clearMarketJobs,
   scheduleMarketRefresh,
 }));
 
-vi.mock('../src/features/markets/trade-service.js', () => ({
+vi.mock('../src/features/markets/services/trading.js', () => ({
   calculateMarketTradeQuote,
   executeMarketTrade,
   resolveMarket,
@@ -121,7 +121,7 @@ vi.mock('../src/features/markets/trade-service.js', () => ({
   cancelMarket,
 }));
 
-vi.mock('../src/features/markets/quote-session-store.js', () => ({
+vi.mock('../src/features/markets/state/quote-session-store.js', () => ({
   createMarketTradeQuoteSessionId: vi.fn(() => 'quote_session_1'),
   saveMarketTradeQuoteSession,
   getMarketTradeQuoteSession,
@@ -132,7 +132,7 @@ vi.mock('../src/lib/redis.js', () => ({
   redis: {},
 }));
 
-vi.mock('../src/features/markets/service-lifecycle.js', () => ({
+vi.mock('../src/features/markets/services/lifecycle.js', () => ({
   hydrateMarketMessage,
   refreshMarketMessage,
   buildMarketViewResponse: vi.fn(async () => ({
@@ -141,7 +141,7 @@ vi.mock('../src/features/markets/service-lifecycle.js', () => ({
   clearMarketLifecycle: vi.fn(),
 }));
 
-import { handleMarketButton, handleMarketCommand } from '../src/features/markets/interactions.js';
+import { handleMarketButton, handleMarketCommand } from '../src/features/markets/handlers/interactions.js';
 
 const defaultAdminUserIds = ['user_1'];
 

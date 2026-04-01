@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeBuyCost, computeLmsrCost, computeLmsrProbabilities, computeSellPayout, solveBuySharesForAmount, solveSellSharesForAmount, solveShortSharesForAmount } from '../src/features/markets/math.js';
+import { computeBuyCost, computeLmsrCost, computeLmsrProbabilities, computeSellPayout, solveBuySharesForAmount, solveSellSharesForAmount, solveShortSharesForAmount } from '../src/features/markets/core/math.js';
 
 describe('market math', () => {
   it('keeps probabilities normalized', () => {

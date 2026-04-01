@@ -29,12 +29,12 @@ vi.mock('../src/lib/redis.js', () => ({
   getBullConnectionOptions: vi.fn(() => ({})),
 }));
 
-vi.mock('../src/features/polls/service-lifecycle.js', () => ({
+vi.mock('../src/features/polls/services/lifecycle.js', () => ({
   closePollAndRefresh: vi.fn(),
   sendPollReminder: vi.fn(),
 }));
 
-import { resolveReminderJobReminderId } from '../src/features/polls/worker.js';
+import { resolveReminderJobReminderId } from '../src/features/polls/workers/polls.js';
 
 describe('resolveReminderJobReminderId', () => {
   beforeEach(() => {

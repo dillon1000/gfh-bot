@@ -44,20 +44,20 @@ vi.mock('../src/lib/redis.js', () => ({
   redis: {},
 }));
 
-vi.mock('../src/features/polls/export.js', () => ({
+vi.mock('../src/features/polls/core/export.js', () => ({
   buildPollExportCsv: vi.fn(),
 }));
 
-vi.mock('../src/features/polls/poll-responses.js', () => ({
+vi.mock('../src/features/polls/ui/poll-responses.js', () => ({
   buildLivePollMessagePayload: vi.fn(),
 }));
 
-vi.mock('../src/features/polls/service-governance.js', () => ({
+vi.mock('../src/features/polls/services/governance.js', () => ({
   createFallbackPollSnapshot: vi.fn(),
   evaluatePollForResults: vi.fn(),
 }));
 
-vi.mock('../src/features/polls/service-repository.js', () => ({
+vi.mock('../src/features/polls/services/repository.js', () => ({
   attachPollMessage: vi.fn(),
   attachPollThread: vi.fn(),
   getPollById: vi.fn(),
@@ -79,15 +79,15 @@ vi.mock('../src/features/polls/service-repository.js', () => ({
   schedulePollReminders: vi.fn(),
 }));
 
-vi.mock('../src/features/polls/service-voting.js', () => ({
+vi.mock('../src/features/polls/services/voting.js', () => ({
   closePoll: vi.fn(),
 }));
 
-vi.mock('../src/features/polls/visualize.js', () => ({
+vi.mock('../src/features/polls/ui/visualize.js', () => ({
   buildPollResultDiagram: vi.fn(),
 }));
 
-import { recoverMissedPollReminders, sendPollReminder } from '../src/features/polls/service-lifecycle.js';
+import { recoverMissedPollReminders, sendPollReminder } from '../src/features/polls/services/lifecycle.js';
 
 describe('poll reminder lifecycle', () => {
   beforeEach(() => {

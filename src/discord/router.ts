@@ -1,30 +1,30 @@
 import { Events, type Client, type Interaction } from 'discord.js';
 
-import { handleAuditLogCommand } from '../features/audit-log/commands.js';
-import { handleCasinoInteractionError } from '../features/casino/interaction-errors.js';
-import { handleCasinoButton, handleCasinoCommand, handleCasinoModal, handleCasinoSelect } from '../features/casino/interactions.js';
+import { handleAuditLogCommand } from '../features/audit-log/handlers/commands.js';
+import { handleCasinoInteractionError } from '../features/casino/handlers/interaction-errors.js';
+import { handleCasinoButton, handleCasinoCommand, handleCasinoModal, handleCasinoSelect } from '../features/casino/handlers/interactions.js';
 import {
   handleEmojiBuilderButton,
   handleEmojiBuilderCommand,
   handleEmojiBuilderInteractionError,
   handleEmojiBuilderModal,
-} from '../features/emojis/interactions.js';
-import { handleLatexCommand } from '../features/meta/latex.js';
-import { handleMarketInteractionError } from '../features/markets/interaction-errors.js';
-import { handleMarketButton, handleMarketCommand, handleMarketModal, handleMarketSelect } from '../features/markets/interactions.js';
-import { handleMeowCommand } from '../features/meta/meow.js';
-import { handlePingCommand } from '../features/meta/ping.js';
+} from '../features/emojis/handlers/interactions.js';
+import { handleLatexCommand } from '../features/meta/commands/latex.js';
+import { handleMarketInteractionError } from '../features/markets/handlers/interaction-errors.js';
+import { handleMarketButton, handleMarketCommand, handleMarketModal, handleMarketSelect } from '../features/markets/handlers/interactions.js';
+import { handleMeowCommand } from '../features/meta/commands/meow.js';
+import { handlePingCommand } from '../features/meta/commands/ping.js';
 import {
   handlePollAnalyticsCommand,
-} from '../features/polls/analytics-interactions.js';
+} from '../features/polls/handlers/analytics.js';
 import {
   handlePollBuilderButton,
   handlePollBuilderCommand,
   handlePollBuilderModal,
   handlePollCommand,
   handlePollFromMessageContext,
-} from '../features/polls/builder-interactions.js';
-import { handlePollInteractionError } from '../features/polls/interaction-errors.js';
+} from '../features/polls/handlers/builder.js';
+import { handlePollInteractionError } from '../features/polls/handlers/interaction-errors.js';
 import {
   handlePollCancelContext,
   handlePollDuplicateContext,
@@ -33,7 +33,7 @@ import {
   handlePollManageCommand,
   handlePollManageModal,
   handlePollReopenContext,
-} from '../features/polls/management-interactions.js';
+} from '../features/polls/handlers/management.js';
 import {
   handlePollAuditCommand,
   handlePollAuditContext,
@@ -44,7 +44,7 @@ import {
   handlePollResultsCommand,
   handlePollResultsButton,
   handlePollResultsContext,
-} from '../features/polls/query-interactions.js';
+} from '../features/polls/handlers/query.js';
 import {
   handlePollChoiceButton,
   handlePollRankAddButton,
@@ -53,7 +53,7 @@ import {
   handlePollRankSubmitButton,
   handlePollRankUndoButton,
   handlePollVoteSelect,
-} from '../features/polls/voting-interactions.js';
+} from '../features/polls/handlers/voting.js';
 import {
   handleReactionRoleClear,
   handleReactionRoleBuilderButton,
@@ -63,15 +63,15 @@ import {
   handleReactionRoleManage,
   handleReactionRolesCommand,
   handleReactionRoleSelect,
-} from '../features/reaction-roles/interactions.js';
-import { handleRemoveCommand } from '../features/removals/interactions.js';
-import { handleRemovalInteractionError } from '../features/removals/interaction-errors.js';
+} from '../features/reaction-roles/handlers/interactions.js';
+import { handleRemoveCommand } from '../features/removals/handlers/interactions.js';
+import { handleRemovalInteractionError } from '../features/removals/handlers/interaction-errors.js';
 import {
   handleSearchCommand,
   handleSearchInteractionError,
   handleSearchPaginationButton,
-} from '../features/search/interactions.js';
-import { handleStarboardCommand } from '../features/starboard/commands.js';
+} from '../features/search/handlers/interactions.js';
+import { handleStarboardCommand } from '../features/starboard/handlers/commands.js';
 
 export const registerInteractionRouter = (client: Client): void => {
   client.on(Events.InteractionCreate, async (interaction: Interaction) => {

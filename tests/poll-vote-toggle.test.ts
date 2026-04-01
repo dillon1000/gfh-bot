@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveSingleSelectVoteToggle } from '../src/features/polls/vote-toggle.js';
+import { resolveSingleSelectVoteToggle } from '../src/features/polls/core/vote-toggle.js';
 
 describe('resolveSingleSelectVoteToggle', () => {
   it('removes the vote when clicking the currently selected option again', () => {

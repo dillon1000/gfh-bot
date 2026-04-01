@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { searchMaxOffset } from '../src/features/search/constants.js';
-import { buildSearchResultsResponse } from '../src/features/search/render.js';
+import { searchMaxOffset } from '../src/features/search/core/constants.js';
+import { buildSearchResultsResponse } from '../src/features/search/ui/render.js';
 
 describe('search render', () => {
   it('disables next pagination on the last supported offset', () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildPollExportCsv } from '../src/features/polls/export.js';
-import type { PollWithRelations } from '../src/features/polls/types.js';
+import { buildPollExportCsv } from '../src/features/polls/core/export.js';
+import type { PollWithRelations } from '../src/features/polls/core/types.js';
 
 const poll = {
   id: 'poll_1',

@@ -75,11 +75,11 @@ vi.mock('../src/lib/redis.js', () => ({
   redis: {},
 }));
 
-vi.mock('../src/features/polls/service-lifecycle.js', () => ({
+vi.mock('../src/features/polls/services/lifecycle.js', () => ({
   hydratePollMessage: vi.fn(),
 }));
 
-vi.mock('../src/features/polls/service-repository.js', () => ({
+vi.mock('../src/features/polls/services/repository.js', () => ({
   createPollRecord: vi.fn(),
   deletePollRecord: vi.fn(),
   getPollById: vi.fn(),
@@ -90,7 +90,7 @@ import {
   expireStaleRemovalVoteRequests,
   secondRemovalVoteRequest,
   syncWaitingRemovalVoteStartJobs,
-} from '../src/features/removals/service.js';
+} from '../src/features/removals/services/removals.js';
 
 describe('remove service', () => {
   beforeEach(() => {

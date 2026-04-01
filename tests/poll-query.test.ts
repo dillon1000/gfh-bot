@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parsePollLookup } from '../src/features/polls/query.js';
+import { parsePollLookup } from '../src/features/polls/parsing/query.js';
 
 describe('parsePollLookup', () => {
   it('parses a discord message link', () => {

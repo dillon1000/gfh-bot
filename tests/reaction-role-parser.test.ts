@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseRoleTargets } from '../src/features/reaction-roles/parser.js';
-import { parseReactionRoleLookup } from '../src/features/reaction-roles/query.js';
+import { parseRoleTargets } from '../src/features/reaction-roles/parsing/parser.js';
+import { parseReactionRoleLookup } from '../src/features/reaction-roles/parsing/query.js';
 
 describe('parseRoleTargets', () => {
   it('parses role mentions and raw ids', () => {

@@ -1,10 +1,10 @@
 import { PermissionFlagsBits } from 'discord.js';
 import { describe, expect, it } from 'vitest';
 
-import { buildPollAnalyticsEmbed } from '../src/features/polls/analytics-render.js';
-import { buildPollAnalyticsSnapshotFromPolls, clampPollAnalyticsDays, clampPollAnalyticsLimit } from '../src/features/polls/analytics-service.js';
-import { pollAnalyticsCommand } from '../src/features/polls/commands.js';
-import type { PollMode, PollWithRelations } from '../src/features/polls/types.js';
+import { buildPollAnalyticsEmbed } from '../src/features/polls/ui/analytics-render.js';
+import { buildPollAnalyticsSnapshotFromPolls, clampPollAnalyticsDays, clampPollAnalyticsLimit } from '../src/features/polls/services/analytics.js';
+import { pollAnalyticsCommand } from '../src/features/polls/commands/definition.js';
+import type { PollMode, PollWithRelations } from '../src/features/polls/core/types.js';
 
 const now = new Date('2026-03-25T12:00:00.000Z');
 

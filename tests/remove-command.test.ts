@@ -2,7 +2,7 @@ import { ApplicationCommandOptionType } from 'discord.js';
 import { describe, expect, it } from 'vitest';
 
 import { applicationCommands } from '../src/discord/commands/index.js';
-import { removeCommand } from '../src/features/removals/commands.js';
+import { removeCommand } from '../src/features/removals/commands/definition.js';
 
 describe('removeCommand', () => {
   it('registers the expected removal subcommands', () => {

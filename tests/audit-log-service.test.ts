@@ -34,7 +34,7 @@ const {
   loggerError: vi.fn(),
 }));
 
-vi.mock('../src/features/audit-log/config-service.js', () => ({
+vi.mock('../src/features/audit-log/services/config.js', () => ({
   getAuditLogConfig,
 }));
 
@@ -112,7 +112,7 @@ import {
   recordAuditLogEvent,
   registerAuditLogEventHandlers,
   replayUndeliveredAuditLogEntries,
-} from '../src/features/audit-log/service.js';
+} from '../src/features/audit-log/services/events.js';
 
 const flushAsync = async (): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 0));
