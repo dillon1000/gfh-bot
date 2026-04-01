@@ -346,4 +346,17 @@ describe('casino interactions', () => {
     }));
     expect(hitBlackjack).not.toHaveBeenCalled();
   });
+
+  it('throws for unknown casino buttons so the router can send an error response', async () => {
+    const interaction = {
+      customId: 'casino:unknown:user_1',
+      user: { id: 'user_1' },
+      reply: vi.fn(),
+      update: vi.fn(),
+    };
+
+    await expect(handleCasinoButton(interaction as never)).rejects.toThrow('Unknown casino button.');
+    expect(interaction.reply).not.toHaveBeenCalled();
+    expect(interaction.update).not.toHaveBeenCalled();
+  });
 });

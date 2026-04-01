@@ -303,6 +303,39 @@ describe('casino service', () => {
     expect(result.persisted.stat.tiebreakWins).toBe(1);
   });
 
+  it('fails clearly when a poker tiebreak needs cards from an exhausted deck', async () => {
+    await expect(drawPoker({
+      session: {
+        kind: 'poker',
+        guildId: 'guild_1',
+        userId: 'user_1',
+        wager: 15,
+        playerCards: [
+          { rank: 'K', suit: 'spades' },
+          { rank: 'K', suit: 'hearts' },
+          { rank: 'A', suit: 'clubs' },
+          { rank: 'Q', suit: 'diamonds' },
+          { rank: 'J', suit: 'clubs' },
+        ],
+        botCards: [
+          { rank: 'K', suit: 'clubs' },
+          { rank: 'K', suit: 'diamonds' },
+          { rank: '2', suit: 'spades' },
+          { rank: '3', suit: 'hearts' },
+          { rank: '4', suit: 'spades' },
+        ],
+        deck: [
+          { rank: 'A', suit: 'spades' },
+          { rank: 'Q', suit: 'hearts' },
+          { rank: 'J', suit: 'spades' },
+        ],
+        selectedDiscardIndexes: [],
+        createdAt: new Date('2099-03-29T00:00:00.000Z').toISOString(),
+      },
+      rng: () => 0,
+    })).rejects.toThrow('Cannot resolve poker tiebreak because the deck is exhausted.');
+  });
+
   it('builds a stats summary from persisted per-game stats', async () => {
     prisma.casinoUserStat.findMany.mockResolvedValue([
       {

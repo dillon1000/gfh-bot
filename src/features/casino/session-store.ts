@@ -18,12 +18,18 @@ export const getCasinoSession = async (
   guildId: string,
   userId: string,
 ): Promise<CasinoSession | null> => {
-  const value = await redis.get(getSessionKey(guildId, userId));
+  const sessionKey = getSessionKey(guildId, userId);
+  const value = await redis.get(sessionKey);
   if (!value) {
     return null;
   }
 
-  return JSON.parse(value) as CasinoSession;
+  try {
+    return JSON.parse(value) as CasinoSession;
+  } catch {
+    await redis.del(sessionKey);
+    return null;
+  }
 };
 
 export const deleteCasinoSession = async (

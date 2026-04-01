@@ -32,7 +32,7 @@ export const casinoCommand = new SlashCommandBuilder()
   .addSubcommand((subcommand) =>
     subcommand
       .setName('balance')
-      .setDescription('Show a user shared bankroll.')
+      .setDescription('Show a user\'s shared bankroll.')
       .addUserOption((option) =>
         option
           .setName('user')

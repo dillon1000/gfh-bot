@@ -544,14 +544,12 @@ const replaceCardsAtIndexes = (
 
 const drawTiebreakCards = (
   deck: PlayingCard[],
-  rng: RandomNumberGenerator,
 ): { player: PlayingCard; bot: PlayingCard; deck: PlayingCard[] } => {
-  let nextDeck = deck;
-  if (nextDeck.length < 2) {
-    nextDeck = shuffleDeck(createDeck(), rng);
+  if (deck.length < 2) {
+    throw new Error('Cannot resolve poker tiebreak because the deck is exhausted.');
   }
 
-  const playerDraw = drawCard(nextDeck);
+  const playerDraw = drawCard(deck);
   const botDraw = drawCard(playerDraw.deck);
   return {
     player: playerDraw.card,
@@ -851,7 +849,7 @@ export const drawPoker = async (input: {
   let wonByTiebreak = false;
 
   while (comparison === 0) {
-    const tiebreak = drawTiebreakCards(deck, rng);
+    const tiebreak = drawTiebreakCards(deck);
     deck = tiebreak.deck;
     tiebreakDraws.push({ player: tiebreak.player, bot: tiebreak.bot });
     comparison = cardValue(tiebreak.player) - cardValue(tiebreak.bot);
