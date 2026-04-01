@@ -133,12 +133,14 @@ export const buildCasinoTableComponents = (
 ): Array<ActionRowBuilder<ButtonBuilder>> => {
   const handInProgress = Boolean(table.state && table.state.completedAt === null);
   const seatedCount = table.seats.filter((seat) => seat.status === 'seated').length;
+  const canJoinFromThread = seatedCount < table.maxSeats
+    || table.seats.some((seat) => seat.status === 'seated' && seat.isBot);
   const controls = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(casinoTableJoinButtonCustomId(table.id))
       .setLabel('Join')
       .setStyle(ButtonStyle.Success)
-      .setDisabled(table.status === 'closed' || handInProgress || seatedCount >= table.maxSeats),
+      .setDisabled(table.status === 'closed' || handInProgress || !canJoinFromThread),
     new ButtonBuilder()
       .setCustomId(casinoTableLeaveButtonCustomId(table.id))
       .setLabel('Leave')
