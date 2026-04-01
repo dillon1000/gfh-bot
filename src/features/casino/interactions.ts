@@ -457,6 +457,9 @@ const handleTableJoinCommand = async (
   client: Client,
   interaction: ChatInputCommandInteraction,
 ): Promise<void> => {
+  await interaction.deferReply({
+    flags: MessageFlags.Ephemeral,
+  });
   const tableId = await resolveTableIdFromInteraction(interaction);
   const table = await joinCasinoTable({
     tableId,
@@ -468,8 +471,7 @@ const handleTableJoinCommand = async (
   await syncCasinoTableRuntime(table);
   await syncCasinoTableThreadName(client, table.id);
   await syncCasinoTableMessage(client, table.id);
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
+  await interaction.editReply({
     embeds: [buildCasinoStatusEmbed('Table Joined', `You joined **${table.name}**.`)],
   });
 };
@@ -478,12 +480,14 @@ const handleTableLeaveCommand = async (
   client: Client,
   interaction: ChatInputCommandInteraction,
 ): Promise<void> => {
+  await interaction.deferReply({
+    flags: MessageFlags.Ephemeral,
+  });
   const table = await leaveCasinoTable(interaction.options.getString('table', true), interaction.user.id);
   await syncCasinoTableRuntime(table);
   await syncCasinoTableThreadName(client, table.id);
   await syncCasinoTableMessage(client, table.id);
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
+  await interaction.editReply({
     embeds: [buildCasinoStatusEmbed('Table Left', `You left **${table.name}**.`)],
   });
 };
@@ -492,12 +496,14 @@ const handleTableStartCommand = async (
   client: Client,
   interaction: ChatInputCommandInteraction,
 ): Promise<void> => {
+  await interaction.deferReply({
+    flags: MessageFlags.Ephemeral,
+  });
   const table = await startCasinoTable(interaction.options.getString('table', true), interaction.user.id);
   await syncCasinoTableRuntime(table);
   await ensureCasinoTableMessage(client, table, null);
   await syncCasinoTableMessage(client, table.id);
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
+  await interaction.editReply({
     embeds: [buildCasinoStatusEmbed('Hand Started', `Started hand ${table.currentHandNumber} at **${table.name}**.`)],
   });
 };
@@ -506,11 +512,13 @@ const handleTableCloseCommand = async (
   client: Client,
   interaction: ChatInputCommandInteraction,
 ): Promise<void> => {
+  await interaction.deferReply({
+    flags: MessageFlags.Ephemeral,
+  });
   const table = await closeCasinoTable(interaction.options.getString('table', true), interaction.user.id);
   await syncCasinoTableRuntime(table);
   await syncCasinoTableMessage(client, table.id);
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
+  await interaction.editReply({
     embeds: [buildCasinoStatusEmbed('Table Closed', `Closed **${table.name}**.`)],
   });
   await finalizeClosedCasinoTableThread(client, table.id);
@@ -520,6 +528,9 @@ const handleTableBotsCommand = async (
   client: Client,
   interaction: ChatInputCommandInteraction,
 ): Promise<void> => {
+  await interaction.deferReply({
+    flags: MessageFlags.Ephemeral,
+  });
   const table = await setCasinoTableBotCount(
     interaction.options.getString('table', true),
     interaction.user.id,
@@ -528,8 +539,7 @@ const handleTableBotsCommand = async (
   await syncCasinoTableRuntime(table);
   await syncCasinoTableThreadName(client, table.id);
   await syncCasinoTableMessage(client, table.id);
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
+  await interaction.editReply({
     embeds: [buildCasinoStatusEmbed('Bots Updated', `Updated bot seats at **${table.name}**.`)],
   });
 };
@@ -1038,6 +1048,9 @@ export const handleCasinoModal = async (
 
   const tableId = match[1];
   const amount = Number.parseFloat(interaction.fields.getTextInputValue('raise-total'));
+  await interaction.deferReply({
+    flags: MessageFlags.Ephemeral,
+  });
   const updated = await performCasinoTableAction({
     tableId,
     userId: interaction.user.id,
@@ -1045,8 +1058,7 @@ export const handleCasinoModal = async (
     amount,
   });
   await syncCasinoTableRuntime(updated);
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
+  await interaction.editReply({
     embeds: [buildCasinoStatusEmbed('Raise Submitted', `Updated **${updated.name}**.`)],
   });
   await syncCasinoTableMessage(client, tableId);

@@ -826,10 +826,17 @@ const awardHoldemPot = (
       return best;
     }, []);
 
-    const split = formatRoundMoney(sidePot.amount / winners.length);
+    const totalCents = Math.round(sidePot.amount * 100);
+    const baseShareCents = Math.floor(totalCents / winners.length);
+    let remainderCents = totalCents - (baseShareCents * winners.length);
+
     for (const winner of winners) {
-      winner.stack = formatRoundMoney(winner.stack + split);
-      winner.payout = formatRoundMoney((winner.payout ?? 0) + split);
+      const shareCents = baseShareCents + (remainderCents > 0 ? 1 : 0);
+      remainderCents = Math.max(0, remainderCents - 1);
+      const prize = formatRoundMoney(shareCents / 100);
+
+      winner.stack = formatRoundMoney(winner.stack + prize);
+      winner.payout = formatRoundMoney((winner.payout ?? 0) + prize);
       winner.handCategory = evaluateBestHoldemHand([...winner.holeCards, ...state.communityCards]).category;
     }
   }

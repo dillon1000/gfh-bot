@@ -468,6 +468,105 @@ describe('casino table service', () => {
     })).rejects.toThrow('Minimum raise is 10 points.');
   });
 
+  it('distributes the full side pot when a tied showdown leaves remainder cents', async () => {
+    putAccounts(
+      createAccount('user_1'),
+      createAccount('user_2'),
+      createAccount('user_3'),
+    );
+    putTable(createHoldemTable({
+      status: 'active',
+      state: {
+        kind: 'multiplayer-holdem',
+        handNumber: 1,
+        deck: [],
+        communityCards: [
+          { rank: 'A', suit: 'spades' },
+          { rank: 'K', suit: 'hearts' },
+          { rank: 'Q', suit: 'clubs' },
+          { rank: 'J', suit: 'diamonds' },
+          { rank: '10', suit: 'spades' },
+        ],
+        dealerSeatIndex: 0,
+        actingSeatIndex: 0,
+        street: 'river',
+        pot: 5,
+        currentBet: 0,
+        minRaise: 1,
+        players: [
+          {
+            userId: 'user_1',
+            seatIndex: 0,
+            holeCards: [
+              { rank: '2', suit: 'clubs' },
+              { rank: '3', suit: 'clubs' },
+            ],
+            folded: false,
+            allIn: false,
+            stack: 0,
+            committedThisRound: 0,
+            totalCommitted: 5 / 3,
+            actedThisRound: false,
+            lastAction: null,
+          },
+          {
+            userId: 'user_2',
+            seatIndex: 1,
+            holeCards: [
+              { rank: '4', suit: 'clubs' },
+              { rank: '5', suit: 'clubs' },
+            ],
+            folded: false,
+            allIn: false,
+            stack: 0,
+            committedThisRound: 0,
+            totalCommitted: 5 / 3,
+            actedThisRound: true,
+            lastAction: 'check',
+          },
+          {
+            userId: 'user_3',
+            seatIndex: 2,
+            holeCards: [
+              { rank: '6', suit: 'clubs' },
+              { rank: '7', suit: 'clubs' },
+            ],
+            folded: false,
+            allIn: false,
+            stack: 0,
+            committedThisRound: 0,
+            totalCommitted: 5 / 3,
+            actedThisRound: true,
+            lastAction: 'check',
+          },
+        ],
+        sidePots: [],
+        actionDeadlineAt: new Date(baseDate.getTime() + 30_000).toISOString(),
+        completedAt: null,
+      },
+      seats: [
+        createSeat({ id: 'seat_1', userId: 'user_1', seatIndex: 0, stack: 0 }),
+        createSeat({ id: 'seat_2', userId: 'user_2', seatIndex: 1, stack: 0 }),
+        createSeat({ id: 'seat_3', userId: 'user_3', seatIndex: 2, stack: 0 }),
+      ],
+    }));
+
+    const completed = await performCasinoTableAction({
+      tableId: 'table_1',
+      userId: 'user_1',
+      action: 'holdem_check',
+    });
+
+    expect(completed.state?.kind).toBe('multiplayer-holdem');
+    if (completed.state?.kind !== 'multiplayer-holdem') {
+      throw new Error('Expected Holdem state');
+    }
+
+    const payouts = completed.state.players.map((player) => player.payout ?? 0);
+    expect(payouts).toEqual([1.67, 1.67, 1.66]);
+    expect(payouts.reduce((sum, payout) => sum + payout, 0)).toBe(5);
+  });
+
   it('keeps the thread Join button enabled when a full table still has bots', () => {
     const controls = buildCasinoTableComponents(createHoldemTable({
       seats: [
