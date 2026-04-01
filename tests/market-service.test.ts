@@ -39,6 +39,9 @@ const {
   return {
     prisma: {
       $transaction: vi.fn(),
+      guildConfig: {
+        findUnique: vi.fn(),
+      },
       market: {
         delete: vi.fn(),
         create: vi.fn(),
@@ -223,6 +226,7 @@ describe('market service', () => {
     transaction.marketAccount.upsert.mockReset();
     transaction.marketAccount.update.mockReset();
     transaction.marketForecastRecord.upsert.mockReset();
+    prisma.guildConfig.findUnique.mockReset();
     prisma.marketAccount.findUnique.mockReset();
     prisma.marketForecastRecord.findMany.mockReset();
 
@@ -242,6 +246,9 @@ describe('market service', () => {
       ...data,
     }));
     transaction.marketForecastRecord.upsert.mockResolvedValue(undefined);
+    prisma.guildConfig.findUnique.mockResolvedValue({
+      casinoEnabled: false,
+    });
     prisma.marketAccount.findUnique.mockResolvedValue(baseAccount);
     prisma.marketForecastRecord.findMany.mockResolvedValue([]);
     transaction.market.update
