@@ -141,6 +141,28 @@ describe('casino service', () => {
     }));
   });
 
+  it('retries a slots settlement when the serializable transaction conflicts', async () => {
+    prisma.$transaction
+      .mockRejectedValueOnce({ code: 'P2034' })
+      .mockImplementationOnce(async (callback: (tx: typeof transaction) => Promise<unknown>) =>
+        callback(transaction));
+
+    const result = await playSlots({
+      guildId: 'guild_1',
+      userId: 'user_1',
+      wager: 10,
+      rng: () => 0,
+    });
+
+    expect(result.persisted.net).toBe(50);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(transaction.marketAccount.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: {
+        bankroll: 1_050,
+      },
+    }));
+  });
+
   it('rerolls RTD ties until there is a winner', async () => {
     const rng = vi.fn()
       // 0.09 -> 10, so the opening player/bot rolls tie at 10.
