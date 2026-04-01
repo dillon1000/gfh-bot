@@ -1677,6 +1677,7 @@ const finalizeHoldemStart = async (
   rng: RandomNumberGenerator,
 ): Promise<CasinoTableSummary> => {
   const activeSeats = table.seats.filter((seat) => seat.status === CasinoSeatStatus.seated && !seat.sitOut && seat.stack > 0);
+  const headsUp = activeSeats.length === 2;
   if (activeSeats.length < table.minSeats) {
     throw new Error('At least two funded players are required to start Hold\'em.');
   }
@@ -1684,7 +1685,9 @@ const finalizeHoldemStart = async (
   const previousState = parseTableState(table.state);
   const previousDealer = previousState?.kind === 'multiplayer-holdem' ? previousState.dealerSeatIndex : activeSeats[0]!.seatIndex - 1;
   const dealerSeatIndex = getNextEligibleSeatIndex(activeSeats, previousDealer) ?? activeSeats[0]!.seatIndex;
-  const smallBlindSeatIndex = getNextEligibleSeatIndex(activeSeats, dealerSeatIndex) ?? dealerSeatIndex;
+  const smallBlindSeatIndex = headsUp
+    ? dealerSeatIndex
+    : getNextEligibleSeatIndex(activeSeats, dealerSeatIndex) ?? dealerSeatIndex;
   const bigBlindSeatIndex = getNextEligibleSeatIndex(activeSeats, smallBlindSeatIndex) ?? smallBlindSeatIndex;
   let deck = shuffleDeck(createDeck(), rng);
   const players: MultiplayerHoldemPlayerState[] = [];
@@ -1726,7 +1729,7 @@ const finalizeHoldemStart = async (
 
   const actingSeatIndex = getNextEligibleSeatIndex(
     players.filter((player) => !player.allIn),
-    bigBlindSeatIndex,
+    headsUp ? dealerSeatIndex - 1 : bigBlindSeatIndex,
   );
   const deadline = actingSeatIndex === null ? null : setActionDeadline(table.actionTimeoutSeconds);
   let state: MultiplayerHoldemState = {
@@ -2039,7 +2042,9 @@ export const performCasinoTableAction = async (input: TableActionInput): Promise
           if (raiseDelta > current.stack) {
             throw new Error('You do not have enough chips for that raise.');
           }
-          if ((normalizedTarget - state.currentBet) < state.minRaise && raiseDelta !== current.stack) {
+          const raiseSize = formatRoundMoney(normalizedTarget - state.currentBet);
+          const isAllInRaise = raiseDelta === current.stack;
+          if (raiseSize < state.minRaise && !isAllInRaise) {
             throw new Error(`Minimum raise is ${state.minRaise} points.`);
           }
           current.stack = formatRoundMoney(current.stack - raiseDelta);
@@ -2054,7 +2059,9 @@ export const performCasinoTableAction = async (input: TableActionInput): Promise
             }
           }
           state.currentBet = normalizedTarget;
-          state.minRaise = formatRoundMoney(normalizedTarget - previousCurrentBet);
+          if (raiseSize >= state.minRaise) {
+            state.minRaise = formatRoundMoney(normalizedTarget - previousCurrentBet);
+          }
         } else {
           throw new Error('That action does not belong to Hold\'em.');
         }
@@ -2068,7 +2075,9 @@ export const performCasinoTableAction = async (input: TableActionInput): Promise
         nextState = maybeAdvanceHoldemStreet(nextState, table.bigBlind ?? defaultHoldemBigBlind);
         if (nextState.street !== 'complete') {
           const activePlayers = nextState.players.filter((player) => !player.folded && !player.allIn);
-          const nextActor = getNextEligibleSeatIndex(activePlayers, state.actingSeatIndex ?? current.seatIndex);
+          const nextActor = nextState.street !== state.street
+            ? nextState.actingSeatIndex
+            : getNextEligibleSeatIndex(activePlayers, state.actingSeatIndex ?? current.seatIndex);
           const deadline = nextActor === null ? null : setActionDeadline(table.actionTimeoutSeconds);
           nextState = {
             ...nextState,
