@@ -1,11 +1,15 @@
 import { type Market, type MarketOutcome, type MarketPosition, type MarketPositionSide, type MarketTradeSide, Prisma } from '@prisma/client';
 import { PermissionFlagsBits, type PermissionsBitField } from 'discord.js';
 
+import {
+  defaultDailyTopUpFloor,
+  startingBankroll as sharedStartingBankroll,
+} from '../economy/service.js';
 import { computeLmsrProbabilities, computeSellPayout } from './math.js';
 import type { MarketStatus, MarketWithRelations } from './types.js';
 
-export const startingBankroll = 1_000;
-export const dailyTopUpFloor = 250;
+export const startingBankroll = sharedStartingBankroll;
+export const dailyTopUpFloor = defaultDailyTopUpFloor;
 export const liquidityParameter = 150;
 export const resolutionGraceMs = 24 * 60 * 60 * 1_000;
 export const refreshDelayMs = 5_000;

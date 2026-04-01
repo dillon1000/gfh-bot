@@ -59,6 +59,19 @@ enum MarketPositionSide {
   short
 }
 
+enum CasinoGameKind {
+  slots
+  blackjack
+  poker
+  rtd
+}
+
+enum CasinoRoundResult {
+  win
+  loss
+  push
+}
+
 model GuildConfig {
   id                 String           @id @default(cuid())
   guildId            String           @unique
@@ -72,6 +85,8 @@ model GuildConfig {
   auditLogNoisyChannelId String?
   marketEnabled      Boolean          @default(false)
   marketChannelId    String?
+  casinoEnabled      Boolean          @default(false)
+  casinoChannelId    String?
   starboardEmojiId   String?
   starboardEmojiName String?
   memberRoleId       String?
@@ -391,6 +406,44 @@ model MarketAccount {
   @@unique([guildId, userId])
   @@index([guildConfigId])
   @@index([guildId, bankroll, realizedProfit])
+}
+
+model CasinoRoundRecord {
+  id         String            @id @default(cuid())
+  guildId    String
+  userId     String
+  game       CasinoGameKind
+  wager      Float
+  payout     Float
+  net        Float
+  result     CasinoRoundResult
+  details    Json
+  createdAt  DateTime          @default(now())
+
+  @@index([guildId, userId, createdAt])
+  @@index([guildId, game, createdAt])
+}
+
+model CasinoUserStat {
+  id            String         @id @default(cuid())
+  guildId       String
+  userId        String
+  game          CasinoGameKind
+  gamesPlayed   Int            @default(0)
+  wins          Int            @default(0)
+  losses        Int            @default(0)
+  pushes        Int            @default(0)
+  tiebreakWins  Int            @default(0)
+  currentStreak Int            @default(0)
+  bestStreak    Int            @default(0)
+  totalWagered  Float          @default(0)
+  totalNet      Float          @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([guildId, userId, game])
+  @@index([guildId, userId])
+  @@index([guildId, game, totalNet])
 }
 
 model GuildEventLogEntry {

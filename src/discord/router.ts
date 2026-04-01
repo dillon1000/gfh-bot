@@ -1,6 +1,8 @@
 import { Events, type Client, type Interaction } from 'discord.js';
 
 import { handleAuditLogCommand } from '../features/audit-log/commands.js';
+import { handleCasinoInteractionError } from '../features/casino/interaction-errors.js';
+import { handleCasinoButton, handleCasinoCommand, handleCasinoSelect } from '../features/casino/interactions.js';
 import {
   handleEmojiBuilderButton,
   handleEmojiBuilderCommand,
@@ -78,6 +80,9 @@ export const registerInteractionRouter = (client: Client): void => {
         switch (interaction.commandName) {
           case 'audit-log':
             await handleAuditLogCommand(interaction);
+            return;
+          case 'casino':
+            await handleCasinoCommand(client, interaction);
             return;
           case 'emoji-builder':
             await handleEmojiBuilderCommand(interaction);
@@ -194,6 +199,11 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
+        if (interaction.customId.startsWith('casino:')) {
+          await handleCasinoButton(interaction);
+          return;
+        }
+
         if (interaction.customId.startsWith('reaction-role-builder:')) {
           await handleReactionRoleBuilderButton(client, interaction);
           return;
@@ -262,6 +272,11 @@ export const registerInteractionRouter = (client: Client): void => {
       }
 
       if (interaction.isStringSelectMenu()) {
+        if (interaction.customId.startsWith('casino:')) {
+          await handleCasinoSelect(interaction);
+          return;
+        }
+
         if (interaction.customId.startsWith('poll:vote:')) {
           await handlePollVoteSelect(client, interaction);
           return;
@@ -340,6 +355,12 @@ export const registerInteractionRouter = (client: Client): void => {
           (interaction.isStringSelectMenu() && interaction.customId.startsWith('reaction-role:'))
         ) {
           await handleReactionRoleInteractionError(interaction, error);
+        } else if (
+          (interaction.isChatInputCommand() && interaction.commandName === 'casino')
+          || (interaction.isButton() && interaction.customId.startsWith('casino:'))
+          || (interaction.isStringSelectMenu() && interaction.customId.startsWith('casino:'))
+        ) {
+          await handleCasinoInteractionError(interaction, error);
         } else if (
           (interaction.isChatInputCommand() && interaction.commandName === 'market')
           || (interaction.isButton() && interaction.customId.startsWith('market:'))

@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const handlers = vi.hoisted(() => ({
   handleAuditLogCommand: vi.fn(),
+  handleCasinoInteractionError: vi.fn(),
+  handleCasinoButton: vi.fn(),
+  handleCasinoCommand: vi.fn(),
+  handleCasinoSelect: vi.fn(),
   handleEmojiBuilderButton: vi.fn(),
   handleEmojiBuilderCommand: vi.fn(),
   handleEmojiBuilderInteractionError: vi.fn(),
@@ -62,6 +66,16 @@ const handlers = vi.hoisted(() => ({
 
 vi.mock('../src/features/audit-log/commands.js', () => ({
   handleAuditLogCommand: handlers.handleAuditLogCommand,
+}));
+
+vi.mock('../src/features/casino/interaction-errors.js', () => ({
+  handleCasinoInteractionError: handlers.handleCasinoInteractionError,
+}));
+
+vi.mock('../src/features/casino/interactions.js', () => ({
+  handleCasinoButton: handlers.handleCasinoButton,
+  handleCasinoCommand: handlers.handleCasinoCommand,
+  handleCasinoSelect: handlers.handleCasinoSelect,
 }));
 
 vi.mock('../src/features/emojis/interactions.js', () => ({
@@ -205,5 +219,22 @@ describe('discord router', () => {
     expect(handlers.handleMarketSelect).toHaveBeenCalledWith(interaction);
     expect(handlers.handlePollVoteSelect).not.toHaveBeenCalled();
     expect(handlers.handleReactionRoleSelect).not.toHaveBeenCalled();
+  });
+
+  it('routes casino select menus to the casino select handler', async () => {
+    const client = {
+      on: vi.fn(),
+    };
+
+    registerInteractionRouter(client as never);
+
+    const interactionHandler = client.on.mock.calls[0]?.[1];
+    expect(interactionHandler).toBeTypeOf('function');
+
+    const interaction = createStringSelectInteraction('casino:poker:discard:user_1');
+    await interactionHandler?.(interaction);
+
+    expect(handlers.handleCasinoSelect).toHaveBeenCalledWith(interaction);
+    expect(handlers.handleMarketSelect).not.toHaveBeenCalled();
   });
 });

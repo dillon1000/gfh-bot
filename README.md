@@ -133,6 +133,15 @@ docker compose --profile autoupdate up -d
 - `/market cancel query:... reason:...`
 - `/market portfolio user:@user`
 - `/market leaderboard`
+- `/casino config set channel:#casino`
+- `/casino config view`
+- `/casino config disable`
+- `/casino balance user:@user`
+- `/casino stats user:@user`
+- `/casino slots bet:25`
+- `/casino blackjack bet:25`
+- `/casino poker bet:25`
+- `/casino rtd bet:25`
 - `/audit-log setup channel:#audit-log noisy_channel:#audit-noisy`
 - `/audit-log status`
 - `/audit-log disable`
