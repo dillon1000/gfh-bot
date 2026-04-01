@@ -5,6 +5,7 @@ import {
 } from '@prisma/client';
 
 import { prisma } from '../../lib/prisma.js';
+import { runSerializableTransaction } from '../../lib/run-serializable-transaction.js';
 import {
   ensureEconomyAccountTx,
   getEffectiveEconomyAccountPreview,
@@ -170,7 +171,7 @@ const assertCanAffordWager = async (
 };
 
 const persistRound = async (input: PersistRoundInput): Promise<PersistedCasinoRound> =>
-  prisma.$transaction(async (tx) => {
+  runSerializableTransaction(async (tx) => {
     const account = await ensureEconomyAccountTx(tx, input.guildId, input.userId);
     const net = formatRoundMoney(input.payout - input.wager);
     const nextBankroll = formatRoundMoney(account.bankroll + net);
