@@ -388,6 +388,8 @@ export const handleCasinoButton = async (
     });
     return;
   }
+
+  throw new Error('Unknown casino button.');
 };
 
 export const handleCasinoSelect = async (
