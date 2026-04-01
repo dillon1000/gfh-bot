@@ -2,7 +2,6 @@ import { MessageFlags } from 'discord.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-  getApplicationEmojiMap,
   getEffectiveEconomyAccountPreview,
   getCasinoConfig,
   setCasinoConfig,
@@ -20,7 +19,6 @@ const {
   saveCasinoSession,
   deleteCasinoSession,
 } = vi.hoisted(() => ({
-  getApplicationEmojiMap: vi.fn(),
   getEffectiveEconomyAccountPreview: vi.fn(),
   getCasinoConfig: vi.fn(),
   setCasinoConfig: vi.fn(),
@@ -41,10 +39,6 @@ const {
 
 vi.mock('../src/lib/redis.js', () => ({
   redis: {},
-}));
-
-vi.mock('../src/features/casino/application-emoji-service.js', () => ({
-  getApplicationEmojiMap,
 }));
 
 vi.mock('../src/features/economy/service.js', async () => {
@@ -124,7 +118,6 @@ const createCommandInteraction = (options: {
 describe('casino interactions', () => {
   beforeEach(() => {
     getEffectiveEconomyAccountPreview.mockReset();
-    getApplicationEmojiMap.mockReset();
     getCasinoConfig.mockReset();
     setCasinoConfig.mockReset();
     disableCasinoConfig.mockReset();
@@ -146,7 +139,6 @@ describe('casino interactions', () => {
       realizedProfit: 0,
       lastTopUpAt: null,
     });
-    getApplicationEmojiMap.mockResolvedValue(new Map());
     getCasinoConfig.mockResolvedValue({
       enabled: true,
       channelId: 'casino_channel_1',
@@ -257,6 +249,25 @@ describe('casino interactions', () => {
       'Finish your current casino game before starting a new one.',
     );
     expect(playRtd).not.toHaveBeenCalled();
+  });
+
+  it('renders blackjack hands with text cards instead of application emoji', async () => {
+    const interaction = createCommandInteraction({
+      subcommand: 'blackjack',
+      integers: { bet: 25 },
+    });
+
+    await handleCasinoCommand({} as never, interaction as never);
+
+    expect(interaction.editReply).toHaveBeenCalledWith(expect.objectContaining({
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            description: expect.stringContaining('🧑 Player: **10♥️ 8♣️**'),
+          }),
+        }),
+      ],
+    }));
   });
 
   it('starts blackjack and stores the active session', async () => {
