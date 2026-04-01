@@ -101,7 +101,6 @@ export const syncCasinoTableJobs = async (table: CasinoTableSummary): Promise<vo
 
   if (isActingBot(table)) {
     await scheduleCasinoBotAction(table.id);
-    return;
   }
 
   if (table.actionDeadlineAt) {

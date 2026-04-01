@@ -360,13 +360,16 @@ describe('casino multiplayer interactions', () => {
 
     await handleCasinoCommand(client as never, interaction as never);
 
+    expect(interaction.deferReply).toHaveBeenCalledWith({
+      flags: MessageFlags.Ephemeral,
+    });
     expect(joinCasinoTable).toHaveBeenCalledWith({
       tableId: 'table_1',
       userId: 'user_1',
     });
     expect(syncCasinoTableJobs).toHaveBeenCalled();
-    expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({
-      flags: MessageFlags.Ephemeral,
+    expect(interaction.editReply).toHaveBeenCalledWith(expect.objectContaining({
+      embeds: expect.any(Array),
     }));
   });
 
@@ -435,19 +438,23 @@ describe('casino multiplayer interactions', () => {
       fields: {
         getTextInputValue: vi.fn(() => '12'),
       },
-      reply: vi.fn(),
+      deferReply: vi.fn(),
+      editReply: vi.fn(),
     };
 
     await handleCasinoModal(client as never, interaction as never);
 
+    expect(interaction.deferReply).toHaveBeenCalledWith({
+      flags: MessageFlags.Ephemeral,
+    });
     expect(performCasinoTableAction).toHaveBeenCalledWith({
       tableId: 'table_1',
       userId: 'user_1',
       action: 'holdem_raise',
       amount: 12,
     });
-    expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({
-      flags: MessageFlags.Ephemeral,
+    expect(interaction.editReply).toHaveBeenCalledWith(expect.objectContaining({
+      embeds: expect.any(Array),
     }));
   });
 });
