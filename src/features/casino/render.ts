@@ -74,6 +74,8 @@ const gameLabel = (game: PersistedCasinoRound['game']): string => {
       return '🎰 Slots';
     case 'blackjack':
       return '♠️ Blackjack';
+    case 'holdem':
+      return '🂡 Hold\'em';
     case 'poker':
       return '🃏 Poker';
     case 'rtd':

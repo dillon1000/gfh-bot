@@ -8,6 +8,7 @@ export const removalVoteStartQueueName = 'removal-vote-start';
 export const marketCloseQueueName = 'market-close';
 export const marketRefreshQueueName = 'market-refresh';
 export const marketGraceQueueName = 'market-grace';
+export const casinoTableTimeoutQueueName = 'casino-table-timeout';
 
 export const pollCloseQueue = new Queue<{ pollId: string }, void, 'close'>(pollCloseQueueName, {
   connection: getBullConnectionOptions(),
@@ -50,6 +51,14 @@ export const marketRefreshQueue = new Queue<{ marketId: string }, void, 'refresh
 });
 
 export const marketGraceQueue = new Queue<{ marketId: string }, void, 'grace'>(marketGraceQueueName, {
+  connection: getBullConnectionOptions(),
+  defaultJobOptions: {
+    removeOnComplete: true,
+    removeOnFail: 100,
+  },
+});
+
+export const casinoTableTimeoutQueue = new Queue<{ tableId: string }, void, 'timeout'>(casinoTableTimeoutQueueName, {
   connection: getBullConnectionOptions(),
   defaultJobOptions: {
     removeOnComplete: true,
