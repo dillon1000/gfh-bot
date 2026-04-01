@@ -7,18 +7,21 @@ import {
   Prisma,
 } from '@prisma/client';
 
-import { redis } from '../../lib/redis.js';
-import { withRedisLock } from '../../lib/locks.js';
-import { prisma } from '../../lib/prisma.js';
-import { runSerializableTransaction } from '../../lib/run-serializable-transaction.js';
+import { redis } from '../../../lib/redis.js';
+import { withRedisLock } from '../../../lib/locks.js';
+import { prisma } from '../../../lib/prisma.js';
+import { runSerializableTransaction } from '../../../lib/run-serializable-transaction.js';
 import {
   ensureEconomyAccountTx,
   getEffectiveEconomyAccountPreview,
   roundCurrency,
-} from '../economy/service.js';
-import { getBlackjackTotal, isSoftBlackjackTotal } from './card-utils.js';
+} from '../../economy/service.js';
+import { getBlackjackTotal, isSoftBlackjackTotal } from '../card-utils.js';
+import { createCasinoBotId, getFriendlyBotName } from './bots/names.js';
+import { createCasinoBotProfile } from './bots/profiles.js';
 import type {
   BlackjackRound,
+  CasinoBotProfile,
   CasinoTableSeatSummary,
   CasinoTableState,
   CasinoTableSummary,
@@ -32,7 +35,7 @@ import type {
   PlayingCardRank,
   PlayingCardSuit,
   PokerHandCategory,
-} from './types.js';
+} from '../types.js';
 
 type RandomNumberGenerator = () => number;
 
@@ -46,6 +49,7 @@ type CreateTableInput = {
   smallBlind?: number;
   bigBlind?: number;
   buyIn?: number;
+  botCount?: number;
 };
 
 type JoinTableInput = {
@@ -77,6 +81,7 @@ const defaultHoldemBigBlind = 2;
 const defaultHoldemBuyInBigBlinds = 100;
 const minimumHoldemBuyInBigBlinds = 20;
 const maximumHoldemBuyInBigBlinds = 200;
+const noHumanGraceMs = 2 * 60 * 1_000;
 
 const suits: PlayingCardSuit[] = ['clubs', 'diamonds', 'hearts', 'spades'];
 const ranks: PlayingCardRank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -315,6 +320,10 @@ const toSeatSummary = (seat: {
   reserved: number;
   currentWager: number;
   sitOut: boolean;
+  isBot: boolean;
+  botId: string | null;
+  botName: string | null;
+  botProfile: Prisma.JsonValue | null;
   joinedAt: Date;
   updatedAt: Date;
 }): CasinoTableSeatSummary => ({
@@ -327,6 +336,10 @@ const toSeatSummary = (seat: {
   reserved: seat.reserved,
   currentWager: seat.currentWager,
   sitOut: seat.sitOut,
+  isBot: seat.isBot,
+  botId: seat.botId,
+  botName: seat.botName,
+  botProfile: seat.botProfile ? seat.botProfile as CasinoBotProfile : null,
   joinedAt: seat.joinedAt,
   updatedAt: seat.updatedAt,
 });
@@ -352,6 +365,7 @@ const toTableSummary = (
   currentHandNumber: table.currentHandNumber,
   actionTimeoutSeconds: table.actionTimeoutSeconds,
   actionDeadlineAt: table.actionDeadlineAt,
+  noHumanDeadlineAt: table.noHumanDeadlineAt,
   lobbyExpiresAt: table.lobbyExpiresAt,
   createdAt: table.createdAt,
   updatedAt: table.updatedAt,
@@ -380,6 +394,50 @@ const assertCanJoinBlackjackTable = async (guildId: string, userId: string, base
     throw new Error('You do not have enough bankroll to join that blackjack table.');
   }
 };
+
+const buildBotSeatCreateInputs = (input: {
+  tableId: string;
+  game: CasinoGameKind;
+  count: number;
+  openSeatIndexes: number[];
+  defaultBuyIn: number | null;
+  takenNames: string[];
+}): Array<Prisma.CasinoTableSeatCreateWithoutTableInput> => {
+  const count = Math.min(input.count, input.openSeatIndexes.length);
+  return Array.from({ length: count }, (_, offset) => {
+    const seatIndex = input.openSeatIndexes[offset]!;
+    const botId = createCasinoBotId(input.tableId, seatIndex, Date.now() + offset);
+    const botName = getFriendlyBotName(botId, input.takenNames);
+    input.takenNames.push(botName);
+    return {
+      userId: `bot:${botId}`,
+      seatIndex,
+      status: CasinoSeatStatus.seated,
+      stack: input.game === CasinoGameKind.holdem ? (input.defaultBuyIn ?? 0) : 0,
+      isBot: true,
+      botId,
+      botName,
+      botProfile: createCasinoBotProfile(botId) as Prisma.InputJsonValue,
+    };
+  });
+};
+
+const isSeatedSeat = (seat: Pick<CasinoTableSeatSummary, 'status'>): boolean => seat.status === CasinoSeatStatus.seated;
+
+const isBotSeat = (seat: Pick<CasinoTableSeatSummary, 'status' | 'isBot'>): boolean => isSeatedSeat(seat) && seat.isBot;
+
+const isHumanSeat = (seat: Pick<CasinoTableSeatSummary, 'status' | 'isBot'>): boolean => isSeatedSeat(seat) && !seat.isBot;
+
+const getSeatedHumanSeats = (seats: CasinoTableSeatSummary[]): CasinoTableSeatSummary[] => seats.filter(isHumanSeat);
+
+const getSeatedBotSeats = (seats: CasinoTableSeatSummary[]): CasinoTableSeatSummary[] => seats.filter(isBotSeat);
+
+const getOpenSeatIndexes = (seats: CasinoTableSeatSummary[], maxSeats: number): number[] => {
+  const occupied = new Set(seats.filter(isSeatedSeat).map((seat) => seat.seatIndex));
+  return Array.from({ length: maxSeats }, (_, index) => index).filter((index) => !occupied.has(index));
+};
+
+const buildNoHumanDeadline = (): Date => new Date(Date.now() + noHumanGraceMs);
 
 const getActiveSeatedPlayers = (seats: CasinoTableSeatSummary[]): CasinoTableSeatSummary[] =>
   seats.filter((seat) => seat.status === CasinoSeatStatus.seated && !seat.sitOut);
@@ -642,7 +700,13 @@ const finishBlackjackState = async (
     };
   });
 
+  const botUserIds = new Set(table.seats.filter((seat) => seat.isBot).map((seat) => seat.userId));
+
   for (const player of resolvedPlayers) {
+    if (botUserIds.has(player.userId)) {
+      continue;
+    }
+
     const account = await ensureEconomyAccountTx(tx, table.guildId, player.userId);
     await tx.marketAccount.update({
       where: {
@@ -886,6 +950,17 @@ export const getCasinoTable = async (tableId: string): Promise<CasinoTableSummar
   return table ? toTableSummary(table) : null;
 };
 
+export const getCasinoTableByThreadId = async (threadId: string): Promise<CasinoTableSummary | null> => {
+  const table = await prisma.casinoTable.findUnique({
+    where: {
+      threadId,
+    },
+    include: casinoTableInclude,
+  });
+
+  return table ? toTableSummary(table) : null;
+};
+
 export const getCasinoTableView = async (tableId: string): Promise<CasinoTableView | null> => {
   const table = await getTableByIdInternal(tableId);
   if (!table) {
@@ -930,6 +1005,7 @@ export const createCasinoTable = async (input: CreateTableInput): Promise<Casino
   const smallBlind = input.smallBlind ?? defaultHoldemSmallBlind;
   const bigBlind = input.bigBlind ?? defaultHoldemBigBlind;
   const buyIn = input.buyIn ?? (bigBlind * defaultHoldemBuyInBigBlinds);
+  const botCount = Math.max(0, Math.min(multiplayerMaxSeats - 1, input.botCount ?? 0));
 
   if (input.game === 'blackjack') {
     assertWholeNumberAmount(baseWager, 'Blackjack wager');
@@ -961,7 +1037,7 @@ export const createCasinoTable = async (input: CreateTableInput): Promise<Casino
       hostSeatStack = buyIn;
     }
 
-    const table = await tx.casinoTable.create({
+    const provisionalTable = await tx.casinoTable.create({
       data: {
         guildId: input.guildId,
         channelId: input.channelId,
@@ -975,15 +1051,47 @@ export const createCasinoTable = async (input: CreateTableInput): Promise<Casino
         bigBlind: input.game === 'holdem' ? bigBlind : null,
         defaultBuyIn: input.game === 'holdem' ? buyIn : null,
         actionTimeoutSeconds,
+        noHumanDeadlineAt: null,
         lobbyExpiresAt: new Date(Date.now() + lobbyTimeoutMs),
         seats: {
-          create: {
+          create: [{
             userId: input.hostUserId,
             seatIndex: 0,
             status: CasinoSeatStatus.seated,
             stack: hostSeatStack,
-          },
+            isBot: false,
+          }],
         },
+      },
+      include: casinoTableInclude,
+    });
+
+    if (botCount > 0) {
+      const botSeats = buildBotSeatCreateInputs({
+        tableId: provisionalTable.id,
+        game,
+        count: botCount,
+        openSeatIndexes: getOpenSeatIndexes(provisionalTable.seats.map(toSeatSummary), provisionalTable.maxSeats),
+        defaultBuyIn: provisionalTable.defaultBuyIn,
+        takenNames: [],
+      });
+      if (botSeats.length > 0) {
+        await tx.casinoTable.update({
+          where: {
+            id: provisionalTable.id,
+          },
+          data: {
+            seats: {
+              create: botSeats,
+            },
+          },
+        });
+      }
+    }
+
+    const table = await tx.casinoTable.findUniqueOrThrow({
+      where: {
+        id: provisionalTable.id,
       },
       include: casinoTableInclude,
     });
@@ -994,6 +1102,7 @@ export const createCasinoTable = async (input: CreateTableInput): Promise<Casino
       action: CasinoTableActionKind.create,
       payload: {
         game,
+        botCount,
       },
     });
 
@@ -1050,14 +1159,21 @@ export const joinCasinoTable = async (input: JoinTableInput): Promise<CasinoTabl
         throw new Error('You are already seated at that table.');
       }
 
-      const seatIndex = existing?.seatIndex ?? getNextSeatIndex(
+      let replacementBot = null;
+      let seatIndex = existing?.seatIndex ?? getNextSeatIndex(
         table.seats
           .filter((seat) => seat.status === CasinoSeatStatus.seated)
           .map((seat) => seat.seatIndex),
         table.maxSeats,
       );
       if (seatIndex === null) {
-        throw new Error('That table is full.');
+        const botSeats = table.seats.filter((seat) => seat.status === CasinoSeatStatus.seated && seat.isBot);
+        if (botSeats.length === 0) {
+          throw new Error('That table is full.');
+        }
+
+        replacementBot = botSeats[Math.floor(Math.random() * botSeats.length)]!;
+        seatIndex = replacementBot.seatIndex;
       }
 
       let stack = 0;
@@ -1086,7 +1202,33 @@ export const joinCasinoTable = async (input: JoinTableInput): Promise<CasinoTabl
         await assertCanJoinBlackjackTable(table.guildId, input.userId, table.baseWager ?? defaultBlackjackWager);
       }
 
-      if (existing) {
+      if (replacementBot) {
+        if (existing && existing.id !== replacementBot.id) {
+          await tx.casinoTableSeat.delete({
+            where: {
+              id: existing.id,
+            },
+          });
+        }
+        await tx.casinoTableSeat.update({
+          where: {
+            id: replacementBot.id,
+          },
+          data: {
+            userId: input.userId,
+            seatIndex,
+            status: CasinoSeatStatus.seated,
+            stack,
+            reserved: 0,
+            currentWager: 0,
+            sitOut: false,
+            isBot: false,
+            botId: null,
+            botName: null,
+            botProfile: Prisma.JsonNull,
+          },
+        });
+      } else if (existing) {
         await tx.casinoTableSeat.update({
           where: {
             id: existing.id,
@@ -1095,7 +1237,13 @@ export const joinCasinoTable = async (input: JoinTableInput): Promise<CasinoTabl
             status: CasinoSeatStatus.seated,
             seatIndex,
             stack,
+            reserved: 0,
+            currentWager: 0,
             sitOut: false,
+            isBot: false,
+            botId: null,
+            botName: null,
+            botProfile: Prisma.JsonNull,
           },
         });
       } else {
@@ -1106,6 +1254,20 @@ export const joinCasinoTable = async (input: JoinTableInput): Promise<CasinoTabl
             seatIndex,
             status: CasinoSeatStatus.seated,
             stack,
+            isBot: false,
+          },
+        });
+      }
+
+      const hadNoHumans = getSeatedHumanSeats(table.seats.map(toSeatSummary)).length === 0;
+      if (table.noHumanDeadlineAt || hadNoHumans) {
+        await tx.casinoTable.update({
+          where: {
+            id: table.id,
+          },
+          data: {
+            noHumanDeadlineAt: null,
+            hostUserId: getSeatedHumanSeats(table.seats.map(toSeatSummary)).length === 0 ? input.userId : table.hostUserId,
           },
         });
       }
@@ -1115,7 +1277,22 @@ export const joinCasinoTable = async (input: JoinTableInput): Promise<CasinoTabl
         userId: input.userId,
         action: CasinoTableActionKind.join,
         ...(stack > 0 ? { amount: stack } : {}),
+        ...(replacementBot
+          ? {
+              payload: {
+                replacedBotId: replacementBot.botId,
+                replacedBotName: replacementBot.botName,
+              } as Prisma.InputJsonValue,
+            }
+          : {}),
       });
+      if (table.noHumanDeadlineAt || hadNoHumans) {
+        await recordTableActionTx(tx, {
+          tableId: table.id,
+          userId: input.userId,
+          action: CasinoTableActionKind.resume,
+        });
+      }
 
       const updated = await tx.casinoTable.findUniqueOrThrow({
         where: {
@@ -1172,13 +1349,22 @@ export const leaveCasinoTable = async (tableId: string, userId: string): Promise
       });
 
       const remainingSeats = table.seats.filter((entry) => entry.id !== seat.id && entry.status === CasinoSeatStatus.seated);
+      const remainingSeatSummaries = remainingSeats.map(toSeatSummary);
+      const remainingHumans = getSeatedHumanSeats(remainingSeatSummaries);
+      const remainingBots = getSeatedBotSeats(remainingSeatSummaries);
       const data: Prisma.CasinoTableUpdateInput = {};
       if (remainingSeats.length === 0) {
         data.status = CasinoTableStatus.closed;
         data.actionDeadlineAt = null;
+        data.noHumanDeadlineAt = null;
         data.lobbyExpiresAt = null;
-      } else if (table.hostUserId === userId) {
-        data.hostUserId = remainingSeats.sort((left, right) => left.seatIndex - right.seatIndex)[0]!.userId;
+      } else if (remainingHumans.length === 0 && remainingBots.length > 0) {
+        data.noHumanDeadlineAt = buildNoHumanDeadline();
+      } else if (table.hostUserId === userId && remainingHumans.length > 0) {
+        data.hostUserId = remainingHumans.sort((left, right) => left.seatIndex - right.seatIndex)[0]!.userId;
+        data.noHumanDeadlineAt = null;
+      } else {
+        data.noHumanDeadlineAt = remainingHumans.length > 0 ? null : table.noHumanDeadlineAt;
       }
 
       if (Object.keys(data).length > 0) {
@@ -1195,6 +1381,16 @@ export const leaveCasinoTable = async (tableId: string, userId: string): Promise
         userId,
         action: CasinoTableActionKind.leave,
       });
+      if (remainingHumans.length === 0 && remainingBots.length > 0) {
+        await recordTableActionTx(tx, {
+          tableId: table.id,
+          userId,
+          action: CasinoTableActionKind.pause,
+          payload: {
+            noHumanDeadlineAt: data.noHumanDeadlineAt instanceof Date ? data.noHumanDeadlineAt.toISOString() : null,
+          },
+        });
+      }
 
       const updated = await tx.casinoTable.findUniqueOrThrow({
         where: {
@@ -1224,7 +1420,7 @@ export const closeCasinoTable = async (tableId: string, userId: string): Promise
         throw new Error('Finish the current hand before closing the table.');
       }
 
-      for (const seat of table.seats.filter((entry) => entry.status === CasinoSeatStatus.seated && entry.stack > 0)) {
+      for (const seat of table.seats.filter((entry) => entry.status === CasinoSeatStatus.seated && entry.stack > 0 && !entry.isBot)) {
         const account = await ensureEconomyAccountTx(tx, table.guildId, seat.userId);
         await tx.marketAccount.update({
           where: {
@@ -1255,6 +1451,7 @@ export const closeCasinoTable = async (tableId: string, userId: string): Promise
         data: {
           status: CasinoTableStatus.closed,
           actionDeadlineAt: null,
+          noHumanDeadlineAt: null,
           lobbyExpiresAt: null,
         },
       });
@@ -1274,6 +1471,105 @@ export const closeCasinoTable = async (tableId: string, userId: string): Promise
       return toTableSummary(updated);
     }));
 
+export const setCasinoTableBotCount = async (
+  tableId: string,
+  hostUserId: string,
+  requestedCount: number,
+): Promise<CasinoTableSummary> =>
+  withTableLock(tableId, async () =>
+    runSerializableTransaction(async (tx) => {
+      if (!Number.isInteger(requestedCount) || requestedCount < 0) {
+        throw new Error('Bot count must be a whole number of at least 0.');
+      }
+      const table = await tx.casinoTable.findUnique({
+        where: {
+          id: tableId,
+        },
+        include: casinoTableInclude,
+      });
+      if (!table || table.status === CasinoTableStatus.closed) {
+        throw new Error('That casino table no longer exists.');
+      }
+      if (table.hostUserId !== hostUserId) {
+        throw new Error('Only the table host can change bot seats.');
+      }
+      if (isTableHandInProgress(toTableSummary(table))) {
+        throw new Error('You can only change bot seats between hands.');
+      }
+
+      const seats = table.seats.map(toSeatSummary);
+      const humanSeats = getSeatedHumanSeats(seats);
+      const botSeats = getSeatedBotSeats(seats);
+      const maxAllowed = Math.max(0, table.maxSeats - humanSeats.length);
+      if (requestedCount > maxAllowed) {
+        throw new Error(`That table can only hold ${maxAllowed} bot seat${maxAllowed === 1 ? '' : 's'} right now.`);
+      }
+
+      if (requestedCount > botSeats.length) {
+        const toAdd = requestedCount - botSeats.length;
+        const botSeatInputs = buildBotSeatCreateInputs({
+          tableId: table.id,
+          game: table.game,
+          count: toAdd,
+          openSeatIndexes: getOpenSeatIndexes(seats, table.maxSeats),
+          defaultBuyIn: table.defaultBuyIn,
+          takenNames: botSeats.map((seat) => seat.botName).filter((name): name is string => Boolean(name)),
+        });
+        if (botSeatInputs.length > 0) {
+          await tx.casinoTable.update({
+            where: {
+              id: table.id,
+            },
+            data: {
+              seats: {
+                create: botSeatInputs,
+              },
+            },
+          });
+          await recordTableActionTx(tx, {
+            tableId: table.id,
+            userId: hostUserId,
+            action: CasinoTableActionKind.add_bot,
+            amount: botSeatInputs.length,
+          });
+        }
+      } else if (requestedCount < botSeats.length) {
+        const toRemove = botSeats.length - requestedCount;
+        const removableBots = [...botSeats]
+          .sort((left, right) => right.seatIndex - left.seatIndex)
+          .slice(0, toRemove);
+        if (removableBots.length > 0) {
+          await Promise.all(removableBots.map((seat) =>
+            tx.casinoTableSeat.update({
+              where: {
+                id: seat.id,
+              },
+              data: {
+                status: CasinoSeatStatus.left,
+                stack: 0,
+                reserved: 0,
+                currentWager: 0,
+                sitOut: false,
+              },
+            })));
+          await recordTableActionTx(tx, {
+            tableId: table.id,
+            userId: hostUserId,
+            action: CasinoTableActionKind.remove_bot,
+            amount: removableBots.length,
+          });
+        }
+      }
+
+      const updated = await tx.casinoTable.findUniqueOrThrow({
+        where: {
+          id: table.id,
+        },
+        include: casinoTableInclude,
+      });
+      return toTableSummary(updated);
+    }));
+
 const finalizeBlackjackStart = async (
   tx: Prisma.TransactionClient,
   table: Prisma.CasinoTableGetPayload<{ include: typeof casinoTableInclude }>,
@@ -1283,6 +1579,11 @@ const finalizeBlackjackStart = async (
   const eligibleSeats = table.seats.filter((seat) => seat.status === CasinoSeatStatus.seated && !seat.sitOut);
   const fundedSeats: typeof eligibleSeats = [];
   for (const seat of eligibleSeats) {
+    if (seat.isBot) {
+      fundedSeats.push(seat);
+      continue;
+    }
+
     const account = await ensureEconomyAccountTx(tx, table.guildId, seat.userId);
     if (account.bankroll >= baseWager) {
       await tx.marketAccount.update({
@@ -1348,6 +1649,7 @@ const finalizeBlackjackStart = async (
       status: CasinoTableStatus.active,
       currentHandNumber: state.handNumber,
       actionDeadlineAt: deadline?.deadlineAt ?? null,
+      noHumanDeadlineAt: null,
       state: state as Prisma.InputJsonValue,
       lobbyExpiresAt: null,
     },
@@ -1464,6 +1766,7 @@ const finalizeHoldemStart = async (
       status: CasinoTableStatus.active,
       currentHandNumber: state.handNumber,
       actionDeadlineAt: deadline?.deadlineAt ?? null,
+      noHumanDeadlineAt: null,
       state: state as Prisma.InputJsonValue,
       lobbyExpiresAt: null,
     },
@@ -1531,7 +1834,13 @@ const settleCompletedHoldemState = async (
     ? state
     : awardHoldemPot(state);
 
+  const botUserIds = new Set(table.seats.filter((seat) => seat.isBot).map((seat) => seat.userId));
+
   for (const player of completed.players) {
+    if (botUserIds.has(player.userId)) {
+      continue;
+    }
+
     await appendCasinoRoundTx(tx, {
       guildId: table.guildId,
       userId: player.userId,
@@ -1877,9 +2186,8 @@ export const advanceCasinoTableTimeout = async (tableId: string): Promise<Casino
 export const listTimedCasinoTables = async (): Promise<CasinoTableSummary[]> => {
   const tables = await prisma.casinoTable.findMany({
     where: {
-      status: CasinoTableStatus.active,
-      actionDeadlineAt: {
-        not: null,
+      status: {
+        not: CasinoTableStatus.closed,
       },
     },
     include: casinoTableInclude,
@@ -1887,3 +2195,85 @@ export const listTimedCasinoTables = async (): Promise<CasinoTableSummary[]> => 
 
   return tables.map(toTableSummary);
 };
+
+export const closeCasinoTableForNoHumanTimeout = async (
+  tableId: string,
+): Promise<CasinoTableSummary | null> =>
+  withTableLock(tableId, async () =>
+    runSerializableTransaction(async (tx) => {
+      const table = await tx.casinoTable.findUnique({
+        where: {
+          id: tableId,
+        },
+        include: casinoTableInclude,
+      });
+      if (!table || table.status === CasinoTableStatus.closed) {
+        return null;
+      }
+      if (!table.noHumanDeadlineAt || table.noHumanDeadlineAt.getTime() > Date.now()) {
+        return toTableSummary(table);
+      }
+      if (isTableHandInProgress(toTableSummary(table))) {
+        return toTableSummary(table);
+      }
+
+      const remainingHumans = table.seats.filter((seat) => seat.status === CasinoSeatStatus.seated && !seat.isBot);
+      if (remainingHumans.length > 0) {
+        await tx.casinoTable.update({
+          where: {
+            id: table.id,
+          },
+          data: {
+            noHumanDeadlineAt: null,
+          },
+        });
+        const updated = await tx.casinoTable.findUniqueOrThrow({
+          where: {
+            id: table.id,
+          },
+          include: casinoTableInclude,
+        });
+        return toTableSummary(updated);
+      }
+
+      await tx.casinoTableSeat.updateMany({
+        where: {
+          tableId: table.id,
+        },
+        data: {
+          status: CasinoSeatStatus.left,
+          stack: 0,
+          reserved: 0,
+          currentWager: 0,
+          sitOut: false,
+        },
+      });
+
+      await tx.casinoTable.update({
+        where: {
+          id: table.id,
+        },
+        data: {
+          status: CasinoTableStatus.closed,
+          actionDeadlineAt: null,
+          noHumanDeadlineAt: null,
+          lobbyExpiresAt: null,
+        },
+      });
+
+      await recordTableActionTx(tx, {
+        tableId: table.id,
+        action: CasinoTableActionKind.close,
+        payload: {
+          reason: 'no_humans_timeout',
+        },
+      });
+
+      const updated = await tx.casinoTable.findUniqueOrThrow({
+        where: {
+          id: table.id,
+        },
+        include: casinoTableInclude,
+      });
+      return toTableSummary(updated);
+    }));

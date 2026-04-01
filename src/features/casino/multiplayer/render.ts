@@ -19,13 +19,13 @@ import {
   casinoTableLeaveButtonCustomId,
   casinoTablePeekButtonCustomId,
   casinoTableStartButtonCustomId,
-} from './custom-ids.js';
+} from '../custom-ids.js';
 import type {
   CasinoTableSummary,
   MultiplayerBlackjackState,
   MultiplayerHoldemState,
   PlayingCard,
-} from './types.js';
+} from '../types.js';
 
 const formatMoney = (value: number): string => `${value.toFixed(2)} pts`;
 
@@ -49,26 +49,36 @@ const formatCards = (cards: PlayingCard[]): string => cards.map(formatCard).join
 const gameLabel = (table: CasinoTableSummary): string =>
   table.game === CasinoGameKind.holdem ? 'Texas Hold\'em' : 'Blackjack';
 
+const formatSeatActor = (table: CasinoTableSummary, userId: string): string => {
+  const seat = table.seats.find((entry) => entry.userId === userId);
+  if (seat?.isBot) {
+    return `${seat.botName ?? 'Bot'} [bot]`;
+  }
+
+  return `<@${userId}>`;
+};
+
 const buildSeatLines = (table: CasinoTableSummary): string[] =>
-  table.seats.length === 0
+  table.seats.filter((seat) => seat.status === 'seated').length === 0
     ? ['No one is seated yet.']
-    : table.seats.map((seat) => {
+    : table.seats.filter((seat) => seat.status === 'seated').map((seat) => {
       const stack = table.game === CasinoGameKind.holdem ? ` • stack ${formatMoney(seat.stack)}` : '';
       const sitOut = seat.sitOut ? ' • sitting out' : '';
-      return `${seat.seatIndex + 1}. <@${seat.userId}>${stack}${sitOut}`;
+      const label = seat.isBot ? `${seat.botName ?? 'Bot'} [bot]` : `<@${seat.userId}>`;
+      return `${seat.seatIndex + 1}. ${label}${stack}${sitOut}`;
     });
 
-const buildBlackjackStateLines = (state: MultiplayerBlackjackState): string[] => [
+const buildBlackjackStateLines = (table: CasinoTableSummary, state: MultiplayerBlackjackState): string[] => [
   `Dealer: ${formatCard(state.dealerCards[0]!)} 🂠`,
   ...state.players.map((player) => {
     const wager = player.doubledDown ? `${formatMoney(player.wager)} (double)` : formatMoney(player.wager);
     const suffix = player.outcome ? ` • ${player.outcome.replaceAll('_', ' ')}` : ` • ${player.status}`;
-    return `<@${player.userId}>: ${formatCards(player.cards)} (${player.total}) • wager ${wager}${suffix}`;
+    return `${formatSeatActor(table, player.userId)}: ${formatCards(player.cards)} (${player.total}) • wager ${wager}${suffix}`;
   }),
   state.actionDeadlineAt ? `Action deadline: <t:${Math.floor(new Date(state.actionDeadlineAt).getTime() / 1000)}:R>` : 'Action deadline: none',
 ];
 
-const buildHoldemStateLines = (state: MultiplayerHoldemState): string[] => [
+const buildHoldemStateLines = (table: CasinoTableSummary, state: MultiplayerHoldemState): string[] => [
   `Board: ${state.communityCards.length > 0 ? formatCards(state.communityCards) : 'none yet'}`,
   `Pot: ${formatMoney(state.pot)} • Street: ${state.street}`,
   ...state.players.map((player) => {
@@ -80,7 +90,7 @@ const buildHoldemStateLines = (state: MultiplayerHoldemState): string[] => [
           ? 'acting'
           : player.lastAction ?? 'waiting';
     const showdown = player.handCategory ? ` • ${player.handCategory}` : '';
-    return `<@${player.userId}>: stack ${formatMoney(player.stack)} • committed ${formatMoney(player.totalCommitted)} • ${status}${showdown}`;
+    return `${formatSeatActor(table, player.userId)}: stack ${formatMoney(player.stack)} • committed ${formatMoney(player.totalCommitted)} • ${status}${showdown}`;
   }),
   state.actionDeadlineAt ? `Action deadline: <t:${Math.floor(new Date(state.actionDeadlineAt).getTime() / 1000)}:R>` : 'Action deadline: none',
 ];
@@ -91,10 +101,13 @@ export const buildCasinoTableEmbed = (table: CasinoTableSummary): EmbedBuilder =
     : `Base wager: **${formatMoney(table.baseWager ?? 0)}**`;
   const description = [
     `Table ID: \`${table.id}\``,
-    `Host: <@${table.hostUserId}>`,
+    `Host: ${table.hostUserId.startsWith('bot:') ? 'Bot' : `<@${table.hostUserId}>`}`,
     `Status: **${table.status}**`,
     stakeLine,
-    `Seats: **${table.seats.length}/${table.maxSeats}**`,
+    `Seats: **${table.seats.filter((seat) => seat.status === 'seated').length}/${table.maxSeats}**`,
+    ...(table.noHumanDeadlineAt
+      ? [`No-human close: <t:${Math.floor(table.noHumanDeadlineAt.getTime() / 1000)}:R>`]
+      : []),
     '',
     '**Players**',
     ...buildSeatLines(table),
@@ -103,8 +116,8 @@ export const buildCasinoTableEmbed = (table: CasinoTableSummary): EmbedBuilder =
           '',
           '**Hand State**',
           ...(table.state.kind === 'multiplayer-blackjack'
-            ? buildBlackjackStateLines(table.state)
-            : buildHoldemStateLines(table.state)),
+            ? buildBlackjackStateLines(table, table.state)
+            : buildHoldemStateLines(table, table.state)),
         ]
       : []),
   ].join('\n');
@@ -119,12 +132,13 @@ export const buildCasinoTableComponents = (
   table: CasinoTableSummary,
 ): Array<ActionRowBuilder<ButtonBuilder>> => {
   const handInProgress = Boolean(table.state && table.state.completedAt === null);
+  const seatedCount = table.seats.filter((seat) => seat.status === 'seated').length;
   const controls = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(casinoTableJoinButtonCustomId(table.id))
       .setLabel('Join')
       .setStyle(ButtonStyle.Success)
-      .setDisabled(table.status === 'closed' || handInProgress || table.seats.length >= table.maxSeats),
+      .setDisabled(table.status === 'closed' || handInProgress || seatedCount >= table.maxSeats),
     new ButtonBuilder()
       .setCustomId(casinoTableLeaveButtonCustomId(table.id))
       .setLabel('Leave')
@@ -212,7 +226,7 @@ export const buildCasinoTableListEmbed = (tables: CasinoTableSummary[]): EmbedBu
       tables.length === 0
         ? 'No multiplayer casino tables are open right now.'
         : tables.map((table) =>
-          `\`${table.id}\` • **${table.name}** • ${gameLabel(table)} • ${table.seats.length}/${table.maxSeats} seats • ${table.status}`).join('\n'),
+          `\`${table.id}\` • **${table.name}** • ${gameLabel(table)} • ${table.seats.filter((seat) => seat.status === 'seated').length}/${table.maxSeats} seats • ${table.status}`).join('\n'),
     );
 
 export const buildCasinoTablePrivateEmbed = (

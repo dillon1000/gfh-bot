@@ -156,11 +156,22 @@ export type CasinoTableSummary = {
   currentHandNumber: number;
   actionTimeoutSeconds: number;
   actionDeadlineAt: Date | null;
+  noHumanDeadlineAt: Date | null;
   lobbyExpiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   seats: CasinoTableSeatSummary[];
   state: CasinoTableState | null;
+};
+
+export type CasinoBotProfile = {
+  aggression: number;
+  looseness: number;
+  bluffFactor: number;
+  showdownPatience: number;
+  doubleDownBias: number;
+  chaos: number;
+  showboat: number;
 };
 
 export type CasinoTableSeatSummary = {
@@ -173,6 +184,10 @@ export type CasinoTableSeatSummary = {
   reserved: number;
   currentWager: number;
   sitOut: boolean;
+  isBot: boolean;
+  botId: string | null;
+  botName: string | null;
+  botProfile: CasinoBotProfile | null;
   joinedAt: Date;
   updatedAt: Date;
 };
