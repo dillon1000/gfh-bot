@@ -143,8 +143,10 @@ describe('casino service', () => {
 
   it('rerolls RTD ties until there is a winner', async () => {
     const rng = vi.fn()
+      // 0.09 -> 10, so the opening player/bot rolls tie at 10.
       .mockReturnValueOnce(0.09)
       .mockReturnValueOnce(0.09)
+      // 0.99 -> 100 and 0.10 -> 11, so the reroll resolves in the player's favor.
       .mockReturnValueOnce(0.99)
       .mockReturnValueOnce(0.10);
 
@@ -213,6 +215,25 @@ describe('casino service', () => {
     expect(result.round.outcome).toBe('dealer_bust');
     expect(result.persisted.payout).toBe(40);
     expect(result.persisted.net).toBe(20);
+  });
+
+  it('fails clearly when the dealer must draw from an exhausted blackjack deck', async () => {
+    await expect(standBlackjack({
+      kind: 'blackjack',
+      guildId: 'guild_1',
+      userId: 'user_1',
+      wager: 20,
+      playerCards: [
+        { rank: '10', suit: 'hearts' },
+        { rank: '9', suit: 'clubs' },
+      ],
+      dealerCards: [
+        { rank: 'A', suit: 'spades' },
+        { rank: '6', suit: 'diamonds' },
+      ],
+      deck: [],
+      createdAt: new Date('2099-03-29T00:00:00.000Z').toISOString(),
+    })).rejects.toThrow('Cannot finish blackjack hand because the dealer deck is exhausted.');
   });
 
   it('resolves poker ties with sudden-death redraws', async () => {

@@ -19,6 +19,8 @@ export const startOfUtcDay = (date: Date): Date =>
 
 export const roundCurrency = (value: number): number => Math.round(value * 100) / 100;
 
+// Casino-enabled guilds already have a faster gameplay loop for rebuilding bankroll,
+// so we keep the daily safety net lower than the default economy floor.
 const getDailyTopUpFloorForConfig = (
   config: Pick<GuildConfig, 'casinoEnabled'>,
 ): number => (config.casinoEnabled ? casinoDailyTopUpFloor : defaultDailyTopUpFloor);

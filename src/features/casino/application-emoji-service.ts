@@ -1,5 +1,6 @@
 import { env } from '../../app/config.js';
 import { discordRestGet } from '../../lib/discord-rest.js';
+import { buildCardEmojiName } from './card-utils.js';
 import type { PlayingCard } from './types.js';
 
 type ApplicationEmoji = {
@@ -18,20 +19,6 @@ const buildEmojiMarkup = (emoji: ApplicationEmoji): string =>
   emoji.animated
     ? `<a:${emoji.name}:${emoji.id}>`
     : `<:${emoji.name}:${emoji.id}>`;
-
-const buildCardEmojiName = (card: PlayingCard): string => {
-  const rank = card.rank === 'A'
-    ? 'ace'
-    : card.rank === 'K'
-      ? 'king'
-      : card.rank === 'Q'
-        ? 'queen'
-        : card.rank === 'J'
-          ? 'jack'
-          : card.rank.toLowerCase();
-
-  return `card${rank}${card.suit}`;
-};
 
 export const getApplicationEmojiMap = async (): Promise<Map<string, string>> => {
   if (!applicationEmojiMapPromise) {
