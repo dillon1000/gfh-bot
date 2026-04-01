@@ -5,8 +5,9 @@ import { applyConfiguredPresence } from './presence.js';
 import { env } from './config.js';
 import { registerInteractionRouter } from '../discord/router.js';
 import { registerAuditLogEventHandlers, replayUndeliveredAuditLogEntries } from '../features/audit-log/service.js';
-import { syncOpenCasinoTableJobs } from '../features/casino/table-schedule-service.js';
-import { startCasinoTableTimeoutWorker } from '../features/casino/table-worker.js';
+import { startCasinoBotWorker } from '../features/casino/multiplayer/bots/worker.js';
+import { syncOpenCasinoTableJobs } from '../features/casino/multiplayer/schedule-service.js';
+import { startCasinoTableIdleCloseWorker, startCasinoTableTimeoutWorker } from '../features/casino/multiplayer/worker.js';
 import { recoverExpiredMarketGraceNotices, recoverExpiredMarkets } from '../features/markets/service-lifecycle.js';
 import { syncOpenMarketJobs } from '../features/markets/schedule-service.js';
 import { startMarketCloseWorker, startMarketGraceWorker, startMarketRefreshWorker } from '../features/markets/worker.js';
@@ -18,7 +19,17 @@ import { expireStaleRemovalVoteRequests, recoverDueRemovalVoteStarts, syncWaitin
 import { startRemovalVoteWorker } from '../features/removals/worker.js';
 import { removeStarboardEntryForSourceMessage, syncStarboardForReaction } from '../features/starboard/service.js';
 import { prisma } from '../lib/prisma.js';
-import { casinoTableTimeoutQueue, marketCloseQueue, marketGraceQueue, marketRefreshQueue, pollCloseQueue, pollReminderQueue, removalVoteStartQueue } from '../lib/queue.js';
+import {
+  casinoTableBotActionQueue,
+  casinoTableIdleCloseQueue,
+  casinoTableTimeoutQueue,
+  marketCloseQueue,
+  marketGraceQueue,
+  marketRefreshQueue,
+  pollCloseQueue,
+  pollReminderQueue,
+  removalVoteStartQueue,
+} from '../lib/queue.js';
 import { redis } from '../lib/redis.js';
 import { installShutdownHooks, registerShutdownHandler } from '../lib/shutdown.js';
 
@@ -105,6 +116,8 @@ const marketCloseWorker = startMarketCloseWorker(client);
 const marketRefreshWorker = startMarketRefreshWorker(client);
 const marketGraceWorker = startMarketGraceWorker(client);
 const casinoTableTimeoutWorker = startCasinoTableTimeoutWorker(client);
+const casinoTableIdleCloseWorker = startCasinoTableIdleCloseWorker(client);
+const casinoBotWorker = startCasinoBotWorker(client);
 
 registerShutdownHandler(async () => {
   await Promise.allSettled([
@@ -115,6 +128,8 @@ registerShutdownHandler(async () => {
     marketRefreshWorker.close(),
     marketGraceWorker.close(),
     casinoTableTimeoutWorker.close(),
+    casinoTableIdleCloseWorker.close(),
+    casinoBotWorker.close(),
     pollCloseQueue.close(),
     pollReminderQueue.close(),
     removalVoteStartQueue.close(),
@@ -122,6 +137,8 @@ registerShutdownHandler(async () => {
     marketRefreshQueue.close(),
     marketGraceQueue.close(),
     casinoTableTimeoutQueue.close(),
+    casinoTableIdleCloseQueue.close(),
+    casinoTableBotActionQueue.close(),
     redis.quit(),
     prisma.$disconnect(),
     client.destroy(),

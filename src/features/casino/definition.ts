@@ -150,6 +150,14 @@ export const casinoCommand = new SlashCommandBuilder()
               .setDescription('Hold\'em buy-in in points')
               .setMinValue(1)
               .setRequired(false),
+          )
+          .addIntegerOption((option) =>
+            option
+              .setName('bot_count')
+              .setDescription('Number of friendly bots to seat immediately')
+              .setMinValue(0)
+              .setMaxValue(5)
+              .setRequired(false),
           ),
       )
       .addSubcommand((subcommand) =>
@@ -164,8 +172,8 @@ export const casinoCommand = new SlashCommandBuilder()
           .addStringOption((option) =>
             option
               .setName('table')
-              .setDescription('Table ID')
-              .setRequired(true),
+              .setDescription('Table ID, or omit this inside the table thread')
+              .setRequired(false),
           ),
       )
       .addSubcommand((subcommand) =>
@@ -175,8 +183,8 @@ export const casinoCommand = new SlashCommandBuilder()
           .addStringOption((option) =>
             option
               .setName('table')
-              .setDescription('Table ID')
-              .setRequired(true),
+              .setDescription('Table ID, or omit this inside the table thread')
+              .setRequired(false),
           )
           .addIntegerOption((option) =>
             option
@@ -205,6 +213,25 @@ export const casinoCommand = new SlashCommandBuilder()
             option
               .setName('table')
               .setDescription('Table ID')
+              .setRequired(true),
+          ),
+      )
+      .addSubcommand((subcommand) =>
+        subcommand
+          .setName('bots')
+          .setDescription('Change the number of friendly bots between hands.')
+          .addStringOption((option) =>
+            option
+              .setName('table')
+              .setDescription('Table ID')
+              .setRequired(true),
+          )
+          .addIntegerOption((option) =>
+            option
+              .setName('count')
+              .setDescription('Total number of bot seats to keep')
+              .setMinValue(0)
+              .setMaxValue(5)
               .setRequired(true),
           ),
       )

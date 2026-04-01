@@ -91,6 +91,11 @@ enum CasinoTableActionKind {
   leave
   start
   close
+  add_bot
+  remove_bot
+  pause
+  resume
+  bot_action
   hit
   stand
   double_down
@@ -475,6 +480,7 @@ model CasinoTable {
   currentHandNumber    Int                   @default(0)
   actionTimeoutSeconds Int                   @default(30)
   actionDeadlineAt     DateTime?
+  noHumanDeadlineAt    DateTime?
   lobbyExpiresAt       DateTime?
   state                Json?
   createdAt            DateTime              @default(now())
@@ -486,23 +492,29 @@ model CasinoTable {
 
   @@index([guildId, game, status])
   @@index([guildId, status, actionDeadlineAt])
+  @@index([guildId, status, noHumanDeadlineAt])
 }
 
 model CasinoTableSeat {
-  id           String           @id @default(cuid())
+  id            String           @id @default(cuid())
   tableId       String
   userId        String
-  seatIndex     Int
+  seatIndex      Int
   status        CasinoSeatStatus @default(seated)
   stack         Float            @default(0)
   reserved      Float            @default(0)
   currentWager  Float            @default(0)
   sitOut        Boolean          @default(false)
+  isBot         Boolean          @default(false)
+  botId         String?
+  botName       String?
+  botProfile    Json?
   joinedAt      DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   table         CasinoTable      @relation(fields: [tableId], references: [id], onDelete: Cascade)
 
   @@unique([tableId, userId])
+  @@unique([tableId, botId])
   @@unique([tableId, seatIndex])
   @@index([tableId, status, seatIndex])
 }
