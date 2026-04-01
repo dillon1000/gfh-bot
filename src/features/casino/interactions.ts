@@ -9,7 +9,6 @@ import {
 
 import { redis } from '../../lib/redis.js';
 import { getEffectiveEconomyAccountPreview } from '../economy/service.js';
-import { getApplicationEmojiMap } from './application-emoji-service.js';
 import {
   describeCasinoConfig,
   disableCasinoConfig,
@@ -246,7 +245,6 @@ export const handleCasinoCommand = async (
 
   if (subcommand === 'blackjack') {
     await interaction.deferReply();
-    const renderOptions = await getCasinoRenderOptions();
     const started = await startBlackjack({
       guildId: interaction.guildId,
       userId: interaction.user.id,
@@ -255,7 +253,7 @@ export const handleCasinoCommand = async (
 
     if (started.kind === 'result') {
       await interaction.editReply({
-        embeds: [buildBlackjackResultEmbed(interaction.user.id, started.persisted, started.round, renderOptions)],
+        embeds: [buildBlackjackResultEmbed(interaction.user.id, started.persisted, started.round)],
         components: [],
         allowedMentions: {
           parse: [],
@@ -266,7 +264,7 @@ export const handleCasinoCommand = async (
 
     await saveCasinoSession(redis, started.session);
     await interaction.editReply({
-      ...buildBlackjackPrompt(interaction.user.id, started.session, renderOptions),
+      ...buildBlackjackPrompt(interaction.user.id, started.session),
       allowedMentions: {
         parse: [],
       },
@@ -276,7 +274,6 @@ export const handleCasinoCommand = async (
 
   if (subcommand === 'poker') {
     await interaction.deferReply();
-    const renderOptions = await getCasinoRenderOptions();
     const session = await startPoker({
       guildId: interaction.guildId,
       userId: interaction.user.id,
@@ -284,7 +281,7 @@ export const handleCasinoCommand = async (
     });
     await saveCasinoSession(redis, session);
     await interaction.editReply({
-      ...buildPokerPrompt(interaction.user.id, session, renderOptions),
+      ...buildPokerPrompt(interaction.user.id, session),
       allowedMentions: {
         parse: [],
       },
@@ -293,15 +290,6 @@ export const handleCasinoCommand = async (
   }
 
   throw new Error('Unknown casino subcommand.');
-};
-
-const getCasinoRenderOptions = async (): Promise<{ cardEmojiMap?: Map<string, string> }> => {
-  try {
-    const cardEmojiMap = await getApplicationEmojiMap();
-    return { cardEmojiMap };
-  } catch {
-    return {};
-  }
 };
 
 export const handleCasinoButton = async (
@@ -325,17 +313,15 @@ export const handleCasinoButton = async (
     const next = await hitBlackjack(session);
     if (next.kind === 'result') {
       await deleteCasinoSession(redis, guildId, blackjackHit.ownerId);
-      const renderOptions = await getCasinoRenderOptions();
       await interaction.update({
-        embeds: [buildBlackjackResultEmbed(blackjackHit.ownerId, next.persisted, next.round, renderOptions)],
+        embeds: [buildBlackjackResultEmbed(blackjackHit.ownerId, next.persisted, next.round)],
         components: [],
       });
       return;
     }
 
     await saveCasinoSession(redis, next.session);
-    const renderOptions = await getCasinoRenderOptions();
-    await interaction.update(buildBlackjackPrompt(blackjackHit.ownerId, next.session, renderOptions));
+    await interaction.update(buildBlackjackPrompt(blackjackHit.ownerId, next.session));
     return;
   }
 
@@ -356,9 +342,8 @@ export const handleCasinoButton = async (
 
     const result = await standBlackjack(session);
     await deleteCasinoSession(redis, guildId, blackjackStand.ownerId);
-    const renderOptions = await getCasinoRenderOptions();
     await interaction.update({
-      embeds: [buildBlackjackResultEmbed(blackjackStand.ownerId, result.persisted, result.round, renderOptions)],
+      embeds: [buildBlackjackResultEmbed(blackjackStand.ownerId, result.persisted, result.round)],
       components: [],
     });
     return;
@@ -381,9 +366,8 @@ export const handleCasinoButton = async (
 
     const result = await drawPoker({ session });
     await deleteCasinoSession(redis, guildId, pokerDraw.ownerId);
-    const renderOptions = await getCasinoRenderOptions();
     await interaction.update({
-      embeds: [buildPokerResultEmbed(pokerDraw.ownerId, result.persisted, result.round, renderOptions)],
+      embeds: [buildPokerResultEmbed(pokerDraw.ownerId, result.persisted, result.round)],
       components: [],
     });
     return;
@@ -418,6 +402,5 @@ export const handleCasinoSelect = async (
     interaction.values.map((value) => Number.parseInt(value, 10)).filter(Number.isInteger),
   );
   await saveCasinoSession(redis, updated);
-  const renderOptions = await getCasinoRenderOptions();
-  await interaction.update(buildPokerPrompt(pokerDiscard.ownerId, updated, renderOptions));
+  await interaction.update(buildPokerPrompt(pokerDiscard.ownerId, updated));
 };

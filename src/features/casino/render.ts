@@ -13,10 +13,7 @@ import {
   casinoPokerDiscardSelectCustomId,
   casinoPokerDrawButtonCustomId,
 } from './custom-ids.js';
-import {
-  buildCardEmojiName,
-  getBlackjackTotal,
-} from './card-utils.js';
+import { getBlackjackTotal } from './card-utils.js';
 import type {
   BlackjackRound,
   BlackjackSession,
@@ -28,10 +25,6 @@ import type {
   RtdRound,
   SlotsSpin,
 } from './types.js';
-
-type CasinoRenderOptions = {
-  cardEmojiMap?: Map<string, string>;
-};
 
 const formatMoney = (value: number): string => `${value.toFixed(2)} pts`;
 
@@ -69,13 +62,11 @@ const formatSlotSymbol = (symbol: string): string => `${slotEmoji(symbol)} ${sym
 
 const formatCard = (
   card: PlayingCard,
-  options?: CasinoRenderOptions,
-): string => options?.cardEmojiMap?.get(buildCardEmojiName(card)) ?? `${card.rank}${suitEmoji(card.suit)}`;
+): string => `${card.rank}${suitEmoji(card.suit)}`;
 
 const formatCards = (
   cards: PlayingCard[],
-  options?: CasinoRenderOptions,
-): string => cards.map((card) => formatCard(card, options)).join(' ');
+): string => cards.map((card) => formatCard(card)).join(' ');
 
 const gameLabel = (game: PersistedCasinoRound['game']): string => {
   switch (game) {
@@ -203,7 +194,6 @@ export const buildRtdResultEmbed = (
 export const buildBlackjackPrompt = (
   userId: string,
   session: BlackjackSession,
-  options?: CasinoRenderOptions,
 ): {
   embeds: [EmbedBuilder];
   components: [ActionRowBuilder<ButtonBuilder>];
@@ -214,9 +204,9 @@ export const buildBlackjackPrompt = (
       .setColor(0x60a5fa)
       .setDescription([
         `<@${userId}> started a blackjack hand for **${formatMoney(session.wager)}**.`,
-        `🧑 Player: **${formatCards(session.playerCards, options)}**`,
+        `🧑 Player: **${formatCards(session.playerCards)}**`,
         `Player total: **${getBlackjackTotal(session.playerCards)}**`,
-        `🤖 Dealer: **${formatCard(session.dealerCards[0]!, options)} 🂠**`,
+        `🤖 Dealer: **${formatCard(session.dealerCards[0]!)} 🂠**`,
       ].join('\n')),
   ],
   components: [
@@ -237,22 +227,20 @@ export const buildBlackjackResultEmbed = (
   userId: string,
   persisted: PersistedCasinoRound,
   round: BlackjackRound,
-  options?: CasinoRenderOptions,
 ): EmbedBuilder =>
   new EmbedBuilder()
     .setTitle(`♠️ Blackjack ${resultLabel(persisted)}`)
     .setColor(resultColor(persisted))
     .setDescription([
       ...buildRoundSummaryLines(userId, persisted),
-      `🧑 Player: **${formatCards(round.playerCards, options)}** (${round.playerTotal})`,
-      `🤖 Dealer: **${formatCards(round.dealerCards, options)}** (${round.dealerTotal})`,
+      `🧑 Player: **${formatCards(round.playerCards)}** (${round.playerTotal})`,
+      `🤖 Dealer: **${formatCards(round.dealerCards)}** (${round.dealerTotal})`,
       `Outcome: **${round.outcome.replaceAll('_', ' ')}**`,
     ].join('\n'));
 
 export const buildPokerPrompt = (
   userId: string,
   session: PokerSession,
-  options?: CasinoRenderOptions,
 ): {
   embeds: [EmbedBuilder];
   components: [ActionRowBuilder<StringSelectMenuBuilder>, ActionRowBuilder<ButtonBuilder>];
@@ -266,7 +254,7 @@ export const buildPokerPrompt = (
         .setDescription([
           `<@${userId}> started five-card draw for **${formatMoney(session.wager)}**.`,
           'Choose up to 3 cards to discard, then press Draw.',
-          `Your hand: ${session.playerCards.map((card, index) => `${index + 1}:${formatCard(card, options)}${selected.has(index) ? ' ⭐' : ''}`).join('  ')}`,
+          `Your hand: ${session.playerCards.map((card, index) => `${index + 1}:${formatCard(card)}${selected.has(index) ? ' ⭐' : ''}`).join('  ')}`,
           `Bot hand: **🂠 🂠 🂠 🂠 🂠**`,
           selected.size > 0
             ? `Selected discards: **${[...selected].map((index) => index + 1).join(', ')}**`
@@ -300,18 +288,17 @@ export const buildPokerResultEmbed = (
   userId: string,
   persisted: PersistedCasinoRound,
   round: PokerRound,
-  options?: CasinoRenderOptions,
 ): EmbedBuilder =>
   new EmbedBuilder()
     .setTitle(`🃏 Poker ${resultLabel(persisted)}`)
     .setColor(resultColor(persisted))
     .setDescription([
       ...buildRoundSummaryLines(userId, persisted),
-      `🧑 Player: **${formatCards(round.playerCards, options)}** (${round.playerCategory})`,
-      `🤖 Bot: **${formatCards(round.botCards, options)}** (${round.botCategory})`,
+      `🧑 Player: **${formatCards(round.playerCards)}** (${round.playerCategory})`,
+      `🤖 Bot: **${formatCards(round.botCards)}** (${round.botCategory})`,
       `Discarded: **${round.discardedIndexes.length > 0 ? round.discardedIndexes.map((index) => index + 1).join(', ') : 'none'}**`,
       round.bonusMultiplier > 0 ? `Bonus: **+${round.bonusMultiplier.toFixed(1)}x**` : 'Bonus: **none**',
       round.tiebreakDraws.length > 0
-        ? `Tiebreak: ${round.tiebreakDraws.map((draw) => `${formatCard(draw.player, options)} vs ${formatCard(draw.bot, options)}`).join(', ')}`
+        ? `Tiebreak: ${round.tiebreakDraws.map((draw) => `${formatCard(draw.player)} vs ${formatCard(draw.bot)}`).join(', ')}`
         : 'Tiebreak: none',
     ].join('\n'));
