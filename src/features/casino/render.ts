@@ -13,6 +13,10 @@ import {
   casinoPokerDiscardSelectCustomId,
   casinoPokerDrawButtonCustomId,
 } from './custom-ids.js';
+import {
+  buildCardEmojiName,
+  getBlackjackTotal,
+} from './card-utils.js';
 import type {
   BlackjackRound,
   BlackjackSession,
@@ -62,20 +66,6 @@ const slotEmoji = (symbol: string): string => {
 };
 
 const formatSlotSymbol = (symbol: string): string => `${slotEmoji(symbol)} ${symbol}`;
-
-const buildCardEmojiName = (card: PlayingCard): string => {
-  const rank = card.rank === 'A'
-    ? 'ace'
-    : card.rank === 'K'
-      ? 'king'
-      : card.rank === 'Q'
-        ? 'queen'
-        : card.rank === 'J'
-          ? 'jack'
-          : card.rank.toLowerCase();
-
-  return `card${rank}${card.suit}`;
-};
 
 const formatCard = (
   card: PlayingCard,
@@ -225,7 +215,7 @@ export const buildBlackjackPrompt = (
       .setDescription([
         `<@${userId}> started a blackjack hand for **${formatMoney(session.wager)}**.`,
         `🧑 Player: **${formatCards(session.playerCards, options)}**`,
-        `Player total: **${calculateBlackjackPromptTotal(session.playerCards)}**`,
+        `Player total: **${getBlackjackTotal(session.playerCards)}**`,
         `🤖 Dealer: **${formatCard(session.dealerCards[0]!, options)} 🂠**`,
       ].join('\n')),
   ],
@@ -242,28 +232,6 @@ export const buildBlackjackPrompt = (
     ),
   ],
 });
-
-const calculateBlackjackPromptTotal = (cards: PlayingCard[]): number => {
-  let total = 0;
-  let aces = 0;
-  for (const card of cards) {
-    if (card.rank === 'A') {
-      total += 11;
-      aces += 1;
-    } else if (card.rank === 'K' || card.rank === 'Q' || card.rank === 'J') {
-      total += 10;
-    } else {
-      total += Number(card.rank);
-    }
-  }
-
-  while (total > 21 && aces > 0) {
-    total -= 10;
-    aces -= 1;
-  }
-
-  return total;
-};
 
 export const buildBlackjackResultEmbed = (
   userId: string,

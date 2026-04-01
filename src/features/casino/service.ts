@@ -10,6 +10,10 @@ import {
   getEffectiveEconomyAccountPreview,
   roundCurrency,
 } from '../economy/service.js';
+import {
+  getBlackjackTotal,
+  isSoftBlackjackTotal,
+} from './card-utils.js';
 import type {
   BlackjackRound,
   BlackjackSession,
@@ -307,60 +311,6 @@ const resolveSlotSpin = (reels: string[]): SlotsSpin => {
     matchCount,
     multiplier,
   };
-};
-
-const getBlackjackTotal = (cards: PlayingCard[]): number => {
-  let total = 0;
-  let aceCount = 0;
-
-  for (const card of cards) {
-    if (card.rank === 'A') {
-      total += 11;
-      aceCount += 1;
-      continue;
-    }
-
-    if (card.rank === 'K' || card.rank === 'Q' || card.rank === 'J') {
-      total += 10;
-      continue;
-    }
-
-    total += Number(card.rank);
-  }
-
-  while (total > 21 && aceCount > 0) {
-    total -= 10;
-    aceCount -= 1;
-  }
-
-  return total;
-};
-
-const isSoftTotal = (cards: PlayingCard[]): boolean => {
-  let total = 0;
-  let aceCount = 0;
-
-  for (const card of cards) {
-    if (card.rank === 'A') {
-      total += 11;
-      aceCount += 1;
-      continue;
-    }
-
-    if (card.rank === 'K' || card.rank === 'Q' || card.rank === 'J') {
-      total += 10;
-      continue;
-    }
-
-    total += Number(card.rank);
-  }
-
-  while (total > 21 && aceCount > 0) {
-    total -= 10;
-    aceCount -= 1;
-  }
-
-  return aceCount > 0;
 };
 
 const isNaturalBlackjack = (cards: PlayingCard[]): boolean => cards.length === 2 && getBlackjackTotal(cards) === 21;
@@ -799,8 +749,12 @@ export const standBlackjack = async (
       break;
     }
 
-    if (total === 17 && !isSoftTotal(dealerCards)) {
+    if (total === 17 && !isSoftBlackjackTotal(dealerCards)) {
       break;
+    }
+
+    if (deck.length === 0) {
+      throw new Error('Cannot finish blackjack hand because the dealer deck is exhausted.');
     }
 
     const drawn = drawCard(deck);
