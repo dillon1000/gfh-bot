@@ -2,7 +2,7 @@ import { Events, type Client, type Interaction } from 'discord.js';
 
 import { handleAuditLogCommand } from '../features/audit-log/commands.js';
 import { handleCasinoInteractionError } from '../features/casino/interaction-errors.js';
-import { handleCasinoButton, handleCasinoCommand, handleCasinoSelect } from '../features/casino/interactions.js';
+import { handleCasinoButton, handleCasinoCommand, handleCasinoModal, handleCasinoSelect } from '../features/casino/interactions.js';
 import {
   handleEmojiBuilderButton,
   handleEmojiBuilderCommand,
@@ -321,6 +321,12 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('market:')) {
           await handleMarketModal(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('casino:')) {
+          await handleCasinoModal(client, interaction);
+          return;
         }
       }
     } catch (error) {
@@ -359,6 +365,7 @@ export const registerInteractionRouter = (client: Client): void => {
           (interaction.isChatInputCommand() && interaction.commandName === 'casino')
           || (interaction.isButton() && interaction.customId.startsWith('casino:'))
           || (interaction.isStringSelectMenu() && interaction.customId.startsWith('casino:'))
+          || (interaction.isModalSubmit() && interaction.customId.startsWith('casino:'))
         ) {
           await handleCasinoInteractionError(interaction, error);
         } else if (

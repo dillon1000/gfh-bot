@@ -1,4 +1,11 @@
-import type { CasinoGameKind, CasinoRoundResult, CasinoUserStat } from '@prisma/client';
+import type {
+  CasinoGameKind,
+  CasinoRoundResult,
+  CasinoSeatStatus,
+  CasinoTableActionKind,
+  CasinoTableStatus,
+  CasinoUserStat,
+} from '@prisma/client';
 
 export type CasinoConfig = {
   enabled: boolean;
@@ -128,4 +135,132 @@ export type PokerRound = {
   tiebreakDraws: Array<{ player: PlayingCard; bot: PlayingCard }>;
   wonByTiebreak: boolean;
   bonusMultiplier: number;
+};
+
+export type CasinoTableSummary = {
+  id: string;
+  guildId: string;
+  channelId: string;
+  messageId: string | null;
+  threadId: string | null;
+  hostUserId: string;
+  name: string;
+  game: CasinoGameKind;
+  status: CasinoTableStatus;
+  minSeats: number;
+  maxSeats: number;
+  baseWager: number | null;
+  smallBlind: number | null;
+  bigBlind: number | null;
+  defaultBuyIn: number | null;
+  currentHandNumber: number;
+  actionTimeoutSeconds: number;
+  actionDeadlineAt: Date | null;
+  lobbyExpiresAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  seats: CasinoTableSeatSummary[];
+  state: CasinoTableState | null;
+};
+
+export type CasinoTableSeatSummary = {
+  id: string;
+  tableId: string;
+  userId: string;
+  seatIndex: number;
+  status: CasinoSeatStatus;
+  stack: number;
+  reserved: number;
+  currentWager: number;
+  sitOut: boolean;
+  joinedAt: Date;
+  updatedAt: Date;
+};
+
+export type CasinoSeatSnapshot = {
+  userId: string;
+  seatIndex: number;
+  stack: number;
+  reserved: number;
+  sitOut: boolean;
+};
+
+export type MultiplayerBlackjackPlayerState = {
+  userId: string;
+  seatIndex: number;
+  cards: PlayingCard[];
+  total: number;
+  wager: number;
+  doubledDown: boolean;
+  status: 'waiting' | 'acting' | 'stood' | 'bust' | 'blackjack' | 'resolved';
+  outcome?: BlackjackRound['outcome'];
+  payout?: number;
+};
+
+export type MultiplayerBlackjackState = {
+  kind: 'multiplayer-blackjack';
+  handNumber: number;
+  dealerCards: PlayingCard[];
+  deck: PlayingCard[];
+  actingSeatIndex: number | null;
+  players: MultiplayerBlackjackPlayerState[];
+  actionDeadlineAt: string | null;
+  completedAt: string | null;
+};
+
+export type HoldemStreet = 'preflop' | 'flop' | 'turn' | 'river' | 'showdown' | 'complete';
+
+export type MultiplayerHoldemPlayerState = {
+  userId: string;
+  seatIndex: number;
+  holeCards: PlayingCard[];
+  folded: boolean;
+  allIn: boolean;
+  stack: number;
+  committedThisRound: number;
+  totalCommitted: number;
+  actedThisRound: boolean;
+  lastAction: 'small_blind' | 'big_blind' | 'fold' | 'check' | 'call' | 'raise' | 'all_in' | null;
+  payout?: number;
+  handCategory?: PokerHandCategory;
+};
+
+export type HoldemSidePot = {
+  amount: number;
+  eligibleUserIds: string[];
+};
+
+export type MultiplayerHoldemState = {
+  kind: 'multiplayer-holdem';
+  handNumber: number;
+  deck: PlayingCard[];
+  communityCards: PlayingCard[];
+  dealerSeatIndex: number;
+  actingSeatIndex: number | null;
+  street: HoldemStreet;
+  pot: number;
+  currentBet: number;
+  minRaise: number;
+  players: MultiplayerHoldemPlayerState[];
+  sidePots: HoldemSidePot[];
+  actionDeadlineAt: string | null;
+  completedAt: string | null;
+};
+
+export type CasinoTableState = MultiplayerBlackjackState | MultiplayerHoldemState;
+
+export type CasinoTableView = {
+  table: CasinoTableSummary;
+  seatByUserId: Map<string, CasinoTableSeatSummary>;
+};
+
+export type CasinoTableActionRecord = {
+  id: string;
+  tableId: string;
+  handNumber: number | null;
+  userId: string | null;
+  action: CasinoTableActionKind;
+  amount: number | null;
+  payload: Record<string, unknown> | null;
+  createdAt: Date;
 };

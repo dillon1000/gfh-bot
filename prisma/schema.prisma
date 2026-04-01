@@ -64,12 +64,43 @@ enum CasinoGameKind {
   blackjack
   poker
   rtd
+  holdem
 }
 
 enum CasinoRoundResult {
   win
   loss
   push
+}
+
+enum CasinoTableStatus {
+  lobby
+  active
+  closed
+}
+
+enum CasinoSeatStatus {
+  seated
+  left
+  busted
+}
+
+enum CasinoTableActionKind {
+  create
+  join
+  leave
+  start
+  close
+  hit
+  stand
+  double_down
+  fold
+  check
+  call
+  raise
+  timeout
+  auto_action
+  cash_out
 }
 
 model GuildConfig {
@@ -94,6 +125,7 @@ model GuildConfig {
   updatedAt          DateTime         @updatedAt
   starboardEntries   StarboardEntry[]
   marketAccounts     MarketAccount[]
+  casinoTables       CasinoTable[]
 }
 
 model Poll {
@@ -422,6 +454,86 @@ model CasinoRoundRecord {
 
   @@index([guildId, userId, createdAt])
   @@index([guildId, game, createdAt])
+}
+
+model CasinoTable {
+  id                   String                @id @default(cuid())
+  guildId              String
+  channelId            String
+  messageId            String?               @unique
+  threadId             String?               @unique
+  hostUserId           String
+  name                 String
+  game                 CasinoGameKind
+  status               CasinoTableStatus     @default(lobby)
+  minSeats             Int                   @default(2)
+  maxSeats             Int                   @default(6)
+  baseWager            Float?
+  smallBlind           Float?
+  bigBlind             Float?
+  defaultBuyIn         Float?
+  currentHandNumber    Int                   @default(0)
+  actionTimeoutSeconds Int                   @default(30)
+  actionDeadlineAt     DateTime?
+  lobbyExpiresAt       DateTime?
+  state                Json?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  guildConfig          GuildConfig           @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  seats                CasinoTableSeat[]
+  hands                CasinoTableHand[]
+  actions              CasinoTableAction[]
+
+  @@index([guildId, game, status])
+  @@index([guildId, status, actionDeadlineAt])
+}
+
+model CasinoTableSeat {
+  id           String           @id @default(cuid())
+  tableId       String
+  userId        String
+  seatIndex     Int
+  status        CasinoSeatStatus @default(seated)
+  stack         Float            @default(0)
+  reserved      Float            @default(0)
+  currentWager  Float            @default(0)
+  sitOut        Boolean          @default(false)
+  joinedAt      DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  table         CasinoTable      @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@unique([tableId, userId])
+  @@unique([tableId, seatIndex])
+  @@index([tableId, status, seatIndex])
+}
+
+model CasinoTableHand {
+  id          String         @id @default(cuid())
+  tableId      String
+  handNumber   Int
+  game         CasinoGameKind
+  startedAt    DateTime      @default(now())
+  completedAt  DateTime?
+  snapshot     Json
+  table        CasinoTable   @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@unique([tableId, handNumber])
+  @@index([tableId, completedAt])
+}
+
+model CasinoTableAction {
+  id          String                 @id @default(cuid())
+  tableId      String
+  handNumber   Int?
+  userId       String?
+  action       CasinoTableActionKind
+  amount       Float?
+  payload      Json?
+  createdAt    DateTime               @default(now())
+  table        CasinoTable            @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@index([tableId, createdAt])
+  @@index([tableId, handNumber, createdAt])
 }
 
 model CasinoUserStat {

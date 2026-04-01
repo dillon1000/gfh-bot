@@ -39,6 +39,7 @@ const {
 
 vi.mock('../src/lib/redis.js', () => ({
   redis: {},
+  getBullConnectionOptions: vi.fn(() => ({})),
 }));
 
 vi.mock('../src/features/economy/service.js', async () => {
