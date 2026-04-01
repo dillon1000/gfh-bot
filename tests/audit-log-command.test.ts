@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { auditLogCommand } from '../src/features/audit-log/definition.js';
+import { auditLogCommand } from '../src/features/audit-log/commands/definition.js';
 
 describe('auditLogCommand', () => {
   it('registers setup, status, and disable subcommands', () => {

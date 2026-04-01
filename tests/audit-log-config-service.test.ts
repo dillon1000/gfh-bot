@@ -20,7 +20,7 @@ import {
   disableAuditLog,
   getAuditLogConfig,
   setAuditLogConfig,
-} from '../src/features/audit-log/config-service.js';
+} from '../src/features/audit-log/services/config.js';
 
 describe('audit log config service', () => {
   beforeEach(() => {

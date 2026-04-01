@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { inferEmojiMimeType, normalizeEmojiName, suggestEmojiNameFromFileName } from '../src/features/emojis/validate.js';
+import { inferEmojiMimeType, normalizeEmojiName, suggestEmojiNameFromFileName } from '../src/features/emojis/core/validate.js';
 
 describe('emoji builder name normalization', () => {
   it('normalizes emoji names to discord-safe format', () => {

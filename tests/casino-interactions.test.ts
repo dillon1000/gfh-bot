@@ -42,15 +42,15 @@ vi.mock('../src/lib/redis.js', () => ({
   getBullConnectionOptions: vi.fn(() => ({})),
 }));
 
-vi.mock('../src/features/economy/service.js', async () => {
-  const actual = await vi.importActual<typeof import('../src/features/economy/service.js')>('../src/features/economy/service.js');
+vi.mock('../src/features/economy/services/accounts.js', async () => {
+  const actual = await vi.importActual<typeof import('../src/features/economy/services/accounts.js')>('../src/features/economy/services/accounts.js');
   return {
     ...actual,
     getEffectiveEconomyAccountPreview,
   };
 });
 
-vi.mock('../src/features/casino/config-service.js', () => ({
+vi.mock('../src/features/casino/services/config.js', () => ({
   getCasinoConfig,
   setCasinoConfig,
   disableCasinoConfig,
@@ -60,7 +60,7 @@ vi.mock('../src/features/casino/config-service.js', () => ({
       : 'Casino mode is disabled for this server.'),
 }));
 
-vi.mock('../src/features/casino/service.js', () => ({
+vi.mock('../src/features/casino/services/gameplay.js', () => ({
   getCasinoStatsSummary,
   playSlots,
   playRtd,
@@ -72,13 +72,13 @@ vi.mock('../src/features/casino/service.js', () => ({
   updatePokerDiscardSelection,
 }));
 
-vi.mock('../src/features/casino/session-store.js', () => ({
+vi.mock('../src/features/casino/state/sessions.js', () => ({
   getCasinoSession,
   saveCasinoSession,
   deleteCasinoSession,
 }));
 
-import { handleCasinoButton, handleCasinoCommand, handleCasinoSelect } from '../src/features/casino/interactions.js';
+import { handleCasinoButton, handleCasinoCommand, handleCasinoSelect } from '../src/features/casino/handlers/interactions.js';
 
 const createCommandInteraction = (options: {
   subcommand: string;

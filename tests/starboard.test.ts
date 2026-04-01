@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isStarboardPromotionEligible } from '../src/features/starboard/rules.js';
+import { isStarboardPromotionEligible } from '../src/features/starboard/core/rules.js';
 import {
   deserializeStoredEmoji,
   normalizeEmojiInput,

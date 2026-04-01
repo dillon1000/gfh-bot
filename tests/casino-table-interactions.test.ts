@@ -40,14 +40,14 @@ vi.mock('../src/lib/redis.js', () => ({
   getBullConnectionOptions: vi.fn(() => ({})),
 }));
 
-vi.mock('../src/features/casino/config-service.js', () => ({
+vi.mock('../src/features/casino/services/config.js', () => ({
   getCasinoConfig,
   setCasinoConfig: vi.fn(),
   disableCasinoConfig: vi.fn(),
   describeCasinoConfig: vi.fn(),
 }));
 
-vi.mock('../src/features/casino/multiplayer/service.js', () => ({
+vi.mock('../src/features/casino/multiplayer/services/tables.js', () => ({
   createCasinoTable,
   attachCasinoTableMessage,
   attachCasinoTableThread,
@@ -65,17 +65,17 @@ vi.mock('../src/features/casino/multiplayer/service.js', () => ({
   setCasinoTableBotCount,
 }));
 
-vi.mock('../src/features/casino/multiplayer/render.js', () => ({
+vi.mock('../src/features/casino/multiplayer/ui/render.js', () => ({
   buildCasinoTableMessage,
   buildCasinoTableListEmbed,
   buildCasinoTablePrivateEmbed,
 }));
 
-vi.mock('../src/features/casino/multiplayer/schedule-service.js', () => ({
+vi.mock('../src/features/casino/multiplayer/services/scheduler.js', () => ({
   syncCasinoTableJobs,
 }));
 
-vi.mock('../src/features/casino/service.js', () => ({
+vi.mock('../src/features/casino/services/gameplay.js', () => ({
   getCasinoStatsSummary: vi.fn(),
   playSlots: vi.fn(),
   playRtd: vi.fn(),
@@ -87,14 +87,14 @@ vi.mock('../src/features/casino/service.js', () => ({
   updatePokerDiscardSelection: vi.fn(),
 }));
 
-vi.mock('../src/features/casino/session-store.js', () => ({
+vi.mock('../src/features/casino/state/sessions.js', () => ({
   getCasinoSession: vi.fn().mockResolvedValue(null),
   saveCasinoSession: vi.fn(),
   deleteCasinoSession: vi.fn(),
 }));
 
-vi.mock('../src/features/economy/service.js', async () => {
-  const actual = await vi.importActual<typeof import('../src/features/economy/service.js')>('../src/features/economy/service.js');
+vi.mock('../src/features/economy/services/accounts.js', async () => {
+  const actual = await vi.importActual<typeof import('../src/features/economy/services/accounts.js')>('../src/features/economy/services/accounts.js');
   return {
     ...actual,
     getEffectiveEconomyAccountPreview: vi.fn().mockResolvedValue({
@@ -105,7 +105,7 @@ vi.mock('../src/features/economy/service.js', async () => {
   };
 });
 
-import { handleCasinoButton, handleCasinoCommand, handleCasinoModal } from '../src/features/casino/interactions.js';
+import { handleCasinoButton, handleCasinoCommand, handleCasinoModal } from '../src/features/casino/handlers/interactions.js';
 
 const baseTable = {
   id: 'table_1',

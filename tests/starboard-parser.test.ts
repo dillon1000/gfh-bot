@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseChannelIdBlacklist } from '../src/features/starboard/parser.js';
+import { parseChannelIdBlacklist } from '../src/features/starboard/parsing/parser.js';
 
 describe('parseChannelIdBlacklist', () => {
   it('parses raw channel ids and mentions', () => {

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { searchMaxOffset } from '../src/features/search/constants.js';
+import { searchMaxOffset } from '../src/features/search/core/constants.js';
 
 const {
   env,
@@ -42,12 +42,12 @@ vi.mock('../src/lib/redis.js', () => ({
   redis: {},
 }));
 
-vi.mock('../src/features/search/service.js', () => ({
+vi.mock('../src/features/search/services/search.js', () => ({
   searchGuildMessages,
   resolveSearchChannelIds,
 }));
 
-vi.mock('../src/features/search/config-service.js', () => ({
+vi.mock('../src/features/search/services/config.js', () => ({
   getSearchConfig,
   setSearchIgnoredChannelIds,
   describeSearchConfig: vi.fn((config: { ignoredChannelIds: string[] }, adminUserIds: string[]) => [
@@ -56,20 +56,20 @@ vi.mock('../src/features/search/config-service.js', () => ({
   ].join('\n')),
 }));
 
-vi.mock('../src/features/search/session-store.js', () => ({
+vi.mock('../src/features/search/state/sessions.js', () => ({
   createSearchSessionId,
   saveSearchSession,
   getSearchSession,
 }));
 
-vi.mock('../src/features/audit-log/service.js', () => ({
+vi.mock('../src/features/audit-log/services/events.js', () => ({
   recordAuditLogEvent,
 }));
 
 import {
   handleSearchCommand,
   handleSearchPaginationButton,
-} from '../src/features/search/interactions.js';
+} from '../src/features/search/handlers/interactions.js';
 
 const createBaseGuild = () => ({
   members: {

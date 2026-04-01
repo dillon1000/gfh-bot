@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { getCasinoSession } from '../src/features/casino/session-store.js';
+import { getCasinoSession } from '../src/features/casino/state/sessions.js';
 
 describe('casino session store', () => {
   it('treats invalid JSON as a missing session and deletes the corrupted key', async () => {

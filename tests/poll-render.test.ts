@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildPollMessageEmbed, buildPollResultsEmbed } from '../src/features/polls/poll-embeds.js';
-import { buildPollMessage } from '../src/features/polls/poll-responses.js';
-import type { PollWithRelations } from '../src/features/polls/types.js';
-import { computePollResults } from '../src/features/polls/results.js';
-import { createFallbackPollSnapshot } from '../src/features/polls/service-governance.js';
+import { buildPollMessageEmbed, buildPollResultsEmbed } from '../src/features/polls/ui/poll-embeds.js';
+import { buildPollMessage } from '../src/features/polls/ui/poll-responses.js';
+import type { PollWithRelations } from '../src/features/polls/core/types.js';
+import { computePollResults } from '../src/features/polls/core/results.js';
+import { createFallbackPollSnapshot } from '../src/features/polls/services/governance.js';
 
 const basePoll = {
   id: 'poll_1',

@@ -24,7 +24,7 @@ const {
   closePollAndRefresh: vi.fn(),
 }));
 
-vi.mock('../src/features/polls/service-repository.js', () => ({
+vi.mock('../src/features/polls/services/repository.js', () => ({
   getPollById,
   getPollByMessageId,
   getPollByQuery,
@@ -34,7 +34,7 @@ vi.mock('../src/features/polls/service-repository.js', () => ({
   extendPollRecord,
 }));
 
-vi.mock('../src/features/polls/draft-store.js', () => ({
+vi.mock('../src/features/polls/state/drafts.js', () => ({
   savePollDraft,
 }));
 
@@ -42,7 +42,7 @@ vi.mock('../src/lib/redis.js', () => ({
   redis: {},
 }));
 
-vi.mock('../src/features/polls/service-lifecycle.js', () => ({
+vi.mock('../src/features/polls/services/lifecycle.js', () => ({
   refreshPollMessage,
   closePollAndRefresh,
   isPollManager: (poll: { authorId: string }, userId: string, canManageGuild: boolean) =>
@@ -53,13 +53,13 @@ vi.mock('../src/features/polls/service-lifecycle.js', () => ({
   getPollVoteAuditSnapshotByQuery: vi.fn(),
 }));
 
-import { handlePollCloseContext, handlePollCloseModal } from '../src/features/polls/query-interactions.js';
+import { handlePollCloseContext, handlePollCloseModal } from '../src/features/polls/handlers/query.js';
 import {
   handlePollDuplicateContext,
   handlePollEditContext,
   handlePollManageModal,
-} from '../src/features/polls/management-interactions.js';
-import type { PollWithRelations } from '../src/features/polls/types.js';
+} from '../src/features/polls/handlers/management.js';
+import type { PollWithRelations } from '../src/features/polls/core/types.js';
 
 const basePoll: PollWithRelations = {
   id: 'poll_1',

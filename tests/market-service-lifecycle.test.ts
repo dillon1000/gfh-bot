@@ -43,34 +43,34 @@ vi.mock('../src/lib/prisma.js', () => ({
   },
 }));
 
-vi.mock('../src/features/markets/render.js', () => ({
+vi.mock('../src/features/markets/ui/render.js', () => ({
   buildMarketMessage,
   buildMarketEmbed: vi.fn(),
   buildMarketResolvePrompt: vi.fn(),
   buildMarketStatusEmbed: vi.fn(),
 }));
 
-vi.mock('../src/features/markets/record-service.js', () => ({
+vi.mock('../src/features/markets/services/records.js', () => ({
   attachMarketMessage,
   attachMarketThread,
   getMarketById,
 }));
 
-vi.mock('../src/features/markets/schedule-service.js', () => ({
+vi.mock('../src/features/markets/services/scheduler.js', () => ({
   clearMarketJobs: vi.fn(),
   scheduleMarketClose,
   scheduleMarketGrace: vi.fn(),
 }));
 
-vi.mock('../src/features/markets/trade-service.js', () => ({
+vi.mock('../src/features/markets/services/trading.js', () => ({
   closeMarketTrading: vi.fn(),
 }));
 
-vi.mock('../src/features/markets/visualize.js', () => ({
+vi.mock('../src/features/markets/ui/visualize.js', () => ({
   buildMarketDiagram,
 }));
 
-import { hydrateMarketMessage, refreshMarketMessage, sendMarketGraceNotice } from '../src/features/markets/service-lifecycle.js';
+import { hydrateMarketMessage, refreshMarketMessage, sendMarketGraceNotice } from '../src/features/markets/services/lifecycle.js';
 
 const market = {
   id: 'market_1',

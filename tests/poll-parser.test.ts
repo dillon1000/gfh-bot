@@ -12,7 +12,7 @@ import {
   parseReminderOffsets,
   parseReminderRoleTarget,
   resolvePassRule,
-} from '../src/features/polls/parser.js';
+} from '../src/features/polls/parsing/parser.js';
 
 describe('parseChoicesCsv', () => {
   it('parses comma-separated choices', () => {

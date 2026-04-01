@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { renderLatexToPng } from '../src/features/meta/latex.js';
+import { renderLatexToPng } from '../src/features/meta/commands/latex.js';
 
 describe('latex renderer', () => {
   it('renders a valid expression into a png buffer', async () => {

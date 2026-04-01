@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { searchCommand } from '../src/features/search/definition.js';
+import { searchCommand } from '../src/features/search/commands/definition.js';
 
 describe('searchCommand', () => {
   it('registers messages, advanced, and config subcommands', () => {

@@ -86,15 +86,15 @@ vi.mock('../src/lib/queue.js', () => ({
   },
 }));
 
-let cancelMarket: typeof import('../src/features/markets/trade-service.js').cancelMarket;
-let calculateMarketTradeQuote: typeof import('../src/features/markets/trade-service.js').calculateMarketTradeQuote;
-let executeMarketTrade: typeof import('../src/features/markets/trade-service.js').executeMarketTrade;
-let grantMarketBankroll: typeof import('../src/features/markets/account-service.js').grantMarketBankroll;
-let getMarketForecastLeaderboard: typeof import('../src/features/markets/forecast-service.js').getMarketForecastLeaderboard;
-let getMarketForecastProfile: typeof import('../src/features/markets/forecast-service.js').getMarketForecastProfile;
-let resolveMarket: typeof import('../src/features/markets/trade-service.js').resolveMarket;
-let resolveMarketOutcome: typeof import('../src/features/markets/trade-service.js').resolveMarketOutcome;
-let summarizeMarketTraders: typeof import('../src/features/markets/record-service.js').summarizeMarketTraders;
+let cancelMarket: typeof import('../src/features/markets/services/trading.js').cancelMarket;
+let calculateMarketTradeQuote: typeof import('../src/features/markets/services/trading.js').calculateMarketTradeQuote;
+let executeMarketTrade: typeof import('../src/features/markets/services/trading.js').executeMarketTrade;
+let grantMarketBankroll: typeof import('../src/features/markets/services/account.js').grantMarketBankroll;
+let getMarketForecastLeaderboard: typeof import('../src/features/markets/services/forecast.js').getMarketForecastLeaderboard;
+let getMarketForecastProfile: typeof import('../src/features/markets/services/forecast.js').getMarketForecastProfile;
+let resolveMarket: typeof import('../src/features/markets/services/trading.js').resolveMarket;
+let resolveMarketOutcome: typeof import('../src/features/markets/services/trading.js').resolveMarketOutcome;
+let summarizeMarketTraders: typeof import('../src/features/markets/services/records.js').summarizeMarketTraders;
 
 const baseAccount = {
   id: 'account_1',
@@ -199,17 +199,17 @@ describe('market service', () => {
       executeMarketTrade,
       resolveMarket,
       resolveMarketOutcome,
-    } = await import('../src/features/markets/trade-service.js'));
+    } = await import('../src/features/markets/services/trading.js'));
     ({
       getMarketForecastLeaderboard,
       getMarketForecastProfile,
-    } = await import('../src/features/markets/forecast-service.js'));
+    } = await import('../src/features/markets/services/forecast.js'));
     ({
       grantMarketBankroll,
-    } = await import('../src/features/markets/account-service.js'));
+    } = await import('../src/features/markets/services/account.js'));
     ({
       summarizeMarketTraders,
-    } = await import('../src/features/markets/record-service.js'));
+    } = await import('../src/features/markets/services/records.js'));
   });
 
   beforeEach(() => {

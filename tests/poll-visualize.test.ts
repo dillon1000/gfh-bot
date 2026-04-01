@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { computePollOutcome, computePollResults } from '../src/features/polls/results.js';
-import type { PollWithRelations } from '../src/features/polls/types.js';
-import { buildPollResultDiagram, getStandardPollSummary } from '../src/features/polls/visualize.js';
+import { computePollOutcome, computePollResults } from '../src/features/polls/core/results.js';
+import type { PollWithRelations } from '../src/features/polls/core/types.js';
+import { buildPollResultDiagram, getStandardPollSummary } from '../src/features/polls/ui/visualize.js';
 
 const standardPoll = {
   id: 'poll_standard_1',

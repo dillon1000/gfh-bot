@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { CasinoTableSummary } from '../src/features/casino/types.js';
+import type { CasinoTableSummary } from '../src/features/casino/core/types.js';
 
 const {
   dbState,
@@ -155,8 +155,8 @@ vi.mock('../src/lib/locks.js', () => ({
   withRedisLock: vi.fn(async (_client: unknown, _key: string, _ttlMs: number, fn: () => Promise<unknown>) => fn()),
 }));
 
-vi.mock('../src/features/economy/service.js', async () => {
-  const actual = await vi.importActual<typeof import('../src/features/economy/service.js')>('../src/features/economy/service.js');
+vi.mock('../src/features/economy/services/accounts.js', async () => {
+  const actual = await vi.importActual<typeof import('../src/features/economy/services/accounts.js')>('../src/features/economy/services/accounts.js');
   return {
     ...actual,
     ensureEconomyAccountTx,
@@ -164,9 +164,9 @@ vi.mock('../src/features/economy/service.js', async () => {
   };
 });
 
-let buildCasinoTableComponents: typeof import('../src/features/casino/multiplayer/render.js').buildCasinoTableComponents;
-let performCasinoTableAction: typeof import('../src/features/casino/multiplayer/service.js').performCasinoTableAction;
-let startCasinoTable: typeof import('../src/features/casino/multiplayer/service.js').startCasinoTable;
+let buildCasinoTableComponents: typeof import('../src/features/casino/multiplayer/ui/render.js').buildCasinoTableComponents;
+let performCasinoTableAction: typeof import('../src/features/casino/multiplayer/services/tables.js').performCasinoTableAction;
+let startCasinoTable: typeof import('../src/features/casino/multiplayer/services/tables.js').startCasinoTable;
 
 const baseDate = new Date('2099-03-29T00:00:00.000Z');
 
@@ -264,11 +264,11 @@ describe('casino table service', () => {
   beforeAll(async () => {
     ({
       buildCasinoTableComponents,
-    } = await import('../src/features/casino/multiplayer/render.js'));
+    } = await import('../src/features/casino/multiplayer/ui/render.js'));
     ({
       performCasinoTableAction,
       startCasinoTable,
-    } = await import('../src/features/casino/multiplayer/service.js'));
+    } = await import('../src/features/casino/multiplayer/services/tables.js'));
   });
 
   beforeEach(() => {

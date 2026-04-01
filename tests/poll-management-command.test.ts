@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { applicationCommands } from '../src/discord/commands/index.js';
-import { pollManageCommand } from '../src/features/polls/commands.js';
+import { pollManageCommand } from '../src/features/polls/commands/definition.js';
 
 describe('pollManageCommand', () => {
   it('registers the expected management subcommands', () => {

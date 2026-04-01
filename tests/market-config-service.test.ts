@@ -14,7 +14,7 @@ vi.mock('../src/lib/prisma.js', () => ({
   },
 }));
 
-import { describeMarketConfig, disableMarketConfig, getMarketConfig, setMarketConfig } from '../src/features/markets/config-service.js';
+import { describeMarketConfig, disableMarketConfig, getMarketConfig, setMarketConfig } from '../src/features/markets/services/config.js';
 
 describe('market config service', () => {
   beforeEach(() => {

@@ -27,11 +27,11 @@ vi.mock('../src/lib/queue.js', () => ({
   casinoTableTimeoutQueue,
 }));
 
-vi.mock('../src/features/casino/multiplayer/service.js', () => ({
+vi.mock('../src/features/casino/multiplayer/services/tables.js', () => ({
   listTimedCasinoTables,
 }));
 
-let syncCasinoTableJobs: typeof import('../src/features/casino/multiplayer/schedule-service.js').syncCasinoTableJobs;
+let syncCasinoTableJobs: typeof import('../src/features/casino/multiplayer/services/scheduler.js').syncCasinoTableJobs;
 
 const activeBotTable = {
   id: 'table_1',
@@ -116,7 +116,7 @@ const activeBotTable = {
 
 describe('casino table schedule service', () => {
   beforeAll(async () => {
-    ({ syncCasinoTableJobs } = await import('../src/features/casino/multiplayer/schedule-service.js'));
+    ({ syncCasinoTableJobs } = await import('../src/features/casino/multiplayer/services/scheduler.js'));
   });
 
   beforeEach(() => {
@@ -137,5 +137,11 @@ describe('casino table schedule service', () => {
 
     expect(casinoTableBotActionQueue.add).toHaveBeenCalledOnce();
     expect(casinoTableTimeoutQueue.add).toHaveBeenCalledOnce();
+    expect(casinoTableBotActionQueue.add.mock.calls[0]?.[2]).toEqual(expect.objectContaining({
+      jobId: expect.not.stringContaining(':'),
+    }));
+    expect(casinoTableTimeoutQueue.add.mock.calls[0]?.[2]).toEqual(expect.objectContaining({
+      jobId: expect.not.stringContaining(':'),
+    }));
   });
 });

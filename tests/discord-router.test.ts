@@ -64,55 +64,55 @@ const handlers = vi.hoisted(() => ({
   handleStarboardCommand: vi.fn(),
 }));
 
-vi.mock('../src/features/audit-log/commands.js', () => ({
+vi.mock('../src/features/audit-log/handlers/commands.js', () => ({
   handleAuditLogCommand: handlers.handleAuditLogCommand,
 }));
 
-vi.mock('../src/features/casino/interaction-errors.js', () => ({
+vi.mock('../src/features/casino/handlers/interaction-errors.js', () => ({
   handleCasinoInteractionError: handlers.handleCasinoInteractionError,
 }));
 
-vi.mock('../src/features/casino/interactions.js', () => ({
+vi.mock('../src/features/casino/handlers/interactions.js', () => ({
   handleCasinoButton: handlers.handleCasinoButton,
   handleCasinoCommand: handlers.handleCasinoCommand,
   handleCasinoSelect: handlers.handleCasinoSelect,
 }));
 
-vi.mock('../src/features/emojis/interactions.js', () => ({
+vi.mock('../src/features/emojis/handlers/interactions.js', () => ({
   handleEmojiBuilderButton: handlers.handleEmojiBuilderButton,
   handleEmojiBuilderCommand: handlers.handleEmojiBuilderCommand,
   handleEmojiBuilderInteractionError: handlers.handleEmojiBuilderInteractionError,
   handleEmojiBuilderModal: handlers.handleEmojiBuilderModal,
 }));
 
-vi.mock('../src/features/meta/latex.js', () => ({
+vi.mock('../src/features/meta/commands/latex.js', () => ({
   handleLatexCommand: handlers.handleLatexCommand,
 }));
 
-vi.mock('../src/features/markets/interaction-errors.js', () => ({
+vi.mock('../src/features/markets/handlers/interaction-errors.js', () => ({
   handleMarketInteractionError: handlers.handleMarketInteractionError,
 }));
 
-vi.mock('../src/features/markets/interactions.js', () => ({
+vi.mock('../src/features/markets/handlers/interactions.js', () => ({
   handleMarketButton: handlers.handleMarketButton,
   handleMarketCommand: handlers.handleMarketCommand,
   handleMarketModal: handlers.handleMarketModal,
   handleMarketSelect: handlers.handleMarketSelect,
 }));
 
-vi.mock('../src/features/meta/meow.js', () => ({
+vi.mock('../src/features/meta/commands/meow.js', () => ({
   handleMeowCommand: handlers.handleMeowCommand,
 }));
 
-vi.mock('../src/features/meta/ping.js', () => ({
+vi.mock('../src/features/meta/commands/ping.js', () => ({
   handlePingCommand: handlers.handlePingCommand,
 }));
 
-vi.mock('../src/features/polls/analytics-interactions.js', () => ({
+vi.mock('../src/features/polls/handlers/analytics.js', () => ({
   handlePollAnalyticsCommand: handlers.handlePollAnalyticsCommand,
 }));
 
-vi.mock('../src/features/polls/builder-interactions.js', () => ({
+vi.mock('../src/features/polls/handlers/builder.js', () => ({
   handlePollBuilderButton: handlers.handlePollBuilderButton,
   handlePollBuilderCommand: handlers.handlePollBuilderCommand,
   handlePollBuilderModal: handlers.handlePollBuilderModal,
@@ -120,11 +120,11 @@ vi.mock('../src/features/polls/builder-interactions.js', () => ({
   handlePollFromMessageContext: handlers.handlePollFromMessageContext,
 }));
 
-vi.mock('../src/features/polls/interaction-errors.js', () => ({
+vi.mock('../src/features/polls/handlers/interaction-errors.js', () => ({
   handlePollInteractionError: handlers.handlePollInteractionError,
 }));
 
-vi.mock('../src/features/polls/management-interactions.js', () => ({
+vi.mock('../src/features/polls/handlers/management.js', () => ({
   handlePollCancelContext: handlers.handlePollCancelContext,
   handlePollDuplicateContext: handlers.handlePollDuplicateContext,
   handlePollEditContext: handlers.handlePollEditContext,
@@ -134,7 +134,7 @@ vi.mock('../src/features/polls/management-interactions.js', () => ({
   handlePollReopenContext: handlers.handlePollReopenContext,
 }));
 
-vi.mock('../src/features/polls/query-interactions.js', () => ({
+vi.mock('../src/features/polls/handlers/query.js', () => ({
   handlePollAuditCommand: handlers.handlePollAuditCommand,
   handlePollAuditContext: handlers.handlePollAuditContext,
   handlePollCloseContext: handlers.handlePollCloseContext,
@@ -146,7 +146,7 @@ vi.mock('../src/features/polls/query-interactions.js', () => ({
   handlePollResultsContext: handlers.handlePollResultsContext,
 }));
 
-vi.mock('../src/features/polls/voting-interactions.js', () => ({
+vi.mock('../src/features/polls/handlers/voting.js', () => ({
   handlePollChoiceButton: handlers.handlePollChoiceButton,
   handlePollRankAddButton: handlers.handlePollRankAddButton,
   handlePollRankClearButton: handlers.handlePollRankClearButton,
@@ -156,7 +156,7 @@ vi.mock('../src/features/polls/voting-interactions.js', () => ({
   handlePollVoteSelect: handlers.handlePollVoteSelect,
 }));
 
-vi.mock('../src/features/reaction-roles/interactions.js', () => ({
+vi.mock('../src/features/reaction-roles/handlers/interactions.js', () => ({
   handleReactionRoleClear: handlers.handleReactionRoleClear,
   handleReactionRoleBuilderButton: handlers.handleReactionRoleBuilderButton,
   handleReactionRoleBuilderCommand: handlers.handleReactionRoleBuilderCommand,
@@ -167,21 +167,21 @@ vi.mock('../src/features/reaction-roles/interactions.js', () => ({
   handleReactionRoleSelect: handlers.handleReactionRoleSelect,
 }));
 
-vi.mock('../src/features/removals/interactions.js', () => ({
+vi.mock('../src/features/removals/handlers/interactions.js', () => ({
   handleRemoveCommand: handlers.handleRemoveCommand,
 }));
 
-vi.mock('../src/features/removals/interaction-errors.js', () => ({
+vi.mock('../src/features/removals/handlers/interaction-errors.js', () => ({
   handleRemovalInteractionError: handlers.handleRemovalInteractionError,
 }));
 
-vi.mock('../src/features/search/interactions.js', () => ({
+vi.mock('../src/features/search/handlers/interactions.js', () => ({
   handleSearchCommand: handlers.handleSearchCommand,
   handleSearchInteractionError: handlers.handleSearchInteractionError,
   handleSearchPaginationButton: handlers.handleSearchPaginationButton,
 }));
 
-vi.mock('../src/features/starboard/commands.js', () => ({
+vi.mock('../src/features/starboard/handlers/commands.js', () => ({
   handleStarboardCommand: handlers.handleStarboardCommand,
 }));
 
