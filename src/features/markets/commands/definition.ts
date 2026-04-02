@@ -59,6 +59,18 @@ export const marketCommand = new SlashCommandBuilder()
       )
       .addStringOption((option) =>
         option
+          .setName('button_style')
+          .setDescription('Optional outcome button style')
+          .setRequired(false)
+          .addChoices(
+            { name: 'Primary', value: 'primary' },
+            { name: 'Secondary', value: 'secondary' },
+            { name: 'Success', value: 'success' },
+            { name: 'Danger', value: 'danger' },
+          ),
+      )
+      .addStringOption((option) =>
+        option
           .setName('tags')
           .setDescription('Optional comma-separated tags')
           .setRequired(false),
@@ -67,7 +79,7 @@ export const marketCommand = new SlashCommandBuilder()
   .addSubcommand((subcommand) =>
     subcommand
       .setName('edit')
-      .setDescription('Edit a market before the first trade.')
+      .setDescription('Edit a market. After trading starts, only close time and button style can change.')
       .addStringOption((option) =>
         option
           .setName('query')
@@ -97,6 +109,18 @@ export const marketCommand = new SlashCommandBuilder()
           .setName('description')
           .setDescription('Updated description')
           .setRequired(false),
+      )
+      .addStringOption((option) =>
+        option
+          .setName('button_style')
+          .setDescription('Updated outcome button style')
+          .setRequired(false)
+          .addChoices(
+            { name: 'Primary', value: 'primary' },
+            { name: 'Secondary', value: 'secondary' },
+            { name: 'Success', value: 'success' },
+            { name: 'Danger', value: 'danger' },
+          ),
       )
       .addStringOption((option) =>
         option

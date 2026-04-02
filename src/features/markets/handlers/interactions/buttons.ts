@@ -3,6 +3,7 @@ import { MessageFlags, type ButtonInteraction } from 'discord.js';
 import { redis } from '../../../../lib/redis.js';
 import {
   buildMarketCancelModal,
+  buildMarketOutcomeTradePrompt,
   buildMarketTradeModal,
   buildMarketTradeSelector,
 } from '../../ui/render/trades.js';
@@ -15,7 +16,7 @@ import {
   deleteMarketTradeQuoteSession,
   getMarketTradeQuoteSession,
 } from '../../state/quote-session-store.js';
-import { refreshMarketMessage } from '../../services/lifecycle.js';
+import { buildMarketViewResponse, refreshMarketMessage } from '../../services/lifecycle.js';
 import { getMarketAccountSummary } from '../../services/account.js';
 import { getMarketById } from '../../services/records.js';
 import { scheduleMarketRefresh } from '../../services/scheduler.js';
@@ -23,6 +24,7 @@ import { executeMarketTrade } from '../../services/trading/execution.js';
 import {
   buildTradeExecutionDescription,
   getTradeFeedback,
+  parseMarketOutcomeCustomId,
   parseQuickTradeCustomId,
   parseQuoteSessionId,
   parseSimpleMarketId,
@@ -91,6 +93,23 @@ export const handleMarketButton = async (
     return;
   }
 
+  const marketOutcome = parseMarketOutcomeCustomId(interaction.customId);
+  if (marketOutcome) {
+    const market = await getMarketById(marketOutcome.marketId);
+    if (!market) {
+      throw new Error('Market not found.');
+    }
+
+    await interaction.reply({
+      flags: MessageFlags.Ephemeral,
+      ...buildMarketOutcomeTradePrompt(market, marketOutcome.outcomeId),
+      allowedMentions: {
+        parse: [],
+      },
+    });
+    return;
+  }
+
   const tradeAction = parseTradeCustomId(interaction.customId);
   if (tradeAction) {
     const market = await getMarketById(tradeAction.marketId);
@@ -119,6 +138,23 @@ export const handleMarketButton = async (
     await interaction.reply({
       flags: MessageFlags.Ephemeral,
       ...buildPortfolioMessage(interaction.user.id, portfolio, true),
+      allowedMentions: {
+        parse: [],
+      },
+    });
+    return;
+  }
+
+  const detailsMarketId = parseSimpleMarketId('market:details', interaction.customId);
+  if (detailsMarketId) {
+    const market = await getMarketById(detailsMarketId);
+    if (!market) {
+      throw new Error('Market not found.');
+    }
+
+    await interaction.reply({
+      flags: MessageFlags.Ephemeral,
+      ...(await buildMarketViewResponse(market)),
       allowedMentions: {
         parse: [],
       },

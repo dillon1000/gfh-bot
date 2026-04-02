@@ -34,6 +34,9 @@ const {
       upsert: vi.fn(),
       findMany: vi.fn(),
     },
+    marketLiquidityEvent: {
+      create: vi.fn(),
+    },
   };
 
   return {
@@ -92,6 +95,7 @@ let executeMarketTrade: typeof import('../src/features/markets/services/trading/
 let grantMarketBankroll: typeof import('../src/features/markets/services/account.js').grantMarketBankroll;
 let getMarketForecastLeaderboard: typeof import('../src/features/markets/services/forecast/queries.js').getMarketForecastLeaderboard;
 let getMarketForecastProfile: typeof import('../src/features/markets/services/forecast/queries.js').getMarketForecastProfile;
+let injectMarketLiquidity: typeof import('../src/features/markets/services/liquidity.js').injectMarketLiquidity;
 let appendMarketOutcomes: typeof import('../src/features/markets/services/records.js').appendMarketOutcomes;
 let resolveMarket: typeof import('../src/features/markets/services/trading/resolution.js').resolveMarket;
 let resolveMarketOutcome: typeof import('../src/features/markets/services/trading/resolution.js').resolveMarketOutcome;
@@ -119,8 +123,12 @@ const market = {
   threadId: null,
   title: 'Will turnout exceed 40%?',
   description: 'A test market',
+  buttonStyle: 'primary' as const,
   tags: ['meta'],
   liquidityParameter: 150,
+  baseLiquidityParameter: 150,
+  maxLiquidityParameter: 450,
+  lastLiquidityInjectionAt: null,
   closeAt: new Date('2099-03-30T00:00:00.000Z'),
   tradingClosedAt: null,
   resolutionGraceEndsAt: null,
@@ -132,15 +140,19 @@ const market = {
   resolvedByUserId: null,
   winningOutcomeId: null,
   totalVolume: 0,
+  supplementaryBonusPool: 0,
+  supplementaryBonusDistributedAt: null,
+  supplementaryBonusExpiredAt: null,
   createdAt: new Date('2099-03-29T00:00:00.000Z'),
   updatedAt: new Date('2099-03-29T00:00:00.000Z'),
   winningOutcome: null,
   outcomes: [
-    { id: 'outcome_yes', marketId: 'market_1', label: 'Yes', sortOrder: 0, outstandingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
-    { id: 'outcome_no', marketId: 'market_1', label: 'No', sortOrder: 1, outstandingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'outcome_yes', marketId: 'market_1', label: 'Yes', sortOrder: 0, outstandingShares: 0, pricingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'outcome_no', marketId: 'market_1', label: 'No', sortOrder: 1, outstandingShares: 0, pricingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
   ],
   trades: [],
   positions: [],
+  liquidityEvents: [],
 };
 
 type TestMarketPosition = {
@@ -215,6 +227,9 @@ describe('market service', () => {
       grantMarketBankroll,
     } = await import('../src/features/markets/services/account.js'));
     ({
+      injectMarketLiquidity,
+    } = await import('../src/features/markets/services/liquidity.js'));
+    ({
       appendMarketOutcomes,
       summarizeMarketTraders,
     } = await import('../src/features/markets/services/records.js'));
@@ -234,6 +249,7 @@ describe('market service', () => {
     transaction.marketAccount.upsert.mockReset();
     transaction.marketAccount.update.mockReset();
     transaction.marketForecastRecord.upsert.mockReset();
+    transaction.marketLiquidityEvent.create.mockReset();
     prisma.guildConfig.findUnique.mockReset();
     prisma.marketAccount.findUnique.mockReset();
     prisma.marketForecastRecord.findMany.mockReset();
@@ -254,6 +270,7 @@ describe('market service', () => {
       ...data,
     }));
     transaction.marketForecastRecord.upsert.mockResolvedValue(undefined);
+    transaction.marketLiquidityEvent.create.mockResolvedValue(undefined);
     prisma.guildConfig.findUnique.mockResolvedValue({
       casinoEnabled: false,
     });
@@ -349,6 +366,7 @@ describe('market service', () => {
           label: 'Maybe',
           sortOrder: 2,
           outstandingShares: 0,
+          pricingShares: 0,
           settlementValue: null,
           resolvedAt: null,
           resolvedByUserId: null,
@@ -375,6 +393,7 @@ describe('market service', () => {
             {
               label: 'Maybe',
               sortOrder: 2,
+              pricingShares: 0,
             },
           ],
         },
@@ -529,7 +548,7 @@ describe('market service', () => {
       ...market,
       totalVolume: 100,
       outcomes: [
-        { ...market.outcomes[0], outstandingShares: 5 },
+        { ...market.outcomes[0], outstandingShares: 5, pricingShares: 5 },
         market.outcomes[1],
       ],
       positions: [makeLongPosition()],
@@ -692,8 +711,8 @@ describe('market service', () => {
     transaction.market.findUnique.mockResolvedValue({
       ...market,
       outcomes: [
-        { ...market.outcomes[0], outstandingShares: 600 },
-        { ...market.outcomes[1], outstandingShares: 0 },
+        { ...market.outcomes[0], outstandingShares: 600, pricingShares: 600 },
+        { ...market.outcomes[1], outstandingShares: 0, pricingShares: 0 },
       ],
     });
     runTransaction();
@@ -711,8 +730,8 @@ describe('market service', () => {
     transaction.market.findUnique.mockResolvedValue({
       ...market,
       outcomes: [
-        { ...market.outcomes[0], outstandingShares: -600 },
-        { ...market.outcomes[1], outstandingShares: 0 },
+        { ...market.outcomes[0], outstandingShares: -600, pricingShares: -600 },
+        { ...market.outcomes[1], outstandingShares: 0, pricingShares: 0 },
       ],
     });
     runTransaction();
@@ -749,7 +768,7 @@ describe('market service', () => {
       ...market,
       totalVolume: 125,
       outcomes: [
-        { ...market.outcomes[0], outstandingShares: -5 },
+        { ...market.outcomes[0], outstandingShares: -5, pricingShares: -5 },
         market.outcomes[1],
       ],
       positions: [makeShortPosition()],
@@ -796,7 +815,7 @@ describe('market service', () => {
     const positionedMarket = {
       ...market,
       outcomes: [
-        { ...market.outcomes[0], outstandingShares: -5 },
+        { ...market.outcomes[0], outstandingShares: -5, pricingShares: -5 },
         market.outcomes[1],
       ],
       positions: [makeShortPosition()],
@@ -855,11 +874,12 @@ describe('market service', () => {
     });
 
     expect(result.payouts).toEqual([
-      {
+      expect.objectContaining({
         userId: 'user_2',
         payout: 0,
         profit: -2,
-      },
+        bonus: 0,
+      }),
     ]);
     expect(transaction.marketAccount.update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
@@ -880,7 +900,7 @@ describe('market service', () => {
     const updatedMarket = {
       ...openMarket,
       outcomes: [
-        { ...openMarket.outcomes[0], outstandingShares: 0, settlementValue: 0, resolvedAt: new Date('2099-03-30T12:00:00.000Z') },
+        { ...openMarket.outcomes[0], outstandingShares: 0, pricingShares: 0, settlementValue: 0, resolvedAt: new Date('2099-03-30T12:00:00.000Z') },
         openMarket.outcomes[1],
       ],
       positions: [
@@ -906,6 +926,7 @@ describe('market service', () => {
         userId: 'user_2',
         payout: 0,
         profit: -60,
+        bonus: 0,
       },
     ]);
     expect(transaction.marketPosition.deleteMany).toHaveBeenCalledWith({
@@ -974,16 +995,129 @@ describe('market service', () => {
     });
 
     expect(result.payouts).toEqual([
-      {
+      expect.objectContaining({
         userId: 'user_2',
         payout: 5,
         profit: 3,
-      },
+        bonus: 0,
+      }),
     ]);
     expect(transaction.marketAccount.update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         bankroll: 1_005,
         realizedProfit: 3,
+      }),
+    }));
+  });
+
+  it('injects supplementary liquidity by rebasing pricing shares without changing outstanding exposure', async () => {
+    const now = new Date('2099-03-29T02:00:00.000Z');
+    const liquidMarket = {
+      ...market,
+      outcomes: [
+        { ...market.outcomes[0], outstandingShares: 10, pricingShares: 10 },
+        market.outcomes[1],
+      ],
+    };
+    const updatedMarket = {
+      ...liquidMarket,
+      liquidityParameter: 169,
+      lastLiquidityInjectionAt: now,
+      supplementaryBonusPool: 6.58,
+      liquidityEvents: [{
+        id: 'liquidity_1',
+        marketId: 'market_1',
+        previousLiquidityParameter: 150,
+        nextLiquidityParameter: 169,
+        scaleFactor: 169 / 150,
+        bonusAccrued: 6.58,
+        createdAt: now,
+      }],
+    };
+
+    transaction.market.findUnique.mockResolvedValue(liquidMarket);
+    transaction.market.update.mockResolvedValue(updatedMarket);
+    runTransaction();
+
+    const result = await injectMarketLiquidity('market_1', now);
+
+    expect(result.didInject).toBe(true);
+    expect(transaction.marketOutcome.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        id: 'outcome_yes',
+      },
+      data: expect.objectContaining({
+        outstandingShares: 10,
+        pricingShares: expect.closeTo(11.27, 2),
+      }),
+    }));
+    expect(transaction.marketLiquidityEvent.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        previousLiquidityParameter: 150,
+        nextLiquidityParameter: 169,
+        scaleFactor: expect.closeTo(169 / 150, 5),
+        bonusAccrued: 6.58,
+      }),
+    }));
+    expect(transaction.market.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        liquidityParameter: 169,
+        supplementaryBonusPool: 6.58,
+      }),
+    }));
+  });
+
+  it('distributes the supplementary bonus pool in proportion to positive market profit', async () => {
+    const resolvedAt = new Date('2099-03-30T12:00:00.000Z');
+    const bonusMarket = {
+      ...market,
+      tradingClosedAt: new Date('2099-03-30T00:00:00.000Z'),
+      supplementaryBonusPool: 12,
+      positions: [
+        makeLongPosition({ userId: 'user_2', shares: 10, costBasis: 8 }),
+        makeShortPosition({ userId: 'user_3', outcomeId: 'outcome_no', shares: 4, proceeds: 6, collateralLocked: 4 }),
+      ],
+    };
+
+    transaction.market.findUnique.mockResolvedValue(bonusMarket);
+    transaction.market.update.mockResolvedValue({
+      ...bonusMarket,
+      resolvedAt,
+      winningOutcomeId: 'outcome_yes',
+      supplementaryBonusDistributedAt: resolvedAt,
+    });
+    runTransaction();
+
+    const result = await resolveMarket({
+      marketId: 'market_1',
+      actorId: 'user_1',
+      winningOutcomeId: 'outcome_yes',
+    });
+
+    expect(result.payouts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        userId: 'user_2',
+        payout: 10,
+        profit: 2,
+        bonus: 3,
+      }),
+      expect.objectContaining({
+        userId: 'user_3',
+        payout: 4,
+        profit: 6,
+        bonus: 9,
+      }),
+    ]));
+    expect(transaction.marketAccount.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        bankroll: 1013,
+        realizedProfit: 5,
+      }),
+    }));
+    expect(transaction.marketAccount.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        bankroll: 1013,
+        realizedProfit: 15,
       }),
     }));
   });

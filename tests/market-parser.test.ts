@@ -12,12 +12,12 @@ describe('market parser', () => {
     expect(() => parseMarketCloseDuration('1m')).toThrow('Market duration must be at least 5 minutes.');
   });
 
-  it('allows market durations up to 365 days', () => {
+  it('allows long market durations', () => {
     expect(parseMarketCloseDuration('365d')).toBe(365 * 24 * 60 * 60 * 1000);
   });
 
-  it('uses market-specific validation for durations above 365 days', () => {
-    expect(() => parseMarketCloseDuration('366d')).toThrow('Market duration cannot exceed 365 days.');
+  it('does not cap market durations above 365 days', () => {
+    expect(parseMarketCloseDuration('366d')).toBe(366 * 24 * 60 * 60 * 1000);
   });
 
   it('parses an absolute datetime with an explicit timezone', () => {
@@ -45,11 +45,13 @@ describe('market parser', () => {
     )).toThrow('Market close time must be at least 5 minutes in the future.');
   });
 
-  it('rejects absolute datetimes more than 365 days away', () => {
-    expect(() => parseMarketCloseAt(
+  it('allows absolute datetimes more than 365 days away', () => {
+    const closeAt = parseMarketCloseAt(
       'April 1 2027 10:00pm CDT',
       new Date('2026-03-30T12:00:00.000Z'),
-    )).toThrow('Market close time cannot be more than 365 days in the future.');
+    );
+
+    expect(closeAt.toISOString()).toBe('2027-04-02T03:00:00.000Z');
   });
 
   it('rejects invalid calendar dates with explicit offsets or abbreviations', () => {

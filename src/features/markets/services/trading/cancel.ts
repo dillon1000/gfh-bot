@@ -1,4 +1,4 @@
-import { type PermissionsBitField } from 'discord.js';
+import type { PermissionsBitField } from 'discord.js';
 
 import { prisma } from '../../../../lib/prisma.js';
 import { ensureMarketAccountTx } from '../account.js';
@@ -58,6 +58,7 @@ export const cancelMarket = async (input: {
         },
         data: {
           outstandingShares: 0,
+          pricingShares: 0,
         },
       })));
 
@@ -70,6 +71,7 @@ export const cancelMarket = async (input: {
         cancelledAt: new Date(),
         resolutionNote: input.reason ?? null,
         resolvedByUserId: input.actorId,
+        supplementaryBonusExpiredAt: new Date(),
       },
       include: marketInclude,
     });

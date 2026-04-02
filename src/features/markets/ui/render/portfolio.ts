@@ -16,7 +16,7 @@ export const buildPortfolioEmbed = (
   portfolio: MarketAccountWithOpenPositions,
 ): EmbedBuilder =>
   new EmbedBuilder()
-    .setTitle('Market Portfolio')
+    .setTitle('My Positions')
     .setColor(0x60a5fa)
     .setDescription(
       [

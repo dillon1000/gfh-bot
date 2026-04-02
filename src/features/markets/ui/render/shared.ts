@@ -1,3 +1,5 @@
+import { ButtonStyle } from 'discord.js';
+
 import { computeMarketSummary, getMarketStatus } from '../../core/shared.js';
 import type { MarketWithRelations } from '../../core/types.js';
 
@@ -79,3 +81,16 @@ export const getStatusColor = (market: MarketWithRelations): number => {
 };
 
 export const getMarketSummary = computeMarketSummary;
+
+export const getOutcomeButtonStyle = (market: Pick<MarketWithRelations, 'buttonStyle'>): ButtonStyle => {
+  switch (market.buttonStyle) {
+    case 'secondary':
+      return ButtonStyle.Secondary;
+    case 'success':
+      return ButtonStyle.Success;
+    case 'danger':
+      return ButtonStyle.Danger;
+    default:
+      return ButtonStyle.Primary;
+  }
+};

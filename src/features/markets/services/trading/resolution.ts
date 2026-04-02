@@ -7,6 +7,7 @@ import { persistForecastRecordsTx } from '../forecast/records.js';
 import {
   assertCanResolveMarket,
   assertCanResolveOutcome,
+  computeSupplementaryBonusDistribution,
   getMarketForUpdate,
   marketInclude,
   roundCurrency,
@@ -41,7 +42,7 @@ export const resolveMarketOutcome = async (input: {
       throw new Error('That outcome has already been resolved.');
     }
 
-    const payouts = new Map<string, { payout: number; profit: number }>();
+    const payouts = new Map<string, { payout: number; profit: number; bonus: number }>();
     const positionsByUser = groupPositionsByUser(
       market.positions.filter((entry) => entry.outcomeId === outcome.id),
     );
@@ -74,6 +75,7 @@ export const resolveMarketOutcome = async (input: {
       payouts.set(userId, {
         payout: roundCurrency(payout),
         profit: roundCurrency(profit),
+        bonus: 0,
       });
     }
 
@@ -88,10 +90,11 @@ export const resolveMarketOutcome = async (input: {
       where: {
         id: outcome.id,
       },
-      data: {
-        outstandingShares: 0,
-        settlementValue: 0,
-        resolvedAt: new Date(),
+        data: {
+          outstandingShares: 0,
+          pricingShares: 0,
+          settlementValue: 0,
+          resolvedAt: new Date(),
         resolvedByUserId: input.actorId,
         resolutionNote: input.note ?? null,
         resolutionEvidenceUrl: input.evidenceUrl ?? null,
@@ -121,6 +124,7 @@ export const resolveMarketOutcome = async (input: {
         userId,
         payout: value.payout,
         profit: value.profit,
+        bonus: value.bonus,
       })),
     };
   });
@@ -146,11 +150,15 @@ export const resolveMarket = async (input: {
       throw new Error('Winning outcome not found.');
     }
 
-    const payouts = new Map<string, { payout: number; profit: number }>();
+    const payouts = new Map<string, {
+      payout: number;
+      profit: number;
+      bonus: number;
+      positions: MarketResolutionResult['payouts'][number]['positions'];
+    }>();
     const positionsByUser = groupPositionsByUser(market.positions);
 
     for (const [userId, positions] of positionsByUser) {
-      const account = await ensureMarketAccountTx(tx, market.guildId, userId);
       let payout = 0;
       let profit = 0;
 
@@ -169,19 +177,40 @@ export const resolveMarket = async (input: {
         profit += shortWins ? position.proceeds : position.proceeds - position.collateralLocked;
       }
 
+      payouts.set(userId, {
+        payout: roundCurrency(payout),
+        profit: roundCurrency(profit),
+        bonus: 0,
+        positions: positions.map((position) => ({
+          outcomeId: position.outcomeId,
+          outcomeLabel: market.outcomes.find((outcome) => outcome.id === position.outcomeId)?.label ?? position.outcomeId,
+          side: position.side,
+          shares: roundCurrency(position.shares),
+          costBasis: roundCurrency(position.costBasis),
+          proceeds: roundCurrency(position.proceeds),
+          collateralLocked: roundCurrency(position.collateralLocked),
+        })),
+      });
+    }
+
+    const bonuses = computeSupplementaryBonusDistribution(
+      new Map([...payouts.entries()].map(([userId, value]) => [userId, value.profit])),
+      market.supplementaryBonusPool,
+    );
+
+    for (const [userId, value] of payouts) {
+      const account = await ensureMarketAccountTx(tx, market.guildId, userId);
+      const bonus = bonuses.get(userId) ?? 0;
+      value.bonus = bonus;
+
       await tx.marketAccount.update({
         where: {
           id: account.id,
         },
         data: {
-          bankroll: roundCurrency(account.bankroll + payout),
-          realizedProfit: roundCurrency(account.realizedProfit + profit),
+          bankroll: roundCurrency(account.bankroll + value.payout + bonus),
+          realizedProfit: roundCurrency(account.realizedProfit + value.profit + bonus),
         },
-      });
-
-      payouts.set(userId, {
-        payout: roundCurrency(payout),
-        profit: roundCurrency(profit),
       });
     }
 
@@ -198,6 +227,7 @@ export const resolveMarket = async (input: {
         },
         data: {
           outstandingShares: 0,
+          pricingShares: 0,
           settlementValue: outcome.id === winningOutcome.id ? 1 : outcome.settlementValue ?? 0,
           resolvedAt: outcome.resolvedAt ?? resolvedAt,
           resolvedByUserId: outcome.resolvedByUserId ?? input.actorId,
@@ -221,6 +251,8 @@ export const resolveMarket = async (input: {
         resolutionNote: input.note ?? null,
         resolutionEvidenceUrl: input.evidenceUrl ?? null,
         resolvedByUserId: input.actorId,
+        supplementaryBonusDistributedAt: bonuses.size > 0 ? resolvedAt : null,
+        supplementaryBonusExpiredAt: bonuses.size === 0 && market.supplementaryBonusPool > 0 ? resolvedAt : null,
       },
       include: marketInclude,
     });
@@ -232,6 +264,8 @@ export const resolveMarket = async (input: {
         userId,
         payout: value.payout,
         profit: value.profit,
+        bonus: value.bonus,
+        positions: value.positions,
       })),
     };
   });

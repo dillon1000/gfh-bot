@@ -57,6 +57,20 @@ export const parseQuickTradeCustomId = (
   };
 };
 
+export const parseMarketOutcomeCustomId = (
+  customId: string,
+): { marketId: string; outcomeId: string } | null => {
+  const match = /^market:outcome:([^:]+):([^:]+)$/.exec(customId);
+  if (!match?.[1] || !match[2]) {
+    return null;
+  }
+
+  return {
+    marketId: match[1],
+    outcomeId: match[2],
+  };
+};
+
 export const parseTradeSelectCustomId = (
   customId: string,
 ): { action: TradeAction; marketId: string } | null => {

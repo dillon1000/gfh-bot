@@ -59,6 +59,13 @@ enum MarketPositionSide {
   short
 }
 
+enum MarketButtonStyle {
+  primary
+  secondary
+  success
+  danger
+}
+
 enum CasinoGameKind {
   slots
   blackjack
@@ -317,8 +324,12 @@ model Market {
   threadId               String?          @unique
   title                  String
   description            String?
+  buttonStyle            MarketButtonStyle @default(primary)
   tags                   String[]         @default([])
+  baseLiquidityParameter Int              @default(150)
   liquidityParameter     Int              @default(150)
+  maxLiquidityParameter  Int              @default(450)
+  lastLiquidityInjectionAt DateTime?
   closeAt                DateTime
   tradingClosedAt        DateTime?
   resolutionGraceEndsAt  DateTime?
@@ -330,6 +341,9 @@ model Market {
   resolvedByUserId       String?
   winningOutcomeId       String?
   totalVolume            Int              @default(0)
+  supplementaryBonusPool Float            @default(0)
+  supplementaryBonusDistributedAt DateTime?
+  supplementaryBonusExpiredAt DateTime?
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
   winningOutcome         MarketOutcome?   @relation("MarketWinningOutcome", fields: [winningOutcomeId], references: [id], onDelete: SetNull)
@@ -337,6 +351,7 @@ model Market {
   trades                 MarketTrade[]
   positions              MarketPosition[]
   forecastRecords        MarketForecastRecord[]
+  liquidityEvents        MarketLiquidityEvent[]
 
   @@index([guildId, closeAt, tradingClosedAt])
   @@index([guildId, resolvedAt, cancelledAt])
@@ -376,6 +391,7 @@ model MarketOutcome {
   label                String
   sortOrder            Int
   outstandingShares    Float            @default(0)
+  pricingShares        Float            @default(0)
   settlementValue      Float?
   resolvedAt           DateTime?
   resolvedByUserId     String?
@@ -389,6 +405,19 @@ model MarketOutcome {
 
   @@unique([marketId, sortOrder])
   @@index([marketId])
+}
+
+model MarketLiquidityEvent {
+  id                       String   @id @default(cuid())
+  marketId                 String
+  previousLiquidityParameter Int
+  nextLiquidityParameter   Int
+  scaleFactor              Float
+  bonusAccrued             Float
+  createdAt                DateTime @default(now())
+  market                   Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@index([marketId, createdAt])
 }
 
 model MarketTrade {

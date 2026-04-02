@@ -2,6 +2,8 @@ export const marketBuyButtonCustomId = (marketId: string): string => `market:buy
 export const marketSellButtonCustomId = (marketId: string): string => `market:sell:${marketId}`;
 export const marketShortButtonCustomId = (marketId: string): string => `market:short:${marketId}`;
 export const marketCoverButtonCustomId = (marketId: string): string => `market:cover:${marketId}`;
+export const marketOutcomeButtonCustomId = (marketId: string, outcomeId: string): string => `market:outcome:${marketId}:${outcomeId}`;
+export const marketDetailsButtonCustomId = (marketId: string): string => `market:details:${marketId}`;
 export const marketQuickTradeButtonCustomId = (
   action: 'buy' | 'short',
   marketId: string,

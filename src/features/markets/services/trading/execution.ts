@@ -1,4 +1,4 @@
-import { type MarketPositionSide, type MarketTradeSide } from '@prisma/client';
+import type { MarketPositionSide, MarketTradeSide } from '@prisma/client';
 
 import { runSerializableTransaction } from '../../../../lib/run-serializable-transaction.js';
 import { ensureMarketAccountTx } from '../account.js';
@@ -60,12 +60,14 @@ export const executeMarketTrade = async (input: {
     }
 
     const account = await ensureMarketAccountTx(tx, market.guildId, input.userId);
-    const shares = tradableOutcomeIndexes.map((index) => market.outcomes[index]?.outstandingShares ?? 0);
+    const pricingShares = tradableOutcomeIndexes.map((index) => market.outcomes[index]?.pricingShares ?? 0);
+    const outstandingShares = tradableOutcomeIndexes.map((index) => market.outcomes[index]?.outstandingShares ?? 0);
     const positions = getPositionMap(market.positions.filter((position) => position.userId === input.userId));
     const longPosition = getPosition(positions, outcome.id, 'long');
     const shortPosition = getPosition(positions, outcome.id, 'short');
     let shareDelta = 0;
-    const nextShares = [...shares];
+    const nextPricingShares = [...pricingShares];
+    const nextOutstandingShares = [...outstandingShares];
     let nextLongShares = longPosition?.shares ?? 0;
     let nextLongCostBasis = longPosition?.costBasis ?? 0;
     let nextShortShares = shortPosition?.shares ?? 0;
@@ -86,8 +88,9 @@ export const executeMarketTrade = async (input: {
           throw new Error('You do not have enough bankroll for that trade.');
         }
 
-        shareDelta = solveBuySharesForAmount(shares, tradableIndex, input.amount, market.liquidityParameter);
-        nextShares[tradableIndex] = (nextShares[tradableIndex] ?? 0) + shareDelta;
+        shareDelta = solveBuySharesForAmount(pricingShares, tradableIndex, input.amount, market.liquidityParameter);
+        nextPricingShares[tradableIndex] = (nextPricingShares[tradableIndex] ?? 0) + shareDelta;
+        nextOutstandingShares[tradableIndex] = (nextOutstandingShares[tradableIndex] ?? 0) + shareDelta;
         nextLongShares += shareDelta;
         nextLongCostBasis += input.amount;
         nextBankroll -= input.amount;
@@ -102,20 +105,21 @@ export const executeMarketTrade = async (input: {
 
         const requestedSharesToSell = input.amountMode === 'shares'
           ? input.amount
-          : solveSellSharesForAmount(shares, tradableIndex, input.amount, ownedShares, market.liquidityParameter);
+          : solveSellSharesForAmount(pricingShares, tradableIndex, input.amount, ownedShares, market.liquidityParameter);
         if (requestedSharesToSell > ownedShares + 1e-6) {
           throw new Error('You do not have enough shares in that outcome to sell that much.');
         }
 
         shareDelta = -requestedSharesToSell;
-        nextShares[tradableIndex] = (nextShares[tradableIndex] ?? 0) + shareDelta;
+        nextPricingShares[tradableIndex] = (nextPricingShares[tradableIndex] ?? 0) + shareDelta;
+        nextOutstandingShares[tradableIndex] = (nextOutstandingShares[tradableIndex] ?? 0) + shareDelta;
         const sharesSold = Math.abs(shareDelta);
         const averageCostBasis = (longPosition?.costBasis ?? 0) / ownedShares;
         const releasedCostBasis = averageCostBasis * sharesSold;
         nextLongShares -= sharesSold;
         nextLongCostBasis -= releasedCostBasis;
         cashAmount = input.amountMode === 'shares'
-          ? roundCurrency(computeSellPayout(shares, tradableIndex, sharesSold, market.liquidityParameter))
+          ? roundCurrency(computeSellPayout(pricingShares, tradableIndex, sharesSold, market.liquidityParameter))
           : input.amount;
         nextBankroll += cashAmount;
         realizedProfitDelta = roundCurrency(cashAmount - releasedCostBasis);
@@ -129,9 +133,9 @@ export const executeMarketTrade = async (input: {
 
         const sharesToShort = input.amountMode === 'shares'
           ? input.amount
-          : solveShortSharesForAmount(shares, tradableIndex, input.amount, market.liquidityParameter);
+          : solveShortSharesForAmount(pricingShares, tradableIndex, input.amount, market.liquidityParameter);
         const proceedsReceived = input.amountMode === 'shares'
-          ? roundCurrency(computeSellPayout(shares, tradableIndex, sharesToShort, market.liquidityParameter))
+          ? roundCurrency(computeSellPayout(pricingShares, tradableIndex, sharesToShort, market.liquidityParameter))
           : input.amount;
         const collateralToLock = roundCurrency(sharesToShort);
         if ((account.bankroll + proceedsReceived - collateralToLock) < -1e-6) {
@@ -139,7 +143,8 @@ export const executeMarketTrade = async (input: {
         }
 
         shareDelta = -sharesToShort;
-        nextShares[tradableIndex] = (nextShares[tradableIndex] ?? 0) + shareDelta;
+        nextPricingShares[tradableIndex] = (nextPricingShares[tradableIndex] ?? 0) + shareDelta;
+        nextOutstandingShares[tradableIndex] = (nextOutstandingShares[tradableIndex] ?? 0) + shareDelta;
         nextShortShares += sharesToShort;
         nextShortProceeds += proceedsReceived;
         nextShortCollateral += collateralToLock;
@@ -155,7 +160,7 @@ export const executeMarketTrade = async (input: {
         }
 
         if (input.amountMode !== 'shares') {
-          const maxCoverCost = computeBuyCost(shares, tradableIndex, ownedShortShares, market.liquidityParameter);
+          const maxCoverCost = computeBuyCost(pricingShares, tradableIndex, ownedShortShares, market.liquidityParameter);
           if (input.amount > maxCoverCost + 1e-6) {
             throw new Error('You do not have enough short shares in that outcome to cover that much.');
           }
@@ -163,13 +168,13 @@ export const executeMarketTrade = async (input: {
 
         const sharesToCover = input.amountMode === 'shares'
           ? input.amount
-          : solveBuySharesForAmount(shares, tradableIndex, input.amount, market.liquidityParameter);
+          : solveBuySharesForAmount(pricingShares, tradableIndex, input.amount, market.liquidityParameter);
         if (sharesToCover > ownedShortShares + 1e-6) {
           throw new Error('You do not have enough short shares in that outcome to cover that much.');
         }
 
         const coverCost = input.amountMode === 'shares'
-          ? roundCurrency(computeBuyCost(shares, tradableIndex, sharesToCover, market.liquidityParameter))
+          ? roundCurrency(computeBuyCost(pricingShares, tradableIndex, sharesToCover, market.liquidityParameter))
           : input.amount;
         const averageProceeds = (shortPosition?.proceeds ?? 0) / ownedShortShares;
         const averageCollateral = (shortPosition?.collateralLocked ?? 0) / ownedShortShares;
@@ -180,7 +185,8 @@ export const executeMarketTrade = async (input: {
         }
 
         shareDelta = sharesToCover;
-        nextShares[tradableIndex] = (nextShares[tradableIndex] ?? 0) + shareDelta;
+        nextPricingShares[tradableIndex] = (nextPricingShares[tradableIndex] ?? 0) + shareDelta;
+        nextOutstandingShares[tradableIndex] = (nextOutstandingShares[tradableIndex] ?? 0) + shareDelta;
         nextShortShares -= sharesToCover;
         nextShortProceeds -= releasedProceeds;
         nextShortCollateral -= releasedCollateral;
@@ -196,7 +202,7 @@ export const executeMarketTrade = async (input: {
 
     const computedProbabilities = tradableOutcomeIndexes.length === 0
       ? []
-      : computeLmsrProbabilities(nextShares, market.liquidityParameter);
+      : computeLmsrProbabilities(nextPricingShares, market.liquidityParameter);
     const tradableIndexMap = new Map<number, number>(
       tradableOutcomeIndexes.map((marketOutcomeIndex, activeIndex) => [marketOutcomeIndex, activeIndex]),
     );
@@ -206,7 +212,10 @@ export const executeMarketTrade = async (input: {
         id: marketOutcome.id,
         outstandingShares: activeIndex === undefined
           ? marketOutcome.outstandingShares
-          : (nextShares[activeIndex] ?? marketOutcome.outstandingShares),
+          : (nextOutstandingShares[activeIndex] ?? marketOutcome.outstandingShares),
+        pricingShares: activeIndex === undefined
+          ? marketOutcome.pricingShares
+          : (nextPricingShares[activeIndex] ?? marketOutcome.pricingShares),
       };
     }));
 

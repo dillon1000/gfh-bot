@@ -11,12 +11,14 @@ import {
 
 import {
   marketCancelModalCustomId,
+  marketQuickTradeButtonCustomId,
   marketResolveModalCustomId,
   marketTradeModalCustomId,
   marketTradeQuoteCancelCustomId,
   marketTradeQuoteConfirmCustomId,
   marketTradeSelectCustomId,
 } from '../custom-ids.js';
+import { formatProbabilityPercent } from '../../core/math.js';
 import { getTradeLockReason } from '../../core/shared.js';
 import type {
   MarketTradeQuote,
@@ -67,6 +69,56 @@ export const buildMarketTradeSelector = (
               description: `Net shares: ${entry.shares.toFixed(2)}`,
             })),
           ),
+      ),
+    ],
+  };
+};
+
+export const buildMarketOutcomeTradePrompt = (
+  market: MarketWithRelations,
+  outcomeId: string,
+): {
+  embeds: [EmbedBuilder];
+  components: ActionRowBuilder<ButtonBuilder>[];
+} => {
+  const entry = getMarketSummary(market).probabilities.find((probability) => probability.outcomeId === outcomeId);
+  if (!entry || entry.isResolved) {
+    return {
+      embeds: [
+        buildMarketStatusEmbed('Trading Unavailable', 'That outcome is not available for trading right now.', 0xef4444),
+      ],
+      components: [],
+    };
+  }
+
+  const buyLocked = Boolean(getTradeLockReason(market, outcomeId, 'buy'));
+  const shortLocked = Boolean(getTradeLockReason(market, outcomeId, 'short'));
+
+  return {
+    embeds: [
+      buildMarketStatusEmbed(
+        `Trade ${entry.label}`,
+        [
+          `Current probability: **${formatProbabilityPercent(entry.probability)}**`,
+          `Net shares: **${entry.shares.toFixed(2)}**`,
+          '',
+          'Choose whether you want to buy this outcome or short it.',
+        ].join('\n'),
+        0x60a5fa,
+      ),
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(marketQuickTradeButtonCustomId('buy', market.id, outcomeId))
+          .setLabel(`Buy ${formatProbabilityPercent(entry.probability)}`)
+          .setDisabled(buyLocked)
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(marketQuickTradeButtonCustomId('short', market.id, outcomeId))
+          .setLabel(`Short ${formatProbabilityPercent(1 - entry.probability)}`)
+          .setDisabled(shortLocked)
+          .setStyle(ButtonStyle.Danger),
       ),
     ],
   };

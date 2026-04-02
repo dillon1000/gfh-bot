@@ -11,7 +11,7 @@ import { syncOpenCasinoTableJobs } from '../features/casino/multiplayer/services
 import { startCasinoTableIdleCloseWorker, startCasinoTableTimeoutWorker } from '../features/casino/multiplayer/workers/tables.js';
 import { recoverExpiredMarketGraceNotices, recoverExpiredMarkets } from '../features/markets/services/lifecycle.js';
 import { syncOpenMarketJobs } from '../features/markets/services/scheduler.js';
-import { startMarketCloseWorker, startMarketGraceWorker, startMarketRefreshWorker } from '../features/markets/workers/market.js';
+import { startMarketCloseWorker, startMarketGraceWorker, startMarketLiquidityWorker, startMarketRefreshWorker } from '../features/markets/workers/market.js';
 import { recoverExpiredPolls, recoverMissedPollReminders } from '../features/polls/services/lifecycle.js';
 import { syncOpenPollCloseJobs, syncOpenPollReminderJobs } from '../features/polls/services/repository.js';
 import { startPollReminderWorker, startPollWorker } from '../features/polls/workers/polls.js';
@@ -209,6 +209,7 @@ const removalVoteWorker = startRemovalVoteWorker(client);
 const marketCloseWorker = startMarketCloseWorker(client);
 const marketRefreshWorker = startMarketRefreshWorker(client);
 const marketGraceWorker = startMarketGraceWorker(client);
+const marketLiquidityWorker = startMarketLiquidityWorker(client);
 const casinoTableTimeoutWorker = startCasinoTableTimeoutWorker(client);
 const casinoTableIdleCloseWorker = startCasinoTableIdleCloseWorker(client);
 const casinoBotWorker = startCasinoBotWorker(client);
@@ -221,6 +222,7 @@ registerShutdownHandler(async () => {
     marketCloseWorker.close(),
     marketRefreshWorker.close(),
     marketGraceWorker.close(),
+    marketLiquidityWorker.close(),
     casinoTableTimeoutWorker.close(),
     casinoTableIdleCloseWorker.close(),
     casinoBotWorker.close(),

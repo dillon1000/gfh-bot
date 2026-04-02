@@ -30,6 +30,21 @@ type Snapshot = {
   cumulativeVolume: number;
 };
 
+type HistoryEvent =
+  | {
+      kind: 'trade';
+      at: Date;
+      outcomeId: string;
+      shareDelta: number;
+      cumulativeVolume: number;
+    }
+  | {
+      kind: 'liquidity';
+      at: Date;
+      scaleFactor: number;
+      liquidityParameter: number;
+    };
+
 const escapeXml = (value: string): string => value
   .replaceAll('&', '&amp;')
   .replaceAll('<', '&lt;')
@@ -39,31 +54,94 @@ const escapeXml = (value: string): string => value
 
 const formatPercent = (value: number): string => `${(value * 100).toFixed(1)}%`;
 
-const buildSnapshots = (market: MarketWithRelations): Snapshot[] => {
-  const outstanding = market.outcomes.map(() => 0);
-  const initialProbabilities = computeLmsrProbabilities(outstanding, market.liquidityParameter);
+export const resolveMarketDiagramEndTime = (market: MarketWithRelations, now = new Date()): Date => {
+  if (market.resolvedAt) {
+    return market.resolvedAt;
+  }
+
+  if (market.cancelledAt) {
+    return market.cancelledAt;
+  }
+
+  if (market.tradingClosedAt) {
+    return market.tradingClosedAt;
+  }
+
+  return now;
+};
+
+const buildSnapshots = (market: MarketWithRelations, now = new Date()): Snapshot[] => {
+  const pricingShares = market.outcomes.map(() => 0);
+  let liquidityParameter = market.baseLiquidityParameter;
+  const initialProbabilities = computeLmsrProbabilities(pricingShares, liquidityParameter);
   const snapshots: Snapshot[] = [{
     at: market.createdAt,
     probabilities: initialProbabilities,
     cumulativeVolume: 0,
   }];
 
-  for (const trade of market.trades) {
-    const outcomeIndex = market.outcomes.findIndex((outcome) => outcome.id === trade.outcomeId);
+  const history: HistoryEvent[] = [
+    ...market.trades.map((trade) => ({
+      kind: 'trade' as const,
+      at: trade.createdAt,
+      outcomeId: trade.outcomeId,
+      shareDelta: trade.shareDelta,
+      cumulativeVolume: trade.cumulativeVolume,
+    })),
+    ...market.liquidityEvents.map((event) => ({
+      kind: 'liquidity' as const,
+      at: event.createdAt,
+      scaleFactor: event.scaleFactor,
+      liquidityParameter: event.nextLiquidityParameter,
+    })),
+  ].sort((left, right) => {
+    const delta = left.at.getTime() - right.at.getTime();
+    if (delta !== 0) {
+      return delta;
+    }
+
+    return left.kind === right.kind
+      ? 0
+      : left.kind === 'liquidity'
+        ? -1
+        : 1;
+  });
+
+  for (const event of history) {
+    if (event.kind === 'liquidity') {
+      liquidityParameter = event.liquidityParameter;
+      for (let index = 0; index < market.outcomes.length; index += 1) {
+        const outcome = market.outcomes[index];
+        if (outcome?.resolvedAt && outcome.resolvedAt.getTime() <= event.at.getTime()) {
+          continue;
+        }
+
+        pricingShares[index] = (pricingShares[index] ?? 0) * event.scaleFactor;
+      }
+
+      snapshots.push({
+        at: event.at,
+        probabilities: computeLmsrProbabilities(pricingShares, liquidityParameter),
+        cumulativeVolume: snapshots[snapshots.length - 1]?.cumulativeVolume ?? 0,
+      });
+      continue;
+    }
+
+    const outcomeIndex = market.outcomes.findIndex((outcome) => outcome.id === event.outcomeId);
     if (outcomeIndex >= 0) {
-      outstanding[outcomeIndex] = (outstanding[outcomeIndex] ?? 0) + trade.shareDelta;
+      pricingShares[outcomeIndex] = (pricingShares[outcomeIndex] ?? 0) + event.shareDelta;
     }
 
     snapshots.push({
-      at: trade.createdAt,
-      probabilities: computeLmsrProbabilities(outstanding, market.liquidityParameter),
-      cumulativeVolume: trade.cumulativeVolume,
+      at: event.at,
+      probabilities: computeLmsrProbabilities(pricingShares, liquidityParameter),
+      cumulativeVolume: event.cumulativeVolume,
     });
   }
 
   if (snapshots.length === 1) {
     snapshots.push({
-      at: market.tradingClosedAt ?? market.closeAt,
+      at: resolveMarketDiagramEndTime(market, now),
       probabilities: initialProbabilities,
       cumulativeVolume: 0,
     });
@@ -77,7 +155,7 @@ const buildSnapshots = (market: MarketWithRelations): Snapshot[] => {
     );
   if (needsTerminalSnapshot) {
     snapshots.push({
-      at: market.updatedAt,
+      at: resolveMarketDiagramEndTime(market, now),
       probabilities: finalProbabilities,
       cumulativeVolume: market.totalVolume,
     });
@@ -99,7 +177,6 @@ const buildSvg = (market: MarketWithRelations): string => {
   const minTime = snapshots[0]?.at.getTime() ?? Date.now();
   const maxTime = Math.max(
     snapshots[snapshots.length - 1]?.at.getTime() ?? minTime,
-    market.closeAt.getTime(),
     minTime + 1,
   );
   const maxVolume = Math.max(...snapshots.map((snapshot) => snapshot.cumulativeVolume), 1);

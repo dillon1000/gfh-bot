@@ -7,3 +7,4 @@ coverage
 prisma/dev.db
 .VSCodeCounter/
 /tmp/
+/output/

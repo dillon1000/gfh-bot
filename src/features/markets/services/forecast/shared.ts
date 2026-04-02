@@ -1,7 +1,8 @@
-import { type Market, type MarketOutcome, type MarketTrade, Prisma } from '@prisma/client';
+import type { Market, MarketLiquidityEvent, MarketOutcome, MarketTrade, Prisma } from '@prisma/client';
 
 import {
   clampSmall,
+  computeSupplementaryBonusDistribution,
   getMarketProbabilities,
   roundCurrency,
   roundProbability,
@@ -37,6 +38,18 @@ type RunningProfitState = {
   longPositions: Map<string, RunningLongPosition>;
   shortPositions: Map<string, RunningShortPosition>;
 };
+
+type MarketHistoryEvent =
+  | {
+      kind: 'trade';
+      createdAt: Date;
+      trade: MarketTrade;
+    }
+  | {
+      kind: 'liquidity';
+      createdAt: Date;
+      liquidityEvent: MarketLiquidityEvent;
+    };
 
 export type HydratedForecastRecord = {
   id: string;
@@ -150,20 +163,21 @@ export const hydrateForecastRecord = (
 });
 
 const buildHistoricalProbabilityVector = (
-  market: Pick<Market, 'liquidityParameter'> & {
+  market: Pick<Market, 'winningOutcomeId'> & {
     outcomes: Array<Pick<MarketOutcome, 'id' | 'resolvedAt' | 'settlementValue'>>;
   },
-  outstandingSharesByOutcomeId: Map<string, number>,
-  tradeCreatedAt: Date,
+  pricingSharesByOutcomeId: Map<string, number>,
+  liquidityParameter: number,
+  snapshotAt: Date,
 ): MarketForecastVectorEntry[] => {
   const probabilities = getMarketProbabilities({
-    liquidityParameter: market.liquidityParameter,
+    liquidityParameter,
     resolvedAt: null,
-    winningOutcomeId: null,
+    winningOutcomeId: market.winningOutcomeId,
     outcomes: market.outcomes.map((outcome) => ({
       id: outcome.id,
-      outstandingShares: outstandingSharesByOutcomeId.get(outcome.id) ?? 0,
-      settlementValue: outcome.resolvedAt && outcome.resolvedAt.getTime() <= tradeCreatedAt.getTime()
+      pricingShares: pricingSharesByOutcomeId.get(outcome.id) ?? 0,
+      settlementValue: outcome.resolvedAt && outcome.resolvedAt.getTime() <= snapshotAt.getTime()
         ? outcome.settlementValue
         : null,
     })),
@@ -280,6 +294,36 @@ const reconstructMarketProfitByUser = (
   return profits;
 };
 
+const buildMarketHistory = (
+  market: Pick<Market, 'createdAt'> & {
+    trades: MarketTrade[];
+    liquidityEvents: MarketLiquidityEvent[];
+  },
+): MarketHistoryEvent[] =>
+  [
+    ...market.trades.map((trade) => ({
+      kind: 'trade' as const,
+      createdAt: trade.createdAt,
+      trade,
+    })),
+    ...market.liquidityEvents.map((liquidityEvent) => ({
+      kind: 'liquidity' as const,
+      createdAt: liquidityEvent.createdAt,
+      liquidityEvent,
+    })),
+  ].sort((left, right) => {
+    const delta = left.createdAt.getTime() - right.createdAt.getTime();
+    if (delta !== 0) {
+      return delta;
+    }
+
+    return left.kind === right.kind
+      ? 0
+      : left.kind === 'liquidity'
+        ? -1
+        : 1;
+  });
+
 export const buildForecastRecordsForMarket = (
   market: MarketWithRelations,
 ): Array<{
@@ -304,15 +348,33 @@ export const buildForecastRecordsForMarket = (
   const winningOutcomeId = market.winningOutcomeId;
   const tradeCutoff = market.tradingClosedAt ?? market.closeAt;
   const tradesByUser = new Map<string, RunningForecastState>();
-  const outstandingSharesByOutcomeId = new Map<string, number>(
+  const pricingSharesByOutcomeId = new Map<string, number>(
     market.outcomes.map((outcome) => [outcome.id, 0]),
   );
+  let liquidityParameter = market.baseLiquidityParameter;
 
-  for (const trade of market.trades) {
-    if (trade.createdAt.getTime() > tradeCutoff.getTime()) {
+  for (const event of buildMarketHistory(market)) {
+    if (event.createdAt.getTime() > tradeCutoff.getTime()) {
       continue;
     }
 
+    if (event.kind === 'liquidity') {
+      liquidityParameter = event.liquidityEvent.nextLiquidityParameter;
+      for (const outcome of market.outcomes) {
+        if (outcome.resolvedAt && outcome.resolvedAt.getTime() <= event.createdAt.getTime()) {
+          continue;
+        }
+
+        pricingSharesByOutcomeId.set(
+          outcome.id,
+          clampSmall((pricingSharesByOutcomeId.get(outcome.id) ?? 0) * event.liquidityEvent.scaleFactor),
+        );
+      }
+
+      continue;
+    }
+
+    const { trade } = event;
     const weight = Math.abs(trade.cashDelta);
     let state = tradesByUser.get(trade.userId);
     if (!state) {
@@ -324,11 +386,16 @@ export const buildForecastRecordsForMarket = (
       tradesByUser.set(trade.userId, state);
     }
 
-    outstandingSharesByOutcomeId.set(
+    pricingSharesByOutcomeId.set(
       trade.outcomeId,
-      clampSmall((outstandingSharesByOutcomeId.get(trade.outcomeId) ?? 0) + trade.shareDelta),
+      clampSmall((pricingSharesByOutcomeId.get(trade.outcomeId) ?? 0) + trade.shareDelta),
     );
-    const probabilityVector = buildHistoricalProbabilityVector(market, outstandingSharesByOutcomeId, trade.createdAt);
+    const probabilityVector = buildHistoricalProbabilityVector(
+      market,
+      pricingSharesByOutcomeId,
+      liquidityParameter,
+      trade.createdAt,
+    );
     state.tradeCount += 1;
     state.stakeWeight += weight;
     for (const probabilityEntry of probabilityVector) {
@@ -340,6 +407,12 @@ export const buildForecastRecordsForMarket = (
   }
 
   const profits = reconstructMarketProfitByUser(market);
+  if (market.supplementaryBonusDistributedAt && market.supplementaryBonusPool > 1e-6) {
+    const bonuses = computeSupplementaryBonusDistribution(profits, market.supplementaryBonusPool);
+    for (const [userId, bonus] of bonuses) {
+      profits.set(userId, roundCurrency((profits.get(userId) ?? 0) + bonus));
+    }
+  }
   const actualVector = market.outcomes.map((outcome) => outcome.id === winningOutcomeId ? 1 : 0);
 
   return [...tradesByUser.entries()].flatMap(([userId, state]) => {

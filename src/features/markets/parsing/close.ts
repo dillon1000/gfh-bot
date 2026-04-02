@@ -2,7 +2,6 @@ import { env } from '../../../app/config.js';
 import { parseDurationToMsWithLimits } from '../../../lib/duration.js';
 
 const marketMinDurationMs = 5 * 60_000;
-const marketMaxDurationMs = 365 * 24 * 60 * 60 * 1_000;
 const durationInputPattern = /^(?:\s*\d+\s*[mhd]\s*)+$/i;
 const offsetTimezonePattern = /^(?<sign>[+-])(?<hours>\d{2})(?::?(?<minutes>\d{2}))$|^z$/i;
 const monthNamePattern = /^(?<month>[a-z]+)\s+(?<day>\d{1,2})(?:st|nd|rd|th)?(?:,\s*|\s+)(?<year>\d{4})(?:\s+(?<time>\d{1,2}(?::\d{2})?\s*(?:am|pm)?))?(?:\s+(?<timezone>[a-z]{2,5}|z|[+-]\d{2}(?::?\d{2})?))?$/i;
@@ -252,19 +251,13 @@ const assertWithinAbsoluteMarketCloseWindow = (date: Date, now: Date): void => {
   if (deltaMs < marketMinDurationMs) {
     throw new Error('Market close time must be at least 5 minutes in the future.');
   }
-
-  if (deltaMs > marketMaxDurationMs) {
-    throw new Error('Market close time cannot be more than 365 days in the future.');
-  }
 };
 
 export const parseMarketCloseDuration = (value: string): number => {
   try {
     return parseDurationToMsWithLimits(value, {
       minMs: marketMinDurationMs,
-      maxMs: marketMaxDurationMs,
       tooShortMessage: 'Market duration must be at least 5 minutes.',
-      tooLongMessage: 'Market duration cannot exceed 365 days.',
     });
   } catch (error) {
     if (!(error instanceof Error)) {

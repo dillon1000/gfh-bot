@@ -1,8 +1,9 @@
-import { type Client } from 'discord.js';
+import type { Client } from 'discord.js';
 
 import { logger } from '../../../app/logger.js';
 import { prisma } from '../../../lib/prisma.js';
 import {
+  buildMarketDetailsEmbed,
   buildMarketEmbed,
   buildMarketMessage,
   buildMarketResolvePrompt,
@@ -17,9 +18,12 @@ import {
   clearMarketJobs,
   scheduleMarketClose,
   scheduleMarketGrace,
+  scheduleMarketLiquidity,
 } from './scheduler.js';
+import { injectMarketLiquidity } from './liquidity.js';
 import { closeMarketTrading } from './trading/close.js';
 import type { MarketWithRelations } from '../core/types.js';
+import type { MarketResolutionResult } from '../core/types.js';
 import { buildMarketDiagram } from '../ui/visualize.js';
 
 const buildMarketMessagePayload = async (
@@ -81,6 +85,7 @@ export const hydrateMarketMessage = async (
     }
 
     await scheduleMarketClose(market);
+    await scheduleMarketLiquidity(market);
     return {
       messageId: message.id,
       url: message.url,
@@ -127,6 +132,105 @@ export const refreshMarketMessage = async (client: Client, marketId: string): Pr
   });
 };
 
+const getMarketAnnouncementChannel = async (
+  client: Client,
+  market: Pick<MarketWithRelations, 'threadId' | 'marketChannelId'>,
+) => {
+  if (market.threadId) {
+    const thread = await client.channels.fetch(market.threadId).catch(() => null);
+    if (thread?.isTextBased() && 'send' in thread) {
+      return thread;
+    }
+  }
+
+  const channel = await client.channels.fetch(market.marketChannelId).catch(() => null);
+  if (channel?.isTextBased() && 'send' in channel) {
+    return channel;
+  }
+
+  return null;
+};
+
+export const announceMarketUpdate = async (
+  client: Client,
+  market: MarketWithRelations,
+  title: string,
+  description: string,
+  color = 0x60a5fa,
+): Promise<void> => {
+  const channel = await getMarketAnnouncementChannel(client, market);
+  if (!channel) {
+    return;
+  }
+
+  await channel.send({
+    embeds: [buildMarketStatusEmbed(title, description, color)],
+    allowedMentions: {
+      parse: [],
+    },
+  }).catch((error) => {
+    logger.warn({ err: error, marketId: market.id }, 'Could not announce market update');
+  });
+};
+
+export const notifyMarketResolved = async (
+  client: Client,
+  resolved: MarketResolutionResult,
+): Promise<void> => {
+  await announceMarketUpdate(
+    client,
+    resolved.market,
+    'Market Resolved',
+    [
+      `**${resolved.market.title}** resolved in favor of **${resolved.market.winningOutcome?.label ?? 'Unknown'}**.`,
+      resolved.market.resolutionNote ? `Note: ${resolved.market.resolutionNote}` : null,
+      resolved.market.resolutionEvidenceUrl ? `Evidence: ${resolved.market.resolutionEvidenceUrl}` : null,
+      `Resolved ${resolved.payouts.length} portfolio${resolved.payouts.length === 1 ? '' : 's'}.`,
+    ].filter(Boolean).join('\n'),
+    0x57f287,
+  );
+
+  await Promise.all(resolved.payouts.map(async (payout) => {
+    const user = await client.users.fetch(payout.userId).catch(() => null);
+    if (!user) {
+      return;
+    }
+
+    const positionLines = payout.positions.length === 0
+      ? 'You had no open positions left in this market.'
+      : payout.positions.map((position) =>
+        position.side === 'long'
+          ? `• LONG ${position.outcomeLabel}: ${position.shares.toFixed(2)} shares (${position.costBasis.toFixed(2)} pts basis)`
+          : `• SHORT ${position.outcomeLabel}: ${position.shares.toFixed(2)} shares (${position.proceeds.toFixed(2)} pts proceeds, ${position.collateralLocked.toFixed(2)} pts locked)`,
+      ).join('\n');
+
+    await user.send({
+      embeds: [
+        buildMarketStatusEmbed(
+          'Your Market Position Resolved',
+          [
+            `**${resolved.market.title}** resolved in favor of **${resolved.market.winningOutcome?.label ?? 'Unknown'}**.`,
+            '',
+            'Your positions in this market:',
+            positionLines,
+            '',
+            `Payout: **${payout.payout.toFixed(2)} pts**`,
+            `Realized profit: **${payout.profit.toFixed(2)} pts**`,
+            payout.bonus > 0 ? `Bonus: **${payout.bonus.toFixed(2)} pts**` : null,
+            `Market ID: \`${resolved.market.id}\``,
+          ].filter(Boolean).join('\n'),
+          0x57f287,
+        ),
+      ],
+      allowedMentions: {
+        parse: [],
+      },
+    }).catch((error) => {
+      logger.warn({ err: error, marketId: resolved.market.id, userId: payout.userId }, 'Could not DM market resolution notice');
+    });
+  }));
+};
+
 const sendCreatorClosePrompt = async (client: Client, market: MarketWithRelations): Promise<void> => {
   const creator = await client.users.fetch(market.creatorId).catch(() => null);
   if (!creator) {
@@ -156,6 +260,21 @@ export const closeMarketAndNotify = async (
     await scheduleMarketGrace(market);
     await refreshMarketMessage(client, market.id);
     await sendCreatorClosePrompt(client, market);
+  }
+};
+
+export const injectMarketLiquidityAndRefresh = async (
+  client: Client,
+  marketId: string,
+): Promise<void> => {
+  const { market, didInject } = await injectMarketLiquidity(marketId);
+  if (!market) {
+    return;
+  }
+
+  await scheduleMarketLiquidity(market);
+  if (didInject) {
+    await refreshMarketMessage(client, market.id);
   }
 };
 
@@ -237,7 +356,7 @@ export const recoverExpiredMarketGraceNotices = async (client: Client): Promise<
 };
 
 export const buildMarketViewResponse = async (market: MarketWithRelations) => {
-  const embed = buildMarketEmbed(market);
+  const embed = buildMarketDetailsEmbed(market);
   try {
     const chart = await buildMarketDiagram(market);
     embed.setImage(`attachment://${chart.fileName}`);
