@@ -3,7 +3,7 @@ import { scaleOrdinal, schemeTableau10 } from 'd3';
 import sharp from 'sharp';
 
 import { computeLmsrProbabilities } from '../core/math.js';
-import { computeMarketSummary } from '../core/shared.js';
+import { compareMarketHistoryEvents, computeMarketSummary } from '../core/shared.js';
 import type { MarketWithRelations } from '../core/types.js';
 
 const width = 1100;
@@ -33,14 +33,14 @@ type Snapshot = {
 type HistoryEvent =
   | {
       kind: 'trade';
-      at: Date;
+      createdAt: Date;
       outcomeId: string;
       shareDelta: number;
       cumulativeVolume: number;
     }
   | {
       kind: 'liquidity';
-      at: Date;
+      createdAt: Date;
       scaleFactor: number;
       liquidityParameter: number;
     };
@@ -83,36 +83,25 @@ const buildSnapshots = (market: MarketWithRelations, now = new Date()): Snapshot
   const history: HistoryEvent[] = [
     ...market.trades.map((trade) => ({
       kind: 'trade' as const,
-      at: trade.createdAt,
+      createdAt: trade.createdAt,
       outcomeId: trade.outcomeId,
       shareDelta: trade.shareDelta,
       cumulativeVolume: trade.cumulativeVolume,
     })),
     ...market.liquidityEvents.map((event) => ({
       kind: 'liquidity' as const,
-      at: event.createdAt,
+      createdAt: event.createdAt,
       scaleFactor: event.scaleFactor,
       liquidityParameter: event.nextLiquidityParameter,
     })),
-  ].sort((left, right) => {
-    const delta = left.at.getTime() - right.at.getTime();
-    if (delta !== 0) {
-      return delta;
-    }
-
-    return left.kind === right.kind
-      ? 0
-      : left.kind === 'liquidity'
-        ? -1
-        : 1;
-  });
+  ].sort(compareMarketHistoryEvents);
 
   for (const event of history) {
     if (event.kind === 'liquidity') {
       liquidityParameter = event.liquidityParameter;
       for (let index = 0; index < market.outcomes.length; index += 1) {
         const outcome = market.outcomes[index];
-        if (outcome?.resolvedAt && outcome.resolvedAt.getTime() <= event.at.getTime()) {
+        if (outcome?.resolvedAt && outcome.resolvedAt.getTime() <= event.createdAt.getTime()) {
           continue;
         }
 
@@ -120,7 +109,7 @@ const buildSnapshots = (market: MarketWithRelations, now = new Date()): Snapshot
       }
 
       snapshots.push({
-        at: event.at,
+        at: event.createdAt,
         probabilities: computeLmsrProbabilities(pricingShares, liquidityParameter),
         cumulativeVolume: snapshots[snapshots.length - 1]?.cumulativeVolume ?? 0,
       });
@@ -133,7 +122,7 @@ const buildSnapshots = (market: MarketWithRelations, now = new Date()): Snapshot
     }
 
     snapshots.push({
-      at: event.at,
+      at: event.createdAt,
       probabilities: computeLmsrProbabilities(pricingShares, liquidityParameter),
       cumulativeVolume: event.cumulativeVolume,
     });
