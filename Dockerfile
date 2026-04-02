@@ -18,6 +18,7 @@ RUN pnpm prisma generate
 FROM deps AS build
 
 COPY tsconfig.json vitest.config.ts ./
+COPY assets ./assets
 COPY src ./src
 RUN pnpm build
 
@@ -37,6 +38,7 @@ RUN groupadd --system app && useradd --system --gid app --create-home app
 COPY --from=deps /app/package.json /app/pnpm-lock.yaml ./
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/prisma ./prisma
+COPY --from=build /app/assets ./assets
 COPY --from=build /app/dist ./dist
 
 RUN pnpm prune --prod
