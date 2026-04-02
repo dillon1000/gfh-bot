@@ -5,6 +5,7 @@ import { getBlackjackTotal, isSoftBlackjackTotal } from '../../../core/cards.js'
 import { dealCards, drawCard } from '../../../core/deck.js';
 import { compareHandScores, evaluateBestHoldemHand } from '../../../core/poker.js';
 import type {
+  CasinoTableSummary,
   BlackjackRound,
   HoldemSidePot,
   MultiplayerBlackjackPlayerState,
@@ -22,6 +23,7 @@ import {
   recordTableActionTx,
   setActionDeadline,
   syncHoldemSeatsTx,
+  type TableActionInput,
 } from './shared.js';
 
 export const finishBlackjackState = async (
@@ -391,22 +393,11 @@ export const settleCompletedHoldemState = async (
 };
 
 export const advanceCasinoTableTimeout = async (
-  performCasinoTableAction: (input: {
-    tableId: string;
-    userId: string;
-    action:
-      | 'blackjack_hit'
-      | 'blackjack_stand'
-      | 'blackjack_double'
-      | 'holdem_fold'
-      | 'holdem_check'
-      | 'holdem_call'
-      | 'holdem_raise';
-    amount?: number;
-  }) => Promise<import('../../../core/types.js').CasinoTableSummary>,
-  getCasinoTable: (tableId: string) => Promise<import('../../../core/types.js').CasinoTableSummary | null>,
+  performCasinoTableAction: (input: TableActionInput) => Promise<CasinoTableSummary>,
+  getCasinoTable: (tableId: string) => Promise<CasinoTableSummary | null>,
+  chooseCasinoBotAction: ((tableId: string) => Promise<Omit<TableActionInput, 'tableId'> | null>) | null,
   tableId: string,
-): Promise<import('../../../core/types.js').CasinoTableSummary | null> => {
+): Promise<CasinoTableSummary | null> => {
   const table = await getCasinoTable(tableId);
   if (!table || !table.actionDeadlineAt || table.actionDeadlineAt.getTime() > Date.now()) {
     return table;
@@ -434,6 +425,17 @@ export const advanceCasinoTableTimeout = async (
   if (!actor) {
     return table;
   }
+  const isActingBot = table.seats.some((seat) => seat.userId === actor.userId && seat.isBot);
+  if (isActingBot && chooseCasinoBotAction) {
+    const decision = await chooseCasinoBotAction(tableId);
+    if (decision) {
+      return performCasinoTableAction({
+        tableId,
+        ...decision,
+      });
+    }
+  }
+
   const amountToCall = Math.max(0, state.currentBet - actor.committedThisRound);
   return performCasinoTableAction({
     tableId,
