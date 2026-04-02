@@ -30,15 +30,24 @@ export const buildMarketListEmbed = (
 
 export const buildLeaderboardEmbed = (
   entries: Array<{ userId: string; bankroll: number; realizedProfit: number }>,
-): EmbedBuilder =>
-  buildMarketStatusEmbed(
-    'Market Leaderboard',
-    entries.length === 0
-      ? 'No market accounts exist yet.'
-      : entries.map((entry, index) =>
-        `${index + 1}. <@${entry.userId}> — ${formatMoney(entry.bankroll)} bankroll • ${formatMoney(entry.realizedProfit)} realized`).join('\n'),
-    0x57f287,
-  );
+): EmbedBuilder[] => {
+  if (entries.length === 0) {
+    return [buildMarketStatusEmbed('Market Leaderboard', 'No market accounts exist yet.', 0x57f287)];
+  }
+
+  const chunks: typeof entries[] = [];
+  for (let index = 0; index < entries.length; index += 10) {
+    chunks.push(entries.slice(index, index + 10));
+  }
+
+  return chunks.map((chunk, chunkIndex) =>
+    buildMarketStatusEmbed(
+      chunks.length === 1 ? 'Market Leaderboard' : `Market Leaderboard (${chunkIndex + 1}/${chunks.length})`,
+      chunk.map((entry, entryIndex) =>
+        `${(chunkIndex * 10) + entryIndex + 1}. <@${entry.userId}> — ${formatMoney(entry.bankroll)} bankroll • ${formatMoney(entry.realizedProfit)} realized`).join('\n'),
+      0x57f287,
+    ));
+};
 
 export const buildMarketTradersEmbeds = (
   summary: MarketTraderSummary,
@@ -114,14 +123,25 @@ export const buildMarketForecastLeaderboardEmbed = (
   entries: MarketForecastLeaderboardEntry[],
   window: 'all_time' | '30d',
   tag?: string | null,
-): EmbedBuilder =>
-  buildMarketStatusEmbed(
-    window === '30d'
-      ? `Forecast Leaderboard • Last 30 Days${tag ? ` • ${tag}` : ''}`
-      : `Forecast Leaderboard • All Time${tag ? ` • ${tag}` : ''}`,
-    entries.length === 0
-      ? 'No users meet the sample requirement for that forecast board yet.'
-      : entries.map((entry, index) =>
-        `${index + 1}. <@${entry.userId}> — Brier ${formatBrier(entry.meanBrier)} • ${entry.sampleCount} markets • ${(entry.correctPickRate * 100).toFixed(0)}% correct • ${entry.currentCorrectPickStreak} streak`).join('\n'),
-    0x57f287,
-  );
+): EmbedBuilder[] => {
+  const baseTitle = window === '30d'
+    ? `Forecast Leaderboard • Last 30 Days${tag ? ` • ${tag}` : ''}`
+    : `Forecast Leaderboard • All Time${tag ? ` • ${tag}` : ''}`;
+
+  if (entries.length === 0) {
+    return [buildMarketStatusEmbed(baseTitle, 'No users meet the sample requirement for that forecast board yet.', 0x57f287)];
+  }
+
+  const chunks: typeof entries[] = [];
+  for (let index = 0; index < entries.length; index += 10) {
+    chunks.push(entries.slice(index, index + 10));
+  }
+
+  return chunks.map((chunk, chunkIndex) =>
+    buildMarketStatusEmbed(
+      chunks.length === 1 ? baseTitle : `${baseTitle} (${chunkIndex + 1}/${chunks.length})`,
+      chunk.map((entry, entryIndex) =>
+        `${(chunkIndex * 10) + entryIndex + 1}. <@${entry.userId}> — Brier ${formatBrier(entry.meanBrier)} • ${entry.sampleCount} markets • ${(entry.correctPickRate * 100).toFixed(0)}% correct • ${entry.currentCorrectPickStreak} streak`).join('\n'),
+      0x57f287,
+    ));
+};

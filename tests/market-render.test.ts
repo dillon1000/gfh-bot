@@ -31,8 +31,12 @@ const market = {
   threadId: null,
   title: 'Championship board',
   description: 'A test market',
+  buttonStyle: 'primary' as const,
   tags: ['sports'],
   liquidityParameter: 150,
+  baseLiquidityParameter: 150,
+  maxLiquidityParameter: 450,
+  lastLiquidityInjectionAt: null,
   closeAt: new Date('2099-03-30T00:00:00.000Z'),
   tradingClosedAt: null,
   resolutionGraceEndsAt: null,
@@ -44,39 +48,50 @@ const market = {
   resolvedByUserId: null,
   winningOutcomeId: null,
   totalVolume: 120,
+  supplementaryBonusPool: 0,
+  supplementaryBonusDistributedAt: null,
+  supplementaryBonusExpiredAt: null,
   createdAt: new Date('2099-03-29T00:00:00.000Z'),
   updatedAt: new Date('2099-03-29T00:00:00.000Z'),
   winningOutcome: null,
   outcomes: [
-    { id: 'a', marketId: 'market_1', label: 'Arizona', sortOrder: 0, outstandingShares: 12, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
-    { id: 'b', marketId: 'market_1', label: 'Michigan', sortOrder: 1, outstandingShares: 3, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
-    { id: 'c', marketId: 'market_1', label: 'Illinois', sortOrder: 2, outstandingShares: -4, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
-    { id: 'd', marketId: 'market_1', label: 'UConn', sortOrder: 3, outstandingShares: 9, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
-    { id: 'e', marketId: 'market_1', label: 'Duke', sortOrder: 4, outstandingShares: 1, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'a', marketId: 'market_1', label: 'Arizona', sortOrder: 0, outstandingShares: 12, pricingShares: 12, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'b', marketId: 'market_1', label: 'Michigan', sortOrder: 1, outstandingShares: 3, pricingShares: 3, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'c', marketId: 'market_1', label: 'Illinois', sortOrder: 2, outstandingShares: -4, pricingShares: -4, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'd', marketId: 'market_1', label: 'UConn', sortOrder: 3, outstandingShares: 9, pricingShares: 9, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'e', marketId: 'market_1', label: 'Duke', sortOrder: 4, outstandingShares: 1, pricingShares: 1, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
   ],
   trades: [],
   positions: [],
+  liquidityEvents: [],
 };
 
 describe('market render', () => {
-  it('builds an outcome board with Yes/No quick trade buttons', () => {
+  it('builds an outcome-first quick trade board', () => {
     const payload = buildMarketMessage(market);
 
-    expect(payload.components).toHaveLength(4);
+    expect(payload.components).toHaveLength(2);
     const firstRow = payload.components[0]!;
     const firstRowJson = firstRow.toJSON();
     const buttonComponents = firstRowJson.components as Array<{ label?: string; custom_id?: string }>;
     const labels = buttonComponents.map((component) => component.label);
 
     expect(labels).toEqual(expect.arrayContaining([
-      expect.stringContaining('Arizona Yes'),
-      expect.stringContaining('Arizona No'),
-      expect.stringContaining('Michigan Yes'),
-      expect.stringContaining('Michigan No'),
+      'Arizona',
+      'Michigan',
+      'Illinois',
+      'UConn',
+      'Duke',
     ]));
 
-    expect(buttonComponents[0]?.custom_id).toBe('market:quick:buy:market_1:a');
-    expect(buttonComponents[1]?.custom_id).toBe('market:quick:short:market_1:a');
+    expect(buttonComponents[0]?.custom_id).toBe('market:outcome:market_1:a');
+  });
+
+  it('places utility buttons after the outcome buttons', () => {
+    const payload = buildMarketMessage(market);
+    const utilityLabels = (payload.components[1]!.toJSON().components as Array<{ label?: string }>).map((component) => component.label);
+
+    expect(utilityLabels).toEqual(['My Positions', 'Details', 'Refresh']);
   });
 
   it('omits resolved outcomes from the quick trade board', () => {
@@ -103,7 +118,23 @@ describe('market render', () => {
 
     const embedJson = payload.embeds[0].toJSON();
     const marketField = embedJson.fields?.find((field) => field.name === 'Market');
-    expect(marketField?.value).toContain('Discussion: <#thread_1>');
+    expect(marketField?.value).toContain('Discuss in <#thread_1>.');
+  });
+
+  it('omits the description when none is provided', () => {
+    const payload = buildMarketMessage({
+      ...market,
+      description: null,
+    });
+
+    expect(payload.embeds[0].toJSON().description).toBeUndefined();
+  });
+
+  it('moves volume into the footer metadata', () => {
+    const payload = buildMarketMessage(market);
+
+    expect(payload.embeds[0].toJSON().footer?.text).toContain('Market ID: market_1');
+    expect(payload.embeds[0].toJSON().footer?.text).toContain('Volume: 120 pts');
   });
 
   it('builds a portfolio management selector for open positions', () => {
@@ -153,6 +184,7 @@ describe('market render', () => {
     }, true);
 
     expect(payload.components).toHaveLength(1);
+    expect(payload.embeds[0].toJSON().title).toBe('My Positions');
     const select = payload.components[0]!.components[0]!;
     const selectJson = select.toJSON();
     expect(selectJson.custom_id).toBe('market:portfolio-select');

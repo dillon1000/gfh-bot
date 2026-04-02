@@ -12,9 +12,11 @@ import { buildMarketStatusEmbed } from '../../ui/render/market.js';
 import { buildPortfolioMessage } from '../../ui/render/portfolio.js';
 import { getMarketConfig } from '../../services/config.js';
 import {
+  announceMarketUpdate,
   buildMarketViewResponse,
   clearMarketLifecycle,
   hydrateMarketMessage,
+  notifyMarketResolved,
   refreshMarketMessage,
 } from '../../services/lifecycle.js';
 import {
@@ -65,6 +67,36 @@ import {
   validateEvidenceUrl,
 } from './shared.js';
 import { handleMarketConfigCommand } from './config.js';
+import type { MarketWithRelations } from '../../core/types.js';
+
+const describeMarketEditChanges = (previous: MarketWithRelations, updated: MarketWithRelations): string[] => {
+  const changes: string[] = [];
+  if (previous.title !== updated.title) {
+    changes.push(`Title: **${previous.title}** -> **${updated.title}**`);
+  }
+
+  if ((previous.description ?? '') !== (updated.description ?? '')) {
+    changes.push(`Description: ${updated.description ? 'updated' : 'cleared'}`);
+  }
+
+  if (previous.closeAt.getTime() !== updated.closeAt.getTime()) {
+    changes.push(`Close time: <t:${Math.floor(updated.closeAt.getTime() / 1000)}:F>`);
+  }
+
+  if (previous.buttonStyle !== updated.buttonStyle) {
+    changes.push(`Button style: **${previous.buttonStyle}** -> **${updated.buttonStyle}**`);
+  }
+
+  if (previous.tags.join(',') !== updated.tags.join(',')) {
+    changes.push(`Tags: ${updated.tags.length > 0 ? updated.tags.map((tag) => `\`${tag}\``).join(' ') : 'none'}`);
+  }
+
+  if (previous.outcomes.map((outcome) => outcome.label).join('|') !== updated.outcomes.map((outcome) => outcome.label).join('|')) {
+    changes.push(`Outcomes: ${updated.outcomes.map((outcome) => `**${outcome.label}**`).join(', ')}`);
+  }
+
+  return changes;
+};
 
 export const handleMarketCommand = async (
   client: Client,
@@ -96,6 +128,7 @@ export const handleMarketCommand = async (
         marketChannelId: config.channelId,
         title: sanitizeMarketTitle(interaction.options.getString('title', true)),
         description: sanitizeMarketDescription(interaction.options.getString('description')),
+        buttonStyle: (interaction.options.getString('button_style') as MarketWithRelations['buttonStyle'] | null) ?? 'primary',
         outcomes: parseMarketOutcomes(interaction.options.getString('outcomes', true)),
         tags: parseMarketTags(interaction.options.getString('tags')),
         closeAt: parseMarketCloseAt(interaction.options.getString('close', true)),
@@ -139,6 +172,7 @@ export const handleMarketCommand = async (
       const updated = await editMarketRecord(market.id, interaction.user.id, {
         ...(interaction.options.getString('title') !== null ? { title: sanitizeMarketTitle(interaction.options.getString('title', true)) } : {}),
         ...(interaction.options.getString('description') !== null ? { description: sanitizeMarketDescription(interaction.options.getString('description')) } : {}),
+        ...(interaction.options.getString('button_style') !== null ? { buttonStyle: interaction.options.getString('button_style', true) as MarketWithRelations['buttonStyle'] } : {}),
         ...(interaction.options.getString('tags') !== null ? { tags: parseMarketTags(interaction.options.getString('tags')) } : {}),
         ...(interaction.options.getString('close') !== null ? { closeAt: parseMarketCloseAt(interaction.options.getString('close', true)) } : {}),
         ...(interaction.options.getString('outcomes') !== null ? { outcomes: parseMarketOutcomes(interaction.options.getString('outcomes', true)) } : {}),
@@ -146,6 +180,18 @@ export const handleMarketCommand = async (
       await clearMarketJobs(updated.id);
       await scheduleMarketClose(updated);
       await refreshMarketMessage(client, updated.id);
+      const changes = describeMarketEditChanges(market, updated);
+      if (changes.length > 0) {
+        await announceMarketUpdate(
+          client,
+          updated,
+          'Market Updated',
+          [
+            `**${updated.title}** was updated by <@${interaction.user.id}>.`,
+            ...changes,
+          ].join('\n'),
+        );
+      }
       await interaction.editReply({
         embeds: [buildMarketStatusEmbed('Market Updated', `Updated **${updated.title}**.`)],
       });
@@ -179,6 +225,18 @@ export const handleMarketCommand = async (
         parseAdditionalMarketOutcomes(interaction.options.getString('outcomes', true)),
       );
       await refreshMarketMessage(client, updated.id);
+      await announceMarketUpdate(
+        client,
+        updated,
+        'Outcomes Added',
+        [
+          `**${updated.title}** has ${updated.outcomes.length - market.outcomes.length} new outcome${updated.outcomes.length - market.outcomes.length === 1 ? '' : 's'}.`,
+          ...updated.outcomes
+            .slice(market.outcomes.length)
+            .map((outcome) => `• ${outcome.label}`),
+        ].join('\n'),
+        0x57f287,
+      );
       await interaction.editReply({
         embeds: [
           buildMarketStatusEmbed(
@@ -275,6 +333,7 @@ export const handleMarketCommand = async (
       });
       await clearMarketLifecycle(market.id);
       await refreshMarketMessage(client, market.id);
+      await notifyMarketResolved(client, resolved);
       await interaction.editReply({
         embeds: [
           buildMarketStatusEmbed(
@@ -303,6 +362,13 @@ export const handleMarketCommand = async (
         permissions: interaction.memberPermissions,
       });
       await refreshMarketMessage(client, market.id);
+      await announceMarketUpdate(
+        client,
+        resolved.market,
+        'Outcome Resolved',
+        `**${outcome.label}** was eliminated in **${resolved.market.title}** by <@${interaction.user.id}>. Trading remains open on the remaining outcomes.`,
+        0xf59e0b,
+      );
       await interaction.editReply({
         embeds: [
           buildMarketStatusEmbed(
@@ -329,6 +395,16 @@ export const handleMarketCommand = async (
       });
       await clearMarketLifecycle(cancelled.id);
       await refreshMarketMessage(client, cancelled.id);
+      await announceMarketUpdate(
+        client,
+        cancelled,
+        'Market Cancelled',
+        [
+          `**${cancelled.title}** was cancelled by <@${interaction.user.id}>.`,
+          interaction.options.getString('reason') ? `Reason: ${interaction.options.getString('reason', true)}` : null,
+        ].filter(Boolean).join('\n'),
+        0xf59e0b,
+      );
       await interaction.editReply({
         embeds: [
           buildMarketStatusEmbed(
@@ -451,7 +527,7 @@ export const handleMarketCommand = async (
         });
         await interaction.reply({
           flags: MessageFlags.Ephemeral,
-          embeds: [buildMarketForecastLeaderboardEmbed(entries, window, tag)],
+          embeds: buildMarketForecastLeaderboardEmbed(entries, window, tag),
           allowedMentions: {
             parse: [],
           },
@@ -462,11 +538,11 @@ export const handleMarketCommand = async (
       const entries = await getMarketLeaderboard(interaction.guildId);
       await interaction.reply({
         flags: MessageFlags.Ephemeral,
-        embeds: [buildLeaderboardEmbed(entries.map((entry) => ({
+        embeds: buildLeaderboardEmbed(entries.map((entry) => ({
           userId: entry.userId,
           bankroll: entry.bankroll,
           realizedProfit: entry.realizedProfit,
-        })))],
+        }))),
         allowedMentions: {
           parse: [],
         },

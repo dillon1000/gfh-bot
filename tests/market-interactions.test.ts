@@ -28,6 +28,8 @@ const {
   cancelMarket,
   scheduleMarketRefresh,
   hydrateMarketMessage,
+  announceMarketUpdate,
+  notifyMarketResolved,
   refreshMarketMessage,
   saveMarketTradeQuoteSession,
   getMarketTradeQuoteSession,
@@ -62,6 +64,8 @@ const {
   cancelMarket: vi.fn(),
   scheduleMarketRefresh: vi.fn(),
   hydrateMarketMessage: vi.fn(),
+  announceMarketUpdate: vi.fn(),
+  notifyMarketResolved: vi.fn(),
   refreshMarketMessage: vi.fn(),
   saveMarketTradeQuoteSession: vi.fn(),
   getMarketTradeQuoteSession: vi.fn(),
@@ -145,7 +149,9 @@ vi.mock('../src/lib/redis.js', () => ({
 }));
 
 vi.mock('../src/features/markets/services/lifecycle.js', () => ({
+  announceMarketUpdate,
   hydrateMarketMessage,
+  notifyMarketResolved,
   refreshMarketMessage,
   buildMarketViewResponse: vi.fn(async () => ({
     embeds: [],
@@ -168,8 +174,12 @@ const baseMarket = {
   threadId: null,
   title: 'Will turnout exceed 40%?',
   description: 'A test market',
+  buttonStyle: 'primary' as const,
   tags: ['meta'],
   liquidityParameter: 150,
+  baseLiquidityParameter: 150,
+  maxLiquidityParameter: 450,
+  lastLiquidityInjectionAt: null,
   closeAt: new Date('2099-03-30T00:00:00.000Z'),
   tradingClosedAt: null,
   resolutionGraceEndsAt: null,
@@ -181,15 +191,19 @@ const baseMarket = {
   resolvedByUserId: null,
   winningOutcomeId: null,
   totalVolume: 0,
+  supplementaryBonusPool: 0,
+  supplementaryBonusDistributedAt: null,
+  supplementaryBonusExpiredAt: null,
   createdAt: new Date('2099-03-29T00:00:00.000Z'),
   updatedAt: new Date('2099-03-29T00:00:00.000Z'),
   winningOutcome: null,
   outcomes: [
-    { id: 'outcome_yes', marketId: 'market_1', label: 'Yes', sortOrder: 0, outstandingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
-    { id: 'outcome_no', marketId: 'market_1', label: 'No', sortOrder: 1, outstandingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'outcome_yes', marketId: 'market_1', label: 'Yes', sortOrder: 0, outstandingShares: 0, pricingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'outcome_no', marketId: 'market_1', label: 'No', sortOrder: 1, outstandingShares: 0, pricingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
   ],
   trades: [],
   positions: [],
+  liquidityEvents: [],
 };
 
 const baseAccount = {
@@ -305,6 +319,8 @@ describe('market interactions', () => {
     cancelMarket.mockReset();
     scheduleMarketRefresh.mockReset();
     refreshMarketMessage.mockReset();
+    announceMarketUpdate.mockReset();
+    notifyMarketResolved.mockReset();
     saveMarketTradeQuoteSession.mockReset();
     getMarketTradeQuoteSession.mockReset();
     deleteMarketTradeQuoteSession.mockReset();
@@ -324,6 +340,7 @@ describe('market interactions', () => {
           label: 'Maybe',
           sortOrder: 2,
           outstandingShares: 0,
+          pricingShares: 0,
           settlementValue: null,
           resolvedAt: null,
           resolvedByUserId: null,
@@ -463,6 +480,15 @@ describe('market interactions', () => {
       outcome: baseMarket.outcomes[1],
       payouts: [],
     });
+    resolveMarket.mockResolvedValue({
+      market: {
+        ...baseMarket,
+        resolvedAt: new Date('2099-03-30T00:00:00.000Z'),
+        winningOutcomeId: 'outcome_yes',
+        winningOutcome: baseMarket.outcomes[0],
+      },
+      payouts: [],
+    });
   });
 
   afterEach(() => {
@@ -535,6 +561,71 @@ describe('market interactions', () => {
     expect(createMarketRecord).toHaveBeenCalledWith(expect.objectContaining({
       closeAt: expect.any(Date),
     }));
+  });
+
+  it('passes the selected button style during market creation', async () => {
+    const interaction = createInteraction({
+      subcommand: 'create',
+      strings: {
+        title: 'Will turnout exceed 40%?',
+        outcomes: 'Yes, No',
+        close: '24h',
+        button_style: 'success',
+      },
+    });
+
+    await handleMarketCommand({} as never, interaction as never);
+
+    expect(createMarketRecord).toHaveBeenCalledWith(expect.objectContaining({
+      buttonStyle: 'success',
+    }));
+  });
+
+  it('allows editing close time and button style and announces the change', async () => {
+    const interaction = createInteraction({
+      subcommand: 'edit',
+      strings: {
+        query: 'market_1',
+        close: '48h',
+        button_style: 'danger',
+      },
+    });
+
+    getMarketByQuery.mockResolvedValue({
+      ...baseMarket,
+      trades: [
+        {
+          id: 'trade_1',
+          marketId: 'market_1',
+          outcomeId: 'outcome_yes',
+          userId: 'user_2',
+          side: 'buy' as const,
+          shareDelta: 2,
+          cashDelta: -10,
+          probabilitySnapshot: 0.5,
+          cumulativeVolume: 10,
+          createdAt: new Date('2099-03-29T01:00:00.000Z'),
+        },
+      ],
+    });
+    editMarketRecord.mockResolvedValue({
+      ...baseMarket,
+      buttonStyle: 'danger',
+      closeAt: new Date('2099-03-31T00:00:00.000Z'),
+    });
+
+    await handleMarketCommand({} as never, interaction as never);
+
+    expect(editMarketRecord).toHaveBeenCalledWith('market_1', 'user_1', expect.objectContaining({
+      closeAt: expect.any(Date),
+      buttonStyle: 'danger',
+    }));
+    expect(announceMarketUpdate).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ id: 'market_1' }),
+      'Market Updated',
+      expect.stringContaining('Button style'),
+    );
   });
 
   it('resolves a specific outcome without closing the market', async () => {
@@ -707,6 +798,31 @@ describe('market interactions', () => {
     }));
   });
 
+  it('returns paged leaderboard embeds when there are many entries', async () => {
+    const interaction = createInteraction({
+      subcommand: 'leaderboard',
+    });
+
+    getMarketLeaderboard.mockResolvedValue(
+      Array.from({ length: 12 }, (_, index) => ({
+        ...baseAccount,
+        userId: `user_${index + 1}`,
+        bankroll: 1000 - index,
+        realizedProfit: index,
+      })),
+    );
+
+    await handleMarketCommand({} as never, interaction as never);
+
+    expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({
+      flags: 64,
+      embeds: expect.arrayContaining([
+        expect.objectContaining({ data: expect.objectContaining({ title: expect.stringContaining('(1/2)') }) }),
+        expect.objectContaining({ data: expect.objectContaining({ title: expect.stringContaining('(2/2)') }) }),
+      ]),
+    }));
+  });
+
   it('confirms a quoted trade from the preview buttons', async () => {
     const interaction = createButtonInteraction('market:quote-confirm:quote_session_1');
     executeMarketTrade.mockResolvedValue({
@@ -738,6 +854,18 @@ describe('market interactions', () => {
     const updatePayload = interaction.update.mock.calls[0]?.[0];
     expect(updatePayload.embeds[0].data.description).toContain('Cash: 45 pts');
     expect(updatePayload.embeds[0].data.description).toContain('If Yes is chosen: 70.00 pts');
+  });
+
+  it('shows market details from the details button', async () => {
+    const interaction = createButtonInteraction('market:details:market_1');
+    getMarketById.mockResolvedValue(baseMarket);
+
+    await handleMarketButton(interaction as never);
+
+    expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({
+      flags: 64,
+      embeds: expect.any(Array),
+    }));
   });
 
   it('grants market currency to a user and DMs them', async () => {

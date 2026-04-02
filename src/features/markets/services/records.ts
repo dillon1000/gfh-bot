@@ -1,5 +1,3 @@
-import { type Market } from '@prisma/client';
-
 import { prisma } from '../../../lib/prisma.js';
 import { parseMarketLookup } from '../parsing/market.js';
 import {
@@ -7,6 +5,7 @@ import {
   assertMarketEditable,
   getMarketForUpdate,
   liquidityParameter,
+  maxLiquidityParameter,
   marketInclude,
 } from '../core/shared.js';
 import type {
@@ -25,13 +24,17 @@ export const createMarketRecord = async (input: MarketCreationInput): Promise<Ma
       marketChannelId: input.marketChannelId,
       title: input.title,
       description: input.description,
+      buttonStyle: input.buttonStyle,
       tags: input.tags,
+      baseLiquidityParameter: liquidityParameter,
       liquidityParameter,
+      maxLiquidityParameter,
       closeAt: input.closeAt,
       outcomes: {
         create: input.outcomes.map((label, index) => ({
           label,
           sortOrder: index,
+          pricingShares: 0,
         })),
       },
     },
@@ -132,6 +135,7 @@ export const editMarketRecord = async (
   input: {
     title?: string;
     description?: string | null;
+    buttonStyle?: MarketWithRelations['buttonStyle'];
     tags?: string[];
     closeAt?: Date;
     outcomes?: string[];
@@ -145,6 +149,15 @@ export const editMarketRecord = async (
 
     assertMarketEditable(market, actorId);
 
+    const hasTrades = market.trades.length > 0;
+    const editsRequireNoTrades = input.title !== undefined
+      || input.description !== undefined
+      || input.tags !== undefined
+      || input.outcomes !== undefined;
+    if (hasTrades && editsRequireNoTrades) {
+      throw new Error('After the first trade, only close time and button style can be edited.');
+    }
+
     await tx.market.update({
       where: {
         id: marketId,
@@ -152,6 +165,7 @@ export const editMarketRecord = async (
       data: {
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.description !== undefined ? { description: input.description } : {}),
+        ...(input.buttonStyle !== undefined ? { buttonStyle: input.buttonStyle } : {}),
         ...(input.tags !== undefined ? { tags: input.tags } : {}),
         ...(input.closeAt !== undefined ? { closeAt: input.closeAt } : {}),
       },
@@ -170,12 +184,13 @@ export const editMarketRecord = async (
         },
         data: {
           outcomes: {
-            create: input.outcomes.map((label, index) => ({
-              label,
-              sortOrder: index,
-            })),
-          },
+          create: input.outcomes.map((label, index) => ({
+            label,
+            sortOrder: index,
+            pricingShares: 0,
+          })),
         },
+      },
       });
     }
 
@@ -229,6 +244,7 @@ export const appendMarketOutcomes = async (
           create: nextOutcomes.map((label, index) => ({
             label,
             sortOrder: market.outcomes.length + index,
+            pricingShares: 0,
           })),
         },
       },

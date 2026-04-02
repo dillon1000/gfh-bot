@@ -1,7 +1,9 @@
 import type {
   Market,
   MarketAccount,
+  MarketButtonStyle,
   MarketForecastRecord,
+  MarketLiquidityEvent,
   MarketOutcome,
   MarketPositionSide,
   MarketPosition,
@@ -13,6 +15,7 @@ export type MarketWithRelations = Market & {
   trades: MarketTrade[];
   positions: MarketPosition[];
   winningOutcome: MarketOutcome | null;
+  liquidityEvents: MarketLiquidityEvent[];
 };
 
 export type MarketAccountWithOpenPositions = MarketAccount & {
@@ -32,6 +35,7 @@ export type MarketCreationInput = {
   marketChannelId: string;
   title: string;
   description: string | null;
+  buttonStyle: MarketButtonStyle;
   outcomes: string[];
   tags: string[];
   closeAt: Date;
@@ -163,6 +167,16 @@ export type MarketResolutionResult = {
     userId: string;
     payout: number;
     profit: number;
+    bonus: number;
+    positions: Array<{
+      outcomeId: string;
+      outcomeLabel: string;
+      side: MarketPositionSide;
+      shares: number;
+      costBasis: number;
+      proceeds: number;
+      collateralLocked: number;
+    }>;
   }>;
 };
 
@@ -173,5 +187,6 @@ export type MarketOutcomeResolutionResult = {
     userId: string;
     payout: number;
     profit: number;
+    bonus: number;
   }>;
 };

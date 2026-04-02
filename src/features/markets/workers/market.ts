@@ -2,9 +2,9 @@ import { Worker } from 'bullmq';
 import type { Client } from 'discord.js';
 
 import { logger } from '../../../app/logger.js';
-import { marketCloseQueueName, marketGraceQueueName, marketRefreshQueueName } from '../../../lib/queue.js';
+import { marketCloseQueueName, marketGraceQueueName, marketLiquidityQueueName, marketRefreshQueueName } from '../../../lib/queue.js';
 import { getBullConnectionOptions } from '../../../lib/redis.js';
-import { closeMarketAndNotify, refreshMarketMessage, sendMarketGraceNotice } from '../services/lifecycle.js';
+import { closeMarketAndNotify, injectMarketLiquidityAndRefresh, refreshMarketMessage, sendMarketGraceNotice } from '../services/lifecycle.js';
 
 export const startMarketCloseWorker = (client: Client): Worker<{ marketId: string }, void, 'close'> => {
   const worker = new Worker<{ marketId: string }, void, 'close'>(
@@ -55,6 +55,24 @@ export const startMarketGraceWorker = (client: Client): Worker<{ marketId: strin
 
   worker.on('failed', (job, error) => {
     logger.error({ err: error, jobId: job?.id }, 'Market grace worker failed');
+  });
+
+  return worker;
+};
+
+export const startMarketLiquidityWorker = (client: Client): Worker<{ marketId: string }, void, 'inject'> => {
+  const worker = new Worker<{ marketId: string }, void, 'inject'>(
+    marketLiquidityQueueName,
+    async (job) => {
+      await injectMarketLiquidityAndRefresh(client, job.data.marketId);
+    },
+    {
+      connection: getBullConnectionOptions(),
+    },
+  );
+
+  worker.on('failed', (job, error) => {
+    logger.error({ err: error, jobId: job?.id }, 'Market liquidity worker failed');
   });
 
   return worker;

@@ -70,7 +70,7 @@ const calculateMarketTradeQuoteUnsafe = async (input: {
     throw new Error('That outcome can no longer be traded.');
   }
 
-  const shares = tradableOutcomeIndexes.map((index) => market.outcomes[index]?.outstandingShares ?? 0);
+  const pricingShares = tradableOutcomeIndexes.map((index) => market.outcomes[index]?.pricingShares ?? 0);
   const positions = getPositionMap(market.positions.filter((position) => position.userId === input.userId));
   const longPosition = getPosition(positions, outcome.id, 'long');
   const shortPosition = getPosition(positions, outcome.id, 'short');
@@ -86,7 +86,7 @@ const calculateMarketTradeQuoteUnsafe = async (input: {
       throw new Error('You do not have enough bankroll for that trade.');
     }
 
-    const sharesReceived = solveBuySharesForAmount(shares, tradableIndex, input.amount, market.liquidityParameter);
+    const sharesReceived = solveBuySharesForAmount(pricingShares, tradableIndex, input.amount, market.liquidityParameter);
     return {
       action: input.action,
       marketId: market.id,
@@ -118,9 +118,9 @@ const calculateMarketTradeQuoteUnsafe = async (input: {
 
   const sharesToShort = amountMode === 'shares'
     ? input.amount
-    : solveShortSharesForAmount(shares, tradableIndex, input.amount, market.liquidityParameter);
+    : solveShortSharesForAmount(pricingShares, tradableIndex, input.amount, market.liquidityParameter);
   const proceedsReceived = amountMode === 'shares'
-    ? roundCurrency(computeSellPayout(shares, tradableIndex, sharesToShort, market.liquidityParameter))
+    ? roundCurrency(computeSellPayout(pricingShares, tradableIndex, sharesToShort, market.liquidityParameter))
     : roundCurrency(input.amount);
   const collateralToLock = roundCurrency(sharesToShort);
   if ((account.bankroll + proceedsReceived - collateralToLock) < -1e-6) {

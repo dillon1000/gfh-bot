@@ -1,8 +1,8 @@
-import { type Market } from '@prisma/client';
+import type { Market } from '@prisma/client';
 
-import { marketCloseQueue, marketGraceQueue, marketRefreshQueue } from '../../../lib/queue.js';
+import { marketCloseQueue, marketGraceQueue, marketLiquidityQueue, marketRefreshQueue } from '../../../lib/queue.js';
 import { prisma } from '../../../lib/prisma.js';
-import { getQueueJobId, refreshDelayMs } from '../core/shared.js';
+import { getNextLiquidityInjectionAt, getQueueJobId, refreshDelayMs } from '../core/shared.js';
 
 export const removeScheduledMarketClose = async (marketId: string): Promise<void> => {
   const job = await marketCloseQueue.getJob(getQueueJobId(marketId));
@@ -16,6 +16,11 @@ export const removeScheduledMarketRefresh = async (marketId: string): Promise<vo
 
 export const removeScheduledMarketGrace = async (marketId: string): Promise<void> => {
   const job = await marketGraceQueue.getJob(getQueueJobId(marketId));
+  await job?.remove();
+};
+
+export const removeScheduledMarketLiquidity = async (marketId: string): Promise<void> => {
+  const job = await marketLiquidityQueue.getJob(getQueueJobId(marketId));
   await job?.remove();
 };
 
@@ -59,6 +64,30 @@ export const scheduleMarketGrace = async (
   );
 };
 
+export const scheduleMarketLiquidity = async (
+  market: Pick<Market, 'id' | 'createdAt' | 'closeAt' | 'tradingClosedAt' | 'resolvedAt' | 'cancelledAt'>,
+  now = new Date(),
+): Promise<void> => {
+  await removeScheduledMarketLiquidity(market.id);
+  if (market.tradingClosedAt || market.resolvedAt || market.cancelledAt) {
+    return;
+  }
+
+  const nextInjectionAt = getNextLiquidityInjectionAt(market, now);
+  if (!nextInjectionAt) {
+    return;
+  }
+
+  await marketLiquidityQueue.add(
+    'inject',
+    { marketId: market.id },
+    {
+      jobId: getQueueJobId(market.id),
+      delay: Math.max(0, nextInjectionAt.getTime() - now.getTime()),
+    },
+  );
+};
+
 export const syncOpenMarketJobs = async (): Promise<void> => {
   const markets = await prisma.market.findMany({
     where: {
@@ -67,15 +96,21 @@ export const syncOpenMarketJobs = async (): Promise<void> => {
     },
     select: {
       id: true,
+      createdAt: true,
       closeAt: true,
       tradingClosedAt: true,
+      resolvedAt: true,
+      cancelledAt: true,
       resolutionGraceEndsAt: true,
     },
   });
 
   await Promise.all(markets.map(async (market) => {
     if (!market.tradingClosedAt) {
-      await scheduleMarketClose(market);
+      await Promise.all([
+        scheduleMarketClose(market),
+        scheduleMarketLiquidity(market),
+      ]);
       return;
     }
 
@@ -90,5 +125,6 @@ export const clearMarketJobs = async (marketId: string): Promise<void> => {
     removeScheduledMarketClose(marketId),
     removeScheduledMarketRefresh(marketId),
     removeScheduledMarketGrace(marketId),
+    removeScheduledMarketLiquidity(marketId),
   ]);
 };

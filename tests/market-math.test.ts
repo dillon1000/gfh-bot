@@ -15,7 +15,8 @@ describe('market math', () => {
     const shares = [0, 0];
     const delta = solveBuySharesForAmount(shares, 0, 75, 150);
     const before = computeLmsrCost(shares, 150);
-    const after = computeLmsrCost([shares[0]! + delta, shares[1]!], 150);
+    const [firstShare, secondShare] = shares;
+    const after = computeLmsrCost([(firstShare ?? 0) + delta, secondShare ?? 0], 150);
 
     expect(delta).toBeGreaterThan(0);
     expect(after - before).toBeCloseTo(75, 5);
@@ -63,5 +64,44 @@ describe('market math', () => {
     const cost = computeBuyCost(shares, 0, 3, 150);
 
     expect(cost).toBeGreaterThan(0);
+  });
+
+  it('keeps probabilities and trade costs unchanged when the same constant is added to every outcome', () => {
+    const shares = [35, -10, 5];
+    const shiftedShares = shares.map((value) => value + 100);
+    const probabilities = computeLmsrProbabilities(shares, 150);
+    const shiftedProbabilities = computeLmsrProbabilities(shiftedShares, 150);
+
+    probabilities.forEach((value, index) => {
+      expect(shiftedProbabilities[index]).toBeCloseTo(value, 10);
+    });
+    expect(computeBuyCost(shiftedShares, 0, 25, 150)).toBeCloseTo(computeBuyCost(shares, 0, 25, 150), 10);
+  });
+
+  it('preserves probabilities when liquidity increases and pricing shares are rebased', () => {
+    const shares = [210, 0];
+    const rebasedShares = shares.map((value) => value * 2);
+    const probabilities = computeLmsrProbabilities(shares, 150);
+    const rebasedProbabilities = computeLmsrProbabilities(rebasedShares, 300);
+
+    probabilities.forEach((value, index) => {
+      expect(rebasedProbabilities[index]).toBeCloseTo(value, 10);
+    });
+  });
+
+  it('reduces price impact for the same budget after a liquidity rebase', () => {
+    const shares = [210, 0];
+    const rebasedShares = shares.map((value) => value * 2);
+    const before = computeLmsrProbabilities(rebasedShares, 300)[0] ?? 0;
+    const rebasedBuy = solveBuySharesForAmount(rebasedShares, 0, 100, 300);
+    const [rebasedFirstShare, rebasedSecondShare] = rebasedShares;
+    const [firstShare, secondShare] = shares;
+    const after = computeLmsrProbabilities([(rebasedFirstShare ?? 0) + rebasedBuy, rebasedSecondShare ?? 0], 300)[0] ?? 0;
+    const originalMove = (computeLmsrProbabilities(
+      [(firstShare ?? 0) + solveBuySharesForAmount(shares, 0, 100, 150), secondShare ?? 0],
+      150,
+    )[0] ?? 0) - (computeLmsrProbabilities(shares, 150)[0] ?? 0);
+
+    expect(after - before).toBeLessThan(originalMove);
   });
 });

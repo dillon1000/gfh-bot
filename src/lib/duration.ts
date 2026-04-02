@@ -41,9 +41,9 @@ export const parseDurationToMsWithLimits = (
   value: string,
   limits: {
     minMs: number;
-    maxMs: number;
+    maxMs?: number;
     tooShortMessage: string;
-    tooLongMessage: string;
+    tooLongMessage?: string;
   },
 ): number => {
   const total = parseDurationValueToMs(value);
@@ -52,8 +52,8 @@ export const parseDurationToMsWithLimits = (
     throw new Error(limits.tooShortMessage);
   }
 
-  if (total > limits.maxMs) {
-    throw new Error(limits.tooLongMessage);
+  if (limits.maxMs !== undefined && total > limits.maxMs) {
+    throw new Error(limits.tooLongMessage ?? 'Duration is too long.');
   }
 
   return total;

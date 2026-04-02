@@ -1,7 +1,12 @@
 import { MessageFlags, type Client, type ModalSubmitInteraction } from 'discord.js';
 
 import { buildMarketStatusEmbed } from '../../ui/render/market.js';
-import { clearMarketLifecycle, refreshMarketMessage } from '../../services/lifecycle.js';
+import {
+  announceMarketUpdate,
+  clearMarketLifecycle,
+  notifyMarketResolved,
+  refreshMarketMessage,
+} from '../../services/lifecycle.js';
 import { getMarketById } from '../../services/records.js';
 import { scheduleMarketRefresh } from '../../services/scheduler.js';
 import { cancelMarket } from '../../services/trading/cancel.js';
@@ -80,7 +85,7 @@ export const handleMarketModal = async (
     }
 
     const outcome = parseOutcomeSelection(interaction.fields.getTextInputValue('winning_outcome'), market.outcomes);
-    await resolveMarket({
+    const resolved = await resolveMarket({
       marketId: market.id,
       actorId: interaction.user.id,
       winningOutcomeId: outcome.id,
@@ -90,6 +95,7 @@ export const handleMarketModal = async (
     });
     await clearMarketLifecycle(market.id);
     await refreshMarketMessage(client, market.id);
+    await notifyMarketResolved(client, resolved);
     await interaction.reply({
       flags: MessageFlags.Ephemeral,
       embeds: [buildMarketStatusEmbed('Market Resolved', `Resolved **${market.title}** in favor of **${outcome.label}**.`, 0x57f287)],
@@ -104,14 +110,25 @@ export const handleMarketModal = async (
       throw new Error('Market not found.');
     }
 
-    await cancelMarket({
+    const reason = interaction.fields.getTextInputValue('reason').trim() || null;
+    const cancelled = await cancelMarket({
       marketId: market.id,
       actorId: interaction.user.id,
-      reason: interaction.fields.getTextInputValue('reason').trim() || null,
+      reason,
       ...(interaction.inGuild() ? { permissions: interaction.memberPermissions ?? null } : {}),
     });
     await clearMarketLifecycle(market.id);
     await refreshMarketMessage(client, market.id);
+    await announceMarketUpdate(
+      client,
+      cancelled,
+      'Market Cancelled',
+      [
+        `**${cancelled.title}** was cancelled by <@${interaction.user.id}>.`,
+        reason ? `Reason: ${reason}` : null,
+      ].filter(Boolean).join('\n'),
+      0xf59e0b,
+    );
     await interaction.reply({
       flags: MessageFlags.Ephemeral,
       embeds: [buildMarketStatusEmbed('Market Cancelled', `Cancelled **${market.title}** and refunded open positions.`, 0xf59e0b)],

@@ -1,4 +1,4 @@
-import { type Market, type MarketOutcome, type MarketPosition, type MarketPositionSide, type MarketTradeSide, Prisma } from '@prisma/client';
+import type { Market, MarketOutcome, MarketPosition, MarketPositionSide, MarketTradeSide, Prisma } from '@prisma/client';
 import { PermissionFlagsBits, type PermissionsBitField } from 'discord.js';
 
 import {
@@ -11,6 +11,9 @@ import type { MarketStatus, MarketWithRelations } from './types.js';
 export const startingBankroll = sharedStartingBankroll;
 export const dailyTopUpFloor = defaultDailyTopUpFloor;
 export const liquidityParameter = 150;
+export const maxLiquidityParameter = 450;
+export const liquidityInjectionIntervalMs = 60 * 60 * 1_000;
+export const liquidityGrowthFactor = 1.06;
 export const resolutionGraceMs = 24 * 60 * 60 * 1_000;
 export const refreshDelayMs = 5_000;
 export const maxOpenProbability = 0.98;
@@ -30,6 +33,11 @@ export const marketInclude = {
   positions: true,
   winningOutcome: true,
   forecastRecords: false,
+  liquidityEvents: {
+    orderBy: {
+      createdAt: 'asc',
+    },
+  },
 } as const;
 
 export const getQueueJobId = (id: string): string => Buffer.from(id).toString('base64url');
@@ -71,7 +79,7 @@ export const getActiveOutcomeIndexes = (
 
 export const getMarketProbabilities = (
   market: Pick<Market, 'resolvedAt' | 'winningOutcomeId' | 'liquidityParameter'> & {
-    outcomes: Array<Pick<MarketOutcome, 'id' | 'outstandingShares' | 'settlementValue'>>;
+    outcomes: Array<Pick<MarketOutcome, 'id' | 'pricingShares' | 'settlementValue'>>;
   },
 ): number[] => {
   if (market.outcomes.length === 0) {
@@ -88,7 +96,7 @@ export const getMarketProbabilities = (
   }
 
   const activeProbabilities = computeLmsrProbabilities(
-    activeIndexes.map((index) => market.outcomes[index]?.outstandingShares ?? 0),
+    activeIndexes.map((index) => market.outcomes[index]?.pricingShares ?? 0),
     market.liquidityParameter,
   );
 
@@ -117,6 +125,9 @@ export const getTradableOutcomeIndexes = (
 export const getOutstandingShares = (market: MarketWithRelations): number[] =>
   market.outcomes.map((outcome) => outcome.outstandingShares);
 
+export const getPricingShares = (market: MarketWithRelations): number[] =>
+  market.outcomes.map((outcome) => outcome.pricingShares);
+
 export const getMarketForUpdate = async (
   tx: Prisma.TransactionClient,
   marketId: string,
@@ -131,10 +142,6 @@ export const getMarketForUpdate = async (
 export const assertMarketEditable = (market: MarketWithRelations, actorId: string): void => {
   if (market.creatorId !== actorId) {
     throw new Error('Only the market creator can edit this market.');
-  }
-
-  if (market.trades.length > 0) {
-    throw new Error('Markets can only be edited before the first trade.');
   }
 
   if (market.tradingClosedAt || market.resolvedAt || market.cancelledAt) {
@@ -330,7 +337,7 @@ export const assertCanCancelMarket = (
 export const replaceOutcomeState = async (
   tx: Prisma.TransactionClient,
   marketId: string,
-  outcomes: Array<Pick<MarketOutcome, 'id'> & { outstandingShares: number }>,
+  outcomes: Array<Pick<MarketOutcome, 'id'> & { outstandingShares: number; pricingShares: number }>,
 ): Promise<void> => {
   await Promise.all(outcomes.map((outcome) =>
     tx.marketOutcome.update({
@@ -339,6 +346,7 @@ export const replaceOutcomeState = async (
       },
       data: {
         outstandingShares: roundCurrency(outcome.outstandingShares),
+        pricingShares: roundCurrency(outcome.pricingShares),
       },
     })));
 
@@ -425,11 +433,70 @@ export const getMaxSellPayout = (
   }
 
   return roundCurrency(computeSellPayout(
-    tradableIndexes.map((outcomeIndex) => market.outcomes[outcomeIndex]?.outstandingShares ?? 0),
+    tradableIndexes.map((outcomeIndex) => market.outcomes[outcomeIndex]?.pricingShares ?? 0),
     tradableIndex,
     ownedShares,
     market.liquidityParameter,
   ));
+};
+
+export const getLiquidityTargetForEpoch = (
+  market: Pick<Market, 'baseLiquidityParameter' | 'maxLiquidityParameter' | 'createdAt'>,
+  now = new Date(),
+): number => {
+  const elapsedMs = Math.max(0, now.getTime() - market.createdAt.getTime());
+  const epoch = Math.floor(elapsedMs / liquidityInjectionIntervalMs);
+  const target = market.baseLiquidityParameter * (liquidityGrowthFactor ** epoch);
+  return Math.min(market.maxLiquidityParameter, Math.round(target));
+};
+
+export const getNextLiquidityInjectionAt = (
+  market: Pick<Market, 'createdAt' | 'closeAt'>,
+  now = new Date(),
+): Date | null => {
+  const elapsedMs = Math.max(0, now.getTime() - market.createdAt.getTime());
+  const nextEpoch = Math.floor(elapsedMs / liquidityInjectionIntervalMs) + 1;
+  const nextAt = new Date(market.createdAt.getTime() + (nextEpoch * liquidityInjectionIntervalMs));
+  return nextAt.getTime() < market.closeAt.getTime() ? nextAt : null;
+};
+
+export const computeLiquidityRebaseBonus = (
+  previousLiquidity: number,
+  nextLiquidity: number,
+  activeOutcomeCount: number,
+): number => {
+  if (nextLiquidity <= previousLiquidity || activeOutcomeCount <= 1) {
+    return 0;
+  }
+
+  return roundCurrency(0.5 * (nextLiquidity - previousLiquidity) * Math.log(activeOutcomeCount));
+};
+
+export const computeSupplementaryBonusDistribution = (
+  profits: Map<string, number>,
+  totalBonusPool: number,
+): Map<string, number> => {
+  if (totalBonusPool <= 1e-6) {
+    return new Map();
+  }
+
+  const profitableEntries = [...profits.entries()].filter(([, profit]) => profit > 1e-6);
+  const totalProfits = profitableEntries.reduce((sum, [, profit]) => sum + profit, 0);
+  if (totalProfits <= 1e-6) {
+    return new Map();
+  }
+
+  const bonuses = new Map<string, number>();
+  let distributed = 0;
+  profitableEntries.forEach(([userId, profit], index) => {
+    const bonus = index === profitableEntries.length - 1
+      ? roundCurrency(totalBonusPool - distributed)
+      : roundCurrency((totalBonusPool * profit) / totalProfits);
+    distributed += bonus;
+    bonuses.set(userId, bonus);
+  });
+
+  return bonuses;
 };
 
 export const getResolutionGraceMs = (): number => resolutionGraceMs;

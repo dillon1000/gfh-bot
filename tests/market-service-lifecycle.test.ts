@@ -4,11 +4,13 @@ const {
   attachMarketMessage,
   attachMarketThread,
   scheduleMarketClose,
+  scheduleMarketLiquidity,
   getMarketById,
 } = vi.hoisted(() => ({
   attachMarketMessage: vi.fn(),
   attachMarketThread: vi.fn(),
   scheduleMarketClose: vi.fn(),
+  scheduleMarketLiquidity: vi.fn(),
   getMarketById: vi.fn(),
 }));
 
@@ -20,8 +22,10 @@ const {
   update: vi.fn(),
 }));
 
-const { buildMarketMessage } = vi.hoisted(() => ({
+const { buildMarketDetailsEmbed, buildMarketMessage, buildMarketStatusEmbed } = vi.hoisted(() => ({
+  buildMarketDetailsEmbed: vi.fn(),
   buildMarketMessage: vi.fn(),
+  buildMarketStatusEmbed: vi.fn(() => ({ data: {} })),
 }));
 
 const { buildMarketDiagram } = vi.hoisted(() => ({
@@ -44,10 +48,11 @@ vi.mock('../src/lib/prisma.js', () => ({
 }));
 
 vi.mock('../src/features/markets/ui/render/market.js', () => ({
+  buildMarketDetailsEmbed,
   buildMarketMessage,
   buildMarketEmbed: vi.fn(),
   buildMarketResolvePrompt: vi.fn(),
-  buildMarketStatusEmbed: vi.fn(),
+  buildMarketStatusEmbed,
 }));
 
 vi.mock('../src/features/markets/services/records.js', () => ({
@@ -60,6 +65,7 @@ vi.mock('../src/features/markets/services/scheduler.js', () => ({
   clearMarketJobs: vi.fn(),
   scheduleMarketClose,
   scheduleMarketGrace: vi.fn(),
+  scheduleMarketLiquidity,
 }));
 
 vi.mock('../src/features/markets/services/trading/close.js', () => ({
@@ -82,8 +88,12 @@ const market = {
   threadId: null,
   title: 'Will turnout exceed 40%?',
   description: 'A test market',
+  buttonStyle: 'primary' as const,
   tags: ['meta'],
   liquidityParameter: 150,
+  baseLiquidityParameter: 150,
+  maxLiquidityParameter: 450,
+  lastLiquidityInjectionAt: null,
   closeAt: new Date('2099-03-30T00:00:00.000Z'),
   tradingClosedAt: null,
   resolutionGraceEndsAt: null,
@@ -95,15 +105,19 @@ const market = {
   resolvedByUserId: null,
   winningOutcomeId: null,
   totalVolume: 0,
+  supplementaryBonusPool: 0,
+  supplementaryBonusDistributedAt: null,
+  supplementaryBonusExpiredAt: null,
   createdAt: new Date('2099-03-29T00:00:00.000Z'),
   updatedAt: new Date('2099-03-29T00:00:00.000Z'),
   winningOutcome: null,
   outcomes: [
-    { id: 'outcome_yes', marketId: 'market_1', label: 'Yes', sortOrder: 0, outstandingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
-    { id: 'outcome_no', marketId: 'market_1', label: 'No', sortOrder: 1, outstandingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'outcome_yes', marketId: 'market_1', label: 'Yes', sortOrder: 0, outstandingShares: 0, pricingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
+    { id: 'outcome_no', marketId: 'market_1', label: 'No', sortOrder: 1, outstandingShares: 0, pricingShares: 0, settlementValue: null, resolvedAt: null, resolvedByUserId: null, resolutionNote: null, resolutionEvidenceUrl: null, createdAt: new Date('2099-03-29T00:00:00.000Z') },
   ],
   trades: [],
   positions: [],
+  liquidityEvents: [],
 };
 
 describe('market service lifecycle', () => {
@@ -111,10 +125,12 @@ describe('market service lifecycle', () => {
     attachMarketMessage.mockReset();
     attachMarketThread.mockReset();
     scheduleMarketClose.mockReset();
+    scheduleMarketLiquidity.mockReset();
     getMarketById.mockReset();
     findMany.mockReset();
     update.mockReset();
     buildMarketMessage.mockReset();
+    buildMarketDetailsEmbed.mockReset();
     buildMarketDiagram.mockReset();
     attachMarketMessage.mockResolvedValue(market);
     attachMarketThread.mockResolvedValue({
