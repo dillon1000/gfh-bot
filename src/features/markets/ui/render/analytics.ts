@@ -35,7 +35,7 @@ export const buildLeaderboardEmbed = (
     return [buildMarketStatusEmbed('Market Leaderboard', 'No market accounts exist yet.', 0x57f287)];
   }
 
-  const chunks: typeof entries[] = [];
+  const chunks: Array<typeof entries> = [];
   for (let index = 0; index < entries.length; index += 10) {
     chunks.push(entries.slice(index, index + 10));
   }
@@ -132,7 +132,7 @@ export const buildMarketForecastLeaderboardEmbed = (
     return [buildMarketStatusEmbed(baseTitle, 'No users meet the sample requirement for that forecast board yet.', 0x57f287)];
   }
 
-  const chunks: typeof entries[] = [];
+  const chunks: Array<typeof entries> = [];
   for (let index = 0; index < entries.length; index += 10) {
     chunks.push(entries.slice(index, index + 10));
   }

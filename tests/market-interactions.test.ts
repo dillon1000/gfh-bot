@@ -9,6 +9,7 @@ const {
   createMarketRecord,
   deleteMarketRecord,
   scheduleMarketClose,
+  scheduleMarketLiquidity,
   clearMarketJobs,
   appendMarketOutcomes,
   editMarketRecord,
@@ -45,6 +46,7 @@ const {
   createMarketRecord: vi.fn(),
   deleteMarketRecord: vi.fn(),
   scheduleMarketClose: vi.fn(),
+  scheduleMarketLiquidity: vi.fn(),
   clearMarketJobs: vi.fn(),
   appendMarketOutcomes: vi.fn(),
   editMarketRecord: vi.fn(),
@@ -116,6 +118,7 @@ vi.mock('../src/features/markets/services/records.js', () => ({
 
 vi.mock('../src/features/markets/services/scheduler.js', () => ({
   scheduleMarketClose,
+  scheduleMarketLiquidity,
   clearMarketJobs,
   scheduleMarketRefresh,
 }));
@@ -299,7 +302,8 @@ describe('market interactions', () => {
     createMarketRecord.mockReset();
     deleteMarketRecord.mockReset();
     hydrateMarketMessage.mockReset();
-    scheduleMarketClose.mockReset();
+  scheduleMarketClose.mockReset();
+    scheduleMarketLiquidity.mockReset();
     clearMarketJobs.mockReset();
     appendMarketOutcomes.mockReset();
     editMarketRecord.mockReset();
