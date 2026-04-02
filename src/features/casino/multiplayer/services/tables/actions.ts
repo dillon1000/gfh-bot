@@ -277,4 +277,7 @@ export const advanceCasinoTableTimeout = async (
   advanceTimeoutInternal(performCasinoTableAction, async (id) => {
     const { getCasinoTable } = await import('./queries.js');
     return getCasinoTable(id);
+  }, async (id) => {
+    const { chooseCasinoBotAction } = await import('../../bots/services/actions.js');
+    return chooseCasinoBotAction(id);
   }, tableId);
