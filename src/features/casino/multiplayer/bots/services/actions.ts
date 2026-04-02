@@ -77,6 +77,12 @@ export const performCasinoBotTurn = async (
   _client: Client,
   tableId: string,
 ): Promise<void> => {
+  const currentTable = await getCasinoTable(tableId);
+  if (currentTable?.actionDeadlineAt && currentTable.actionDeadlineAt.getTime() <= Date.now()) {
+    logger.debug({ tableId }, 'Skipping casino bot action because the deadline already expired');
+    return;
+  }
+
   const decision = await chooseCasinoBotAction(tableId);
   const latest = !decision ? await getCasinoTable(tableId) : null;
   const fallbackDecision = !decision && latest ? buildSafeHoldemBotFallbackAction(latest) : null;

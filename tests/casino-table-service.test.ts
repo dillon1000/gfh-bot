@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CasinoTableSummary } from '../src/features/casino/core/types.js';
 
@@ -220,6 +220,7 @@ const createHoldemTable = (input: {
   seats: Array<ReturnType<typeof createSeat>>;
   state?: CasinoTableSummary['state'];
   status?: 'lobby' | 'active';
+  actionDeadlineAt?: Date | null;
 }): CasinoTableSummary => ({
   id: input.id ?? 'table_1',
   guildId: 'guild_1',
@@ -238,7 +239,7 @@ const createHoldemTable = (input: {
   defaultBuyIn: 100,
   currentHandNumber: input.state ? Number(input.state.handNumber ?? 1) : 0,
   actionTimeoutSeconds: 30,
-  actionDeadlineAt: null,
+  actionDeadlineAt: input.actionDeadlineAt ?? null,
   noHumanDeadlineAt: null,
   lobbyExpiresAt: baseDate,
   state: input.state ?? null,
@@ -293,6 +294,10 @@ describe('casino table service', () => {
     transaction.casinoUserStat.create.mockClear();
     ensureEconomyAccountTx.mockClear();
     getEffectiveEconomyAccountPreview.mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('uses dealer-small-blind order in heads-up Holdem', async () => {
@@ -468,6 +473,70 @@ describe('casino table service', () => {
       action: 'holdem_raise',
       amount: 20,
     })).rejects.toThrow('Minimum raise is 10 points.');
+  });
+
+  it('rejects holdem actions after the action deadline passes', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(baseDate);
+    putAccounts(
+      createAccount('user_1'),
+      createAccount('user_2'),
+    );
+    putTable(createHoldemTable({
+      status: 'active',
+      actionDeadlineAt: new Date(baseDate.getTime() - 1_000),
+      state: {
+        kind: 'multiplayer-holdem',
+        handNumber: 1,
+        deck: [],
+        communityCards: [],
+        dealerSeatIndex: 0,
+        actingSeatIndex: 0,
+        street: 'preflop',
+        pot: 10,
+        currentBet: 10,
+        minRaise: 10,
+        players: [
+          {
+            userId: 'user_1',
+            seatIndex: 0,
+            holeCards: [],
+            folded: false,
+            allIn: false,
+            stack: 100,
+            committedThisRound: 0,
+            totalCommitted: 0,
+            actedThisRound: false,
+            lastAction: null,
+          },
+          {
+            userId: 'user_2',
+            seatIndex: 1,
+            holeCards: [],
+            folded: false,
+            allIn: false,
+            stack: 100,
+            committedThisRound: 10,
+            totalCommitted: 10,
+            actedThisRound: false,
+            lastAction: 'call',
+          },
+        ],
+        sidePots: [],
+        actionDeadlineAt: new Date(baseDate.getTime() - 1_000).toISOString(),
+        completedAt: null,
+      },
+      seats: [
+        createSeat({ id: 'seat_1', userId: 'user_1', seatIndex: 0, stack: 100 }),
+        createSeat({ id: 'seat_2', userId: 'user_2', seatIndex: 1, stack: 100 }),
+      ],
+    }));
+
+    await expect(performCasinoTableAction({
+      tableId: 'table_1',
+      userId: 'user_1',
+      action: 'holdem_call',
+    })).rejects.toThrow('That action window has expired.');
   });
 
   it('distributes the full side pot when a tied showdown leaves remainder cents', async () => {

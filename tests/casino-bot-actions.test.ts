@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   chooseBlackjackBotDecision,
@@ -51,6 +51,10 @@ describe('casino bot actions', () => {
     logger.debug.mockReset();
     logger.warn.mockReset();
     performCasinoTableAction.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('acts immediately once a queued bot job starts running', async () => {
@@ -107,6 +111,23 @@ describe('casino bot actions', () => {
     timeoutSpy.mockRestore();
   });
 
+  it('skips a queued bot action once the action deadline has already expired', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2099-03-29T00:00:00.000Z'));
+    getCasinoTable.mockResolvedValue({
+      actionDeadlineAt: new Date('2099-03-28T23:59:59.000Z'),
+    });
+
+    await performCasinoBotTurn({} as never, 'table_1');
+
+    expect(chooseHoldemBotDecision).not.toHaveBeenCalled();
+    expect(performCasinoTableAction).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalledWith(
+      { tableId: 'table_1' },
+      'Skipping casino bot action because the deadline already expired',
+    );
+  });
+
   it('falls back to a safe holdem action when a bot decision is rejected', async () => {
     const table = {
       id: 'table_1',
@@ -148,7 +169,7 @@ describe('casino bot actions', () => {
       },
     };
 
-    getCasinoTable.mockResolvedValueOnce(table).mockResolvedValueOnce(table);
+    getCasinoTable.mockResolvedValue(table);
     chooseHoldemBotDecision.mockReturnValue({ action: 'holdem_raise', amount: 25 });
     performCasinoTableAction
       .mockRejectedValueOnce(new Error('Minimum raise is 20 points.'))

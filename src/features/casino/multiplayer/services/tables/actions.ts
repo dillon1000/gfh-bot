@@ -32,8 +32,11 @@ import {
   settleCompletedHoldemState,
 } from './settlement.js';
 
-export const performCasinoTableAction = async (
+const performCasinoTableActionInternal = async (
   input: TableActionInput,
+  options: {
+    allowExpiredAction?: boolean;
+  } = {},
 ): Promise<CasinoTableSummary> =>
   withTableLock(input.tableId, async () =>
     runSerializableTransaction(async (tx) => {
@@ -50,6 +53,9 @@ export const performCasinoTableAction = async (
       const state = summary.state;
       if (!state || state.completedAt !== null) {
         throw new Error('That table does not have a hand in progress.');
+      }
+      if (!options.allowExpiredAction && summary.actionDeadlineAt && summary.actionDeadlineAt.getTime() <= Date.now()) {
+        throw new Error('That action window has expired.');
       }
 
       if (state.kind === 'multiplayer-blackjack') {
@@ -271,10 +277,22 @@ export const performCasinoTableAction = async (
       return toTableSummary(updated);
     }));
 
+export const performCasinoTableAction = async (
+  input: TableActionInput,
+): Promise<CasinoTableSummary> =>
+  performCasinoTableActionInternal(input);
+
+export const performCasinoTableTimeoutAction = async (
+  input: TableActionInput,
+): Promise<CasinoTableSummary> =>
+  performCasinoTableActionInternal(input, {
+    allowExpiredAction: true,
+  });
+
 export const advanceCasinoTableTimeout = async (
   tableId: string,
 ): Promise<CasinoTableSummary | null> =>
-  advanceTimeoutInternal(performCasinoTableAction, async (id) => {
+  advanceTimeoutInternal(performCasinoTableTimeoutAction, async (id) => {
     const { getCasinoTable } = await import('./queries.js');
     return getCasinoTable(id);
   }, async (id) => {
