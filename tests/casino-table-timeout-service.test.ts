@@ -132,6 +132,53 @@ describe('casino table timeout service', () => {
     });
   });
 
+  it('falls back to calling instead of folding when a holdem bot has no timeout decision', async () => {
+    const performCasinoTableAction = vi.fn().mockResolvedValue({ id: 'updated' });
+    const chooseCasinoBotAction = vi.fn().mockResolvedValue(null);
+
+    await advanceCasinoTableTimeout(
+      performCasinoTableAction,
+      async () => createTimedOutHoldemTable({
+        actingUserId: 'bot:1',
+        isBot: true,
+        currentBet: 20,
+        committedThisRound: 10,
+      }),
+      chooseCasinoBotAction,
+      'table_1',
+    );
+
+    expect(chooseCasinoBotAction).toHaveBeenCalledWith('table_1');
+    expect(performCasinoTableAction).toHaveBeenCalledWith({
+      tableId: 'table_1',
+      userId: 'bot:1',
+      action: 'holdem_call',
+    });
+  });
+
+  it('falls back to checking when a holdem bot has no timeout decision and nothing to call', async () => {
+    const performCasinoTableAction = vi.fn().mockResolvedValue({ id: 'updated' });
+    const chooseCasinoBotAction = vi.fn().mockResolvedValue(null);
+
+    await advanceCasinoTableTimeout(
+      performCasinoTableAction,
+      async () => createTimedOutHoldemTable({
+        actingUserId: 'bot:1',
+        isBot: true,
+        currentBet: 10,
+        committedThisRound: 10,
+      }),
+      chooseCasinoBotAction,
+      'table_1',
+    );
+
+    expect(performCasinoTableAction).toHaveBeenCalledWith({
+      tableId: 'table_1',
+      userId: 'bot:1',
+      action: 'holdem_check',
+    });
+  });
+
   it('keeps the human fallback timeout action for non-bot holdem seats', async () => {
     const performCasinoTableAction = vi.fn().mockResolvedValue({ id: 'updated' });
     const chooseCasinoBotAction = vi.fn();
