@@ -1,4 +1,7 @@
 import { AttachmentBuilder } from 'discord.js';
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   createCanvas,
@@ -26,14 +29,35 @@ const success = '#68d89c';
 const danger = '#de7b7b';
 const centerShiftY = 42;
 
-const assetPath = (relativePath: string): string =>
-  fileURLToPath(new URL(`../../../../../assets/cardtableAssets/${relativePath}`, import.meta.url));
+type LoadedImage = Awaited<ReturnType<typeof loadImage>>;
+
+export const resolveCardTableAssetPath = (
+  relativePath: string,
+  moduleUrl: string = import.meta.url,
+): string => {
+  const candidates = [
+    resolve(process.cwd(), 'assets', 'cardtableAssets', relativePath),
+    fileURLToPath(new URL(`../../../../../assets/cardtableAssets/${relativePath}`, moduleUrl)),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return candidates[0]!;
+};
+
+const assetPath = (relativePath: string): string => resolveCardTableAssetPath(relativePath);
 
 const feltTablePath = assetPath('feltTable.jpg');
 const roundTableIconPath = assetPath('icons/round-table.png');
 const coinsIconPath = assetPath('icons/coins.png');
 const playerBaseIconPath = assetPath('icons/player-base.png');
 const playerTimeIconPath = assetPath('icons/player-time.png');
+
+const imageCache = new Map<string, Promise<LoadedImage>>();
 
 type DiagramPayload = {
   attachment: AttachmentBuilder;
@@ -127,8 +151,19 @@ const drawRoundedRect = (
   context.closePath();
 };
 
-const loadTintedIcon = async (file: string, size: number, tint: string) => {
-  const icon = await loadImage(file);
+const loadCachedImage = (file: string): Promise<LoadedImage> => {
+  const cached = imageCache.get(file);
+  if (cached) {
+    return cached;
+  }
+
+  const pending = readFile(file).then((buffer) => loadImage(buffer));
+  imageCache.set(file, pending);
+  return pending;
+};
+
+const createTintedIcon = async (file: string, size: number, tint: string) => {
+  const icon = await loadCachedImage(file);
   const canvas = createCanvas(size, size);
   const context = canvas.getContext('2d');
   context.drawImage(icon, 0, 0, size, size);
@@ -137,6 +172,23 @@ const loadTintedIcon = async (file: string, size: number, tint: string) => {
   context.fillRect(0, 0, size, size);
   context.globalCompositeOperation = 'source-over';
   return canvas;
+};
+
+type RenderCanvas = Awaited<ReturnType<typeof createTintedIcon>>;
+
+const tintedIconCache = new Map<string, Promise<RenderCanvas>>();
+
+const loadTintedIcon = async (file: string, size: number, tint: string): Promise<RenderCanvas> => {
+  const cacheKey = `${file}:${size}:${tint}`;
+  const cached = tintedIconCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const pending = createTintedIcon(file, size, tint);
+
+  tintedIconCache.set(cacheKey, pending);
+  return pending;
 };
 
 const buildSeatVisual = (
@@ -300,8 +352,8 @@ const drawSeatPanel = (
   table: CasinoTableSummary,
   state: MultiplayerHoldemState | null,
   seatIndex: number,
-  playerBaseIcon: Awaited<ReturnType<typeof loadTintedIcon>>,
-  playerTimeIcon: Awaited<ReturnType<typeof loadTintedIcon>>,
+  playerBaseIcon: RenderCanvas,
+  playerTimeIcon: RenderCanvas,
 ): void => {
   const seat = table.seats.find((entry) => entry.status === 'seated' && entry.seatIndex === seatIndex) ?? null;
   const position = seatPositions[seatIndex] ?? { x: 0, y: 0 };
@@ -524,9 +576,9 @@ const drawBlackjackSeatPanel = (
   table: CasinoTableSummary,
   state: MultiplayerBlackjackState | null,
   seatIndex: number,
-  playerBaseIcon: Awaited<ReturnType<typeof loadTintedIcon>>,
-  playerTimeIcon: Awaited<ReturnType<typeof loadTintedIcon>>,
-  cardImages: Map<string, Awaited<ReturnType<typeof loadImage>>>,
+  playerBaseIcon: RenderCanvas,
+  playerTimeIcon: RenderCanvas,
+  cardImages: Map<string, LoadedImage>,
 ): void => {
   const seat = table.seats.find((entry) => entry.status === 'seated' && entry.seatIndex === seatIndex) ?? null;
   const position = seatPositions[seatIndex] ?? { x: 0, y: 0 };
@@ -645,12 +697,12 @@ export const buildHoldemTableDiagram = async (table: CasinoTableSummary): Promis
     playerTimeIcon,
     ...communityCardImages
   ] = await Promise.all([
-    loadImage(feltTablePath),
-    loadImage(roundTableIconPath),
-    loadImage(coinsIconPath),
+    loadCachedImage(feltTablePath),
+    loadCachedImage(roundTableIconPath),
+    loadCachedImage(coinsIconPath),
     loadTintedIcon(playerBaseIconPath, 34, text),
     loadTintedIcon(playerTimeIconPath, 34, active),
-    ...((state?.communityCards ?? []).map((card) => loadImage(cardAssetPath(card)))),
+    ...((state?.communityCards ?? []).map((card) => loadCachedImage(cardAssetPath(card)))),
   ]);
 
   context.drawImage(feltTable, 0, 0, width, height);
@@ -802,12 +854,12 @@ export const buildBlackjackTableDiagram = async (table: CasinoTableSummary): Pro
     playerTimeIcon,
     ...loadedCardImages
   ] = await Promise.all([
-    loadImage(feltTablePath),
-    loadImage(roundTableIconPath),
-    loadImage(coinsIconPath),
+    loadCachedImage(feltTablePath),
+    loadCachedImage(roundTableIconPath),
+    loadCachedImage(coinsIconPath),
     loadTintedIcon(playerBaseIconPath, 34, text),
     loadTintedIcon(playerTimeIconPath, 34, active),
-    ...uniqueCardPaths.map((path) => loadImage(path)),
+    ...uniqueCardPaths.map((path) => loadCachedImage(path)),
   ]);
   const cardImages = new Map(uniqueCardPaths.map((path, index) => [path, loadedCardImages[index]!]));
 

@@ -179,6 +179,41 @@ describe('casino table timeout service', () => {
     });
   });
 
+  it('falls back to a safe call when the chosen bot timeout action is invalid', async () => {
+    const performCasinoTableAction = vi.fn()
+      .mockRejectedValueOnce(new Error('Minimum raise is 10 points.'))
+      .mockResolvedValueOnce({ id: 'updated' });
+    const chooseCasinoBotAction = vi.fn().mockResolvedValue({
+      userId: 'bot:1',
+      action: 'holdem_raise',
+      amount: 25,
+    });
+
+    await advanceCasinoTableTimeout(
+      performCasinoTableAction,
+      async () => createTimedOutHoldemTable({
+        actingUserId: 'bot:1',
+        isBot: true,
+        currentBet: 20,
+        committedThisRound: 10,
+      }),
+      chooseCasinoBotAction,
+      'table_1',
+    );
+
+    expect(performCasinoTableAction).toHaveBeenNthCalledWith(1, {
+      tableId: 'table_1',
+      userId: 'bot:1',
+      action: 'holdem_raise',
+      amount: 25,
+    });
+    expect(performCasinoTableAction).toHaveBeenNthCalledWith(2, {
+      tableId: 'table_1',
+      userId: 'bot:1',
+      action: 'holdem_call',
+    });
+  });
+
   it('keeps the human fallback timeout action for non-bot holdem seats', async () => {
     const performCasinoTableAction = vi.fn().mockResolvedValue({ id: 'updated' });
     const chooseCasinoBotAction = vi.fn();

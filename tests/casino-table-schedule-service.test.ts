@@ -154,6 +154,18 @@ describe('casino table schedule service', () => {
     }));
     expect(casinoTableBotActionQueue.add.mock.calls[0]?.[2]).toEqual(expect.objectContaining({
       delay: 1_000,
+      attempts: 12,
+      backoff: {
+        type: 'fixed',
+        delay: 250,
+      },
+    }));
+    expect(casinoTableTimeoutQueue.add.mock.calls[0]?.[2]).toEqual(expect.objectContaining({
+      attempts: 20,
+      backoff: {
+        type: 'fixed',
+        delay: 500,
+      },
     }));
   });
 

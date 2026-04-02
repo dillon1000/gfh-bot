@@ -9,6 +9,10 @@ import { listTimedCasinoTables } from './tables/queries.js';
 const minimumBotActionDelayMs = 1_000;
 const botActionDelayRangeMs = 1_500;
 const botActionDeadlineSafetyBufferMs = 1_000;
+const botActionJobAttempts = 12;
+const botActionRetryDelayMs = 250;
+const timeoutJobAttempts = 20;
+const timeoutRetryDelayMs = 500;
 
 const encodeJobKey = (prefix: string, tableId: string): string =>
   `${prefix}-${Buffer.from(tableId).toString('base64url')}`;
@@ -61,6 +65,11 @@ export const scheduleCasinoTableTimeout = async (
   await casinoTableTimeoutQueue.add('timeout', { tableId }, {
     jobId: getTimeoutJobId(tableId),
     delay,
+    attempts: timeoutJobAttempts,
+    backoff: {
+      type: 'fixed',
+      delay: timeoutRetryDelayMs,
+    },
   });
 };
 
@@ -75,6 +84,11 @@ export const scheduleCasinoBotAction = async (
   await casinoTableBotActionQueue.add('act', { tableId }, {
     jobId: getBotActionJobId(tableId),
     delay: getBotActionDelayMs(deadlineAt),
+    attempts: botActionJobAttempts,
+    backoff: {
+      type: 'fixed',
+      delay: botActionRetryDelayMs,
+    },
   });
 };
 

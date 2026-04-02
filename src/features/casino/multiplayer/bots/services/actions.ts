@@ -9,6 +9,7 @@ import type {
 } from '../../../core/types.js';
 import { chooseBlackjackBotDecision } from '../engines/blackjack.js';
 import { chooseHoldemBotDecision } from '../engines/holdem.js';
+import { buildSafeHoldemBotFallbackAction } from './fallback.js';
 import { getCasinoTable } from '../../services/tables/queries.js';
 import { performCasinoTableAction } from '../../services/tables/actions.js';
 
@@ -77,15 +78,42 @@ export const performCasinoBotTurn = async (
   tableId: string,
 ): Promise<void> => {
   const decision = await chooseCasinoBotAction(tableId);
-  if (!decision) {
+  const latest = !decision ? await getCasinoTable(tableId) : null;
+  const fallbackDecision = !decision && latest ? buildSafeHoldemBotFallbackAction(latest) : null;
+  const action = decision ?? fallbackDecision;
+
+  if (!action) {
     return;
   }
 
-  logger.debug({ tableId, userId: decision.userId, action: decision.action }, 'Running casino bot turn');
-  await performCasinoTableAction({
-    tableId,
-    userId: decision.userId,
-    action: decision.action,
-    ...('amount' in decision ? { amount: decision.amount } : {}),
-  });
+  logger.debug({ tableId, userId: action.userId, action: action.action }, 'Running casino bot turn');
+
+  try {
+    await performCasinoTableAction({
+      tableId,
+      userId: action.userId,
+      action: action.action,
+      ...('amount' in action ? { amount: action.amount } : {}),
+    });
+  } catch (error) {
+    const refreshed = await getCasinoTable(tableId);
+    const fallback = refreshed ? buildSafeHoldemBotFallbackAction(refreshed) : null;
+
+    if (!fallback || fallback.userId !== action.userId) {
+      logger.debug(
+        { err: error, tableId, userId: action.userId, action: action.action },
+        'Skipping stale casino bot action after state changed',
+      );
+      return;
+    }
+
+    logger.warn(
+      { err: error, tableId, userId: action.userId, action: action.action, fallbackAction: fallback.action },
+      'Casino bot decision failed; falling back to a safe Holdem action',
+    );
+    await performCasinoTableAction({
+      tableId,
+      ...fallback,
+    });
+  }
 };

@@ -25,6 +25,7 @@ import {
   syncHoldemSeatsTx,
   type TableActionInput,
 } from './shared.js';
+import { buildSafeHoldemBotFallbackAction } from '../../bots/services/fallback.js';
 
 export const finishBlackjackState = async (
   tx: Prisma.TransactionClient,
@@ -430,10 +431,23 @@ export const advanceCasinoTableTimeout = async (
   if (isActingBot && chooseCasinoBotAction) {
     const decision = await chooseCasinoBotAction(tableId);
     if (decision) {
-      return performCasinoTableAction({
-        tableId,
-        ...decision,
-      });
+      try {
+        return await performCasinoTableAction({
+          tableId,
+          ...decision,
+        });
+      } catch {
+        const latest = await getCasinoTable(tableId);
+        const fallback = latest ? buildSafeHoldemBotFallbackAction(latest) : null;
+        if (!fallback || fallback.userId !== actor.userId) {
+          return latest;
+        }
+
+        return performCasinoTableAction({
+          tableId,
+          ...fallback,
+        });
+      }
     }
 
     return performCasinoTableAction({
