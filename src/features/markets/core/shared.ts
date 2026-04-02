@@ -142,6 +142,17 @@ export const assertMarketEditable = (market: MarketWithRelations, actorId: strin
   }
 };
 
+export const assertMarketCanAddOutcomes = (
+  market: MarketWithRelations,
+  actorId: string,
+): void => {
+  if (market.creatorId !== actorId) {
+    throw new Error('Only the market creator can add outcomes.');
+  }
+
+  assertMarketOpen(market);
+};
+
 export const assertMarketOpen = (market: MarketWithRelations): void => {
   if (market.cancelledAt) {
     throw new Error('This market has been cancelled.');

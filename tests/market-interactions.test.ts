@@ -10,6 +10,7 @@ const {
   deleteMarketRecord,
   scheduleMarketClose,
   clearMarketJobs,
+  appendMarketOutcomes,
   editMarketRecord,
   listMarkets,
   getMarketLeaderboard,
@@ -43,6 +44,7 @@ const {
   deleteMarketRecord: vi.fn(),
   scheduleMarketClose: vi.fn(),
   clearMarketJobs: vi.fn(),
+  appendMarketOutcomes: vi.fn(),
   editMarketRecord: vi.fn(),
   listMarkets: vi.fn(),
   getMarketLeaderboard: vi.fn(),
@@ -100,6 +102,7 @@ vi.mock('../src/features/markets/services/forecast/queries.js', () => ({
 vi.mock('../src/features/markets/services/records.js', () => ({
   createMarketRecord,
   deleteMarketRecord,
+  appendMarketOutcomes,
   editMarketRecord,
   listMarkets,
   getMarketByQuery,
@@ -284,6 +287,7 @@ describe('market interactions', () => {
     hydrateMarketMessage.mockReset();
     scheduleMarketClose.mockReset();
     clearMarketJobs.mockReset();
+    appendMarketOutcomes.mockReset();
     editMarketRecord.mockReset();
     listMarkets.mockReset();
     getMarketLeaderboard.mockReset();
@@ -310,6 +314,25 @@ describe('market interactions', () => {
       channelId: 'market_channel_1',
     });
     createMarketRecord.mockResolvedValue(baseMarket);
+    appendMarketOutcomes.mockResolvedValue({
+      ...baseMarket,
+      outcomes: [
+        ...baseMarket.outcomes,
+        {
+          id: 'outcome_maybe',
+          marketId: 'market_1',
+          label: 'Maybe',
+          sortOrder: 2,
+          outstandingShares: 0,
+          settlementValue: null,
+          resolvedAt: null,
+          resolvedByUserId: null,
+          resolutionNote: null,
+          resolutionEvidenceUrl: null,
+          createdAt: new Date('2099-03-29T00:00:00.000Z'),
+        },
+      ],
+    });
     hydrateMarketMessage.mockResolvedValue({
       messageId: 'message_market_1',
       url: 'https://discord.com/channels/guild_1/market_channel_1/message_market_1',
@@ -536,6 +559,26 @@ describe('market interactions', () => {
       note: 'Eliminated in the semifinal.',
       evidenceUrl: 'https://example.com/game',
     }));
+    expect(refreshMarketMessage).toHaveBeenCalledWith({}, 'market_1');
+    expect(interaction.editReply).toHaveBeenCalledWith(expect.objectContaining({
+      embeds: expect.any(Array),
+    }));
+  });
+
+  it('appends outcomes to an open market without resetting existing trades', async () => {
+    const interaction = createInteraction({
+      subcommand: 'add-outcomes',
+      strings: {
+        query: 'market_1',
+        outcomes: 'Maybe',
+      },
+    });
+
+    getMarketByQuery.mockResolvedValue(baseMarket);
+
+    await handleMarketCommand({} as never, interaction as never);
+
+    expect(appendMarketOutcomes).toHaveBeenCalledWith('market_1', 'user_1', ['Maybe']);
     expect(refreshMarketMessage).toHaveBeenCalledWith({}, 'market_1');
     expect(interaction.editReply).toHaveBeenCalledWith(expect.objectContaining({
       embeds: expect.any(Array),

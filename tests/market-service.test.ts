@@ -92,6 +92,7 @@ let executeMarketTrade: typeof import('../src/features/markets/services/trading/
 let grantMarketBankroll: typeof import('../src/features/markets/services/account.js').grantMarketBankroll;
 let getMarketForecastLeaderboard: typeof import('../src/features/markets/services/forecast/queries.js').getMarketForecastLeaderboard;
 let getMarketForecastProfile: typeof import('../src/features/markets/services/forecast/queries.js').getMarketForecastProfile;
+let appendMarketOutcomes: typeof import('../src/features/markets/services/records.js').appendMarketOutcomes;
 let resolveMarket: typeof import('../src/features/markets/services/trading/resolution.js').resolveMarket;
 let resolveMarketOutcome: typeof import('../src/features/markets/services/trading/resolution.js').resolveMarketOutcome;
 let summarizeMarketTraders: typeof import('../src/features/markets/services/records.js').summarizeMarketTraders;
@@ -214,6 +215,7 @@ describe('market service', () => {
       grantMarketBankroll,
     } = await import('../src/features/markets/services/account.js'));
     ({
+      appendMarketOutcomes,
       summarizeMarketTraders,
     } = await import('../src/features/markets/services/records.js'));
   });
@@ -334,6 +336,61 @@ describe('market service', () => {
       }),
     );
     expect(result.outcome.settlementValue).toBe(0);
+  });
+
+  it('appends outcomes to an open market without disturbing existing outcomes', async () => {
+    const updatedMarket = {
+      ...market,
+      outcomes: [
+        ...market.outcomes,
+        {
+          id: 'outcome_maybe',
+          marketId: 'market_1',
+          label: 'Maybe',
+          sortOrder: 2,
+          outstandingShares: 0,
+          settlementValue: null,
+          resolvedAt: null,
+          resolvedByUserId: null,
+          resolutionNote: null,
+          resolutionEvidenceUrl: null,
+          createdAt: new Date('2099-03-29T00:00:00.000Z'),
+        },
+      ],
+    };
+
+    runTransaction();
+    transaction.market.update.mockResolvedValueOnce(updatedMarket);
+    transaction.market.findUniqueOrThrow.mockResolvedValueOnce(updatedMarket);
+
+    const result = await appendMarketOutcomes('market_1', 'user_1', ['Maybe']);
+
+    expect(transaction.market.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        id: 'market_1',
+      },
+      data: {
+        outcomes: {
+          create: [
+            {
+              label: 'Maybe',
+              sortOrder: 2,
+            },
+          ],
+        },
+      },
+    }));
+    expect(result.outcomes.map((outcome) => outcome.label)).toEqual(['Yes', 'No', 'Maybe']);
+  });
+
+  it('rejects appending an outcome label that already exists', async () => {
+    runTransaction();
+
+    await expect(appendMarketOutcomes('market_1', 'user_1', ['yes'])).rejects.toThrow(
+      'Outcome "yes" already exists in this market.',
+    );
+
+    expect(transaction.market.update).not.toHaveBeenCalled();
   });
 
   it('summarizes market traders by outgoing spend and trade count', () => {

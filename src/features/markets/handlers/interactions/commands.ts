@@ -27,6 +27,7 @@ import {
   getMarketForecastProfile,
 } from '../../services/forecast/queries.js';
 import {
+  appendMarketOutcomes,
   createMarketRecord,
   deleteMarketRecord,
   editMarketRecord,
@@ -46,6 +47,7 @@ import {
   resolveMarketOutcome,
 } from '../../services/trading/resolution.js';
 import {
+  parseAdditionalMarketOutcomes,
   parseMarketOutcomes,
   parseMarketTags,
   parseOutcomeSelection,
@@ -161,6 +163,30 @@ export const handleMarketCommand = async (
         allowedMentions: {
           parse: [],
         },
+      });
+      return;
+    }
+    case 'add-outcomes': {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const market = await getMarketByQuery(interaction.options.getString('query', true), interaction.guildId);
+      if (!market) {
+        throw new Error('Market not found.');
+      }
+
+      const updated = await appendMarketOutcomes(
+        market.id,
+        interaction.user.id,
+        parseAdditionalMarketOutcomes(interaction.options.getString('outcomes', true)),
+      );
+      await refreshMarketMessage(client, updated.id);
+      await interaction.editReply({
+        embeds: [
+          buildMarketStatusEmbed(
+            'Outcomes Added',
+            `Added ${updated.outcomes.length - market.outcomes.length} outcome${updated.outcomes.length - market.outcomes.length === 1 ? '' : 's'} to **${updated.title}**.`,
+            0x57f287,
+          ),
+        ],
       });
       return;
     }

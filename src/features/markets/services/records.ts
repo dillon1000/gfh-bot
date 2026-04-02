@@ -3,6 +3,7 @@ import { type Market } from '@prisma/client';
 import { prisma } from '../../../lib/prisma.js';
 import { parseMarketLookup } from '../parsing/market.js';
 import {
+  assertMarketCanAddOutcomes,
   assertMarketEditable,
   getMarketForUpdate,
   liquidityParameter,
@@ -177,6 +178,61 @@ export const editMarketRecord = async (
         },
       });
     }
+
+    return tx.market.findUniqueOrThrow({
+      where: {
+        id: marketId,
+      },
+      include: marketInclude,
+    });
+  });
+
+export const appendMarketOutcomes = async (
+  marketId: string,
+  actorId: string,
+  outcomes: string[],
+): Promise<MarketWithRelations> =>
+  prisma.$transaction(async (tx) => {
+    const market = await getMarketForUpdate(tx, marketId);
+    if (!market) {
+      throw new Error('Market not found.');
+    }
+
+    assertMarketCanAddOutcomes(market, actorId);
+
+    const normalizedLabels = new Set<string>();
+    for (const outcome of market.outcomes) {
+      normalizedLabels.add(outcome.label.trim().toLowerCase());
+    }
+
+    const nextOutcomes: string[] = [];
+    for (const label of outcomes) {
+      const normalized = label.trim().toLowerCase();
+      if (normalizedLabels.has(normalized)) {
+        throw new Error(`Outcome "${label}" already exists in this market.`);
+      }
+
+      normalizedLabels.add(normalized);
+      nextOutcomes.push(label);
+    }
+
+    if ((market.outcomes.length + nextOutcomes.length) > 5) {
+      throw new Error('Markets can have at most 5 outcomes.');
+    }
+
+    await tx.market.update({
+      where: {
+        id: marketId,
+      },
+      data: {
+        outcomes: {
+          create: nextOutcomes.map((label, index) => ({
+            label,
+            sortOrder: market.outcomes.length + index,
+          })),
+        },
+      },
+    });
 
     return tx.market.findUniqueOrThrow({
       where: {

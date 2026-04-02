@@ -107,6 +107,23 @@ export const marketCommand = new SlashCommandBuilder()
   )
   .addSubcommand((subcommand) =>
     subcommand
+      .setName('add-outcomes')
+      .setDescription('Append new outcomes to an open market without resetting trades.')
+      .addStringOption((option) =>
+        option
+          .setName('query')
+          .setDescription('Market ID, message ID, or message link')
+          .setRequired(true),
+      )
+      .addStringOption((option) =>
+        option
+          .setName('outcomes')
+          .setDescription('Comma-separated outcomes to append')
+          .setRequired(true),
+      ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
       .setName('view')
       .setDescription('Show a market by ID or message link.')
       .addStringOption((option) =>

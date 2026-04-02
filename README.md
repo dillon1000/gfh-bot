@@ -124,6 +124,7 @@ docker compose --profile autoupdate up -d
 - `/market create title:... outcomes:... close:24h description:... tags:...`
 - `/market create title:... outcomes:... close:"April 6 2026 10:00pm CDT" description:... tags:...`
 - `/market edit query:... title:... outcomes:... close:... description:... tags:...`
+- `/market add-outcomes query:... outcomes:...`
 - `/market view query:<message link|message id|market id>`
 - `/market list status:open creator:@user tag:meta`
 - `/market trade query:... action:buy outcome:1 amount:50`

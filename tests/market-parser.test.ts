@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseMarketCloseAt, parseMarketCloseDuration } from '../src/features/markets/parsing/close.js';
-import { parseFlexibleTradeAmount, parseTradeAmount } from '../src/features/markets/parsing/market.js';
+import {
+  parseAdditionalMarketOutcomes,
+  parseFlexibleTradeAmount,
+  parseTradeAmount,
+} from '../src/features/markets/parsing/market.js';
 
 describe('market parser', () => {
   it('uses market-specific validation for short durations', () => {
@@ -53,6 +57,14 @@ describe('market parser', () => {
       'February 30 2026 10:00pm CDT',
       new Date('2026-02-01T12:00:00.000Z'),
     )).toThrow('Could not parse market close time.');
+  });
+
+  it('parses a single appended market outcome', () => {
+    expect(parseAdditionalMarketOutcomes('Maybe')).toEqual(['Maybe']);
+  });
+
+  it('rejects empty appended market outcome input', () => {
+    expect(() => parseAdditionalMarketOutcomes(' , , ')).toThrow('Add at least one outcome.');
   });
 
   it('parses flexible trade amounts expressed in shares', () => {
