@@ -23,7 +23,7 @@ vi.mock('../src/features/audit-log/services/config.js', () => ({
   ),
 }));
 
-vi.mock('../src/features/audit-log/services/events.js', () => ({
+vi.mock('../src/features/audit-log/services/events/delivery.js', () => ({
   recordAuditLogEvent,
 }));
 

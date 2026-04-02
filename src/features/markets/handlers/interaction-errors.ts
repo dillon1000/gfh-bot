@@ -7,7 +7,7 @@ import {
 } from 'discord.js';
 
 import { logger } from '../../../app/logger.js';
-import { buildMarketStatusEmbed } from '../ui/render.js';
+import { buildMarketStatusEmbed } from '../ui/render/market.js';
 
 export const handleMarketInteractionError = async (
   interaction:

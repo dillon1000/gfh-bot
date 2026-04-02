@@ -4,7 +4,7 @@ import type { Client } from 'discord.js';
 import { logger } from '../../../app/logger.js';
 import { removalVoteStartQueueName } from '../../../lib/queue.js';
 import { getBullConnectionOptions } from '../../../lib/redis.js';
-import { attemptRemovalVoteStart } from '../services/removals.js';
+import { attemptRemovalVoteStart } from '../services/removals/start.js';
 
 export const startRemovalVoteWorker = (client: Client): Worker<{ requestId: string }, void, 'start'> => {
   const worker = new Worker<{ requestId: string }, void, 'start'>(

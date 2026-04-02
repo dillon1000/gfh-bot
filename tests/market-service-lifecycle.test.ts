@@ -43,7 +43,7 @@ vi.mock('../src/lib/prisma.js', () => ({
   },
 }));
 
-vi.mock('../src/features/markets/ui/render.js', () => ({
+vi.mock('../src/features/markets/ui/render/market.js', () => ({
   buildMarketMessage,
   buildMarketEmbed: vi.fn(),
   buildMarketResolvePrompt: vi.fn(),
@@ -62,7 +62,7 @@ vi.mock('../src/features/markets/services/scheduler.js', () => ({
   scheduleMarketGrace: vi.fn(),
 }));
 
-vi.mock('../src/features/markets/services/trading.js', () => ({
+vi.mock('../src/features/markets/services/trading/close.js', () => ({
   closeMarketTrading: vi.fn(),
 }));
 

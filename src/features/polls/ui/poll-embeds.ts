@@ -38,16 +38,6 @@ const buildVoterMentionsByOption = (poll: PollWithRelations): Map<string, string
 const buildUniqueVoterMentions = (poll: PollWithRelations): string[] =>
   [...new Set(poll.votes.map((vote) => vote.userId))].map((userId) => `<@${userId}>`);
 
-export const buildFeedbackEmbed = (
-  title: string,
-  description: string,
-  color = 0x5eead4,
-): EmbedBuilder =>
-  new EmbedBuilder()
-    .setTitle(title)
-    .setDescription(description)
-    .setColor(color);
-
 const renderPollChoiceLine = (choice: PollComputedResults['choices'][number], index: number): string =>
   renderChoiceLine(choice, index, renderPollBar, getPollChoiceEmojiDisplay);
 

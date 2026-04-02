@@ -143,7 +143,7 @@ export const buildPollBuilderModal = (
         .setPlaceholder('Examples: ✅, ❌ or <:yes:123>, <:no:456>')
         .setMaxLength(500);
       break;
-    case 'time':
+    case 'time': {
       input
         .setCustomId('duration')
         .setLabel('Duration')
@@ -167,6 +167,7 @@ export const buildPollBuilderModal = (
           new ActionRowBuilder<TextInputBuilder>().addComponents(input),
           new ActionRowBuilder<TextInputBuilder>().addComponents(remindersInput),
         );
+    }
     case 'pass-rule': {
       const thresholdInput = new TextInputBuilder()
         .setCustomId('threshold')

@@ -10,7 +10,7 @@ import {
   type APIModalInteractionResponseCallbackData,
 } from 'discord.js';
 
-import { buildFeedbackEmbed } from '../../polls/ui/poll-embeds.js';
+import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
 import type { EmojiDraft } from '../state/drafts.js';
 
 export const emojiBuilderButtonCustomId = (

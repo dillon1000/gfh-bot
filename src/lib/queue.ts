@@ -1,5 +1,6 @@
 import { Queue } from 'bullmq';
 
+import { createLazyProxy } from './lazy.js';
 import { getBullConnectionOptions } from './redis.js';
 
 export const pollCloseQueueName = 'poll-close';
@@ -12,74 +13,59 @@ export const casinoTableTimeoutQueueName = 'casino-table-timeout';
 export const casinoTableBotActionQueueName = 'casino-table-bot-action';
 export const casinoTableIdleCloseQueueName = 'casino-table-idle-close';
 
-export const pollCloseQueue = new Queue<{ pollId: string }, void, 'close'>(pollCloseQueueName, {
-  connection: getBullConnectionOptions(),
-  defaultJobOptions: {
-    removeOnComplete: true,
-    removeOnFail: 100,
-  },
-});
+const createQueueState = <Data, ResultType, NameType extends string>(
+  name: string,
+) => createLazyProxy(
+  () => new Queue<Data, ResultType, NameType>(name, {
+    connection: getBullConnectionOptions(),
+    defaultJobOptions: {
+      removeOnComplete: true,
+      removeOnFail: 100,
+    },
+  }),
+);
 
-export const pollReminderQueue = new Queue<{ reminderId: string }, void, 'remind'>(pollReminderQueueName, {
-  connection: getBullConnectionOptions(),
-  defaultJobOptions: {
-    removeOnComplete: true,
-    removeOnFail: 100,
-  },
-});
+const pollCloseQueueState = createQueueState<{ pollId: string }, void, 'close'>(pollCloseQueueName);
+const pollReminderQueueState = createQueueState<{ reminderId: string }, void, 'remind'>(pollReminderQueueName);
+const removalVoteStartQueueState = createQueueState<{ requestId: string }, void, 'start'>(removalVoteStartQueueName);
+const marketCloseQueueState = createQueueState<{ marketId: string }, void, 'close'>(marketCloseQueueName);
+const marketRefreshQueueState = createQueueState<{ marketId: string }, void, 'refresh'>(marketRefreshQueueName);
+const marketGraceQueueState = createQueueState<{ marketId: string }, void, 'grace'>(marketGraceQueueName);
+const casinoTableTimeoutQueueState = createQueueState<{ tableId: string }, void, 'timeout'>(casinoTableTimeoutQueueName);
+const casinoTableBotActionQueueState = createQueueState<{ tableId: string }, void, 'act'>(casinoTableBotActionQueueName);
+const casinoTableIdleCloseQueueState = createQueueState<{ tableId: string }, void, 'close'>(casinoTableIdleCloseQueueName);
 
-export const removalVoteStartQueue = new Queue<{ requestId: string }, void, 'start'>(removalVoteStartQueueName, {
-  connection: getBullConnectionOptions(),
-  defaultJobOptions: {
-    removeOnComplete: true,
-    removeOnFail: 100,
-  },
-});
+export const pollCloseQueue = pollCloseQueueState.proxy;
+export const pollReminderQueue = pollReminderQueueState.proxy;
+export const removalVoteStartQueue = removalVoteStartQueueState.proxy;
+export const marketCloseQueue = marketCloseQueueState.proxy;
+export const marketRefreshQueue = marketRefreshQueueState.proxy;
+export const marketGraceQueue = marketGraceQueueState.proxy;
+export const casinoTableTimeoutQueue = casinoTableTimeoutQueueState.proxy;
+export const casinoTableBotActionQueue = casinoTableBotActionQueueState.proxy;
+export const casinoTableIdleCloseQueue = casinoTableIdleCloseQueueState.proxy;
 
-export const marketCloseQueue = new Queue<{ marketId: string }, void, 'close'>(marketCloseQueueName, {
-  connection: getBullConnectionOptions(),
-  defaultJobOptions: {
-    removeOnComplete: true,
-    removeOnFail: 100,
-  },
-});
+const closeQueueIfInitialized = async (state: {
+  clearInstance: () => Queue<unknown, unknown, string> | null;
+}): Promise<void> => {
+  const queue = state.clearInstance();
+  if (!queue) {
+    return;
+  }
 
-export const marketRefreshQueue = new Queue<{ marketId: string }, void, 'refresh'>(marketRefreshQueueName, {
-  connection: getBullConnectionOptions(),
-  defaultJobOptions: {
-    removeOnComplete: true,
-    removeOnFail: 100,
-  },
-});
+  await queue.close();
+};
 
-export const marketGraceQueue = new Queue<{ marketId: string }, void, 'grace'>(marketGraceQueueName, {
-  connection: getBullConnectionOptions(),
-  defaultJobOptions: {
-    removeOnComplete: true,
-    removeOnFail: 100,
-  },
-});
-
-export const casinoTableTimeoutQueue = new Queue<{ tableId: string }, void, 'timeout'>(casinoTableTimeoutQueueName, {
-  connection: getBullConnectionOptions(),
-  defaultJobOptions: {
-    removeOnComplete: true,
-    removeOnFail: 100,
-  },
-});
-
-export const casinoTableBotActionQueue = new Queue<{ tableId: string }, void, 'act'>(casinoTableBotActionQueueName, {
-  connection: getBullConnectionOptions(),
-  defaultJobOptions: {
-    removeOnComplete: true,
-    removeOnFail: 100,
-  },
-});
-
-export const casinoTableIdleCloseQueue = new Queue<{ tableId: string }, void, 'close'>(casinoTableIdleCloseQueueName, {
-  connection: getBullConnectionOptions(),
-  defaultJobOptions: {
-    removeOnComplete: true,
-    removeOnFail: 100,
-  },
-});
+export const closeAllQueues = async (): Promise<void> => {
+  await Promise.allSettled([
+    closeQueueIfInitialized(pollCloseQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
+    closeQueueIfInitialized(pollReminderQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
+    closeQueueIfInitialized(removalVoteStartQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
+    closeQueueIfInitialized(marketCloseQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
+    closeQueueIfInitialized(marketRefreshQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
+    closeQueueIfInitialized(marketGraceQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
+    closeQueueIfInitialized(casinoTableTimeoutQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
+    closeQueueIfInitialized(casinoTableBotActionQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
+    closeQueueIfInitialized(casinoTableIdleCloseQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
+  ]);
+};

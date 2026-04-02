@@ -20,7 +20,7 @@ const {
   recordAuditLogEvent: vi.fn(),
 }));
 
-vi.mock('../src/features/removals/services/removals.js', () => ({
+vi.mock('../src/features/removals/services/removals/requests.js', () => ({
   createRemovalVoteRequest,
   secondRemovalVoteRequest,
   getLatestRemovalVoteRequest,
@@ -30,7 +30,7 @@ vi.mock('../src/features/removals/services/removals.js', () => ({
   setRemovalMemberRole,
 }));
 
-vi.mock('../src/features/audit-log/services/events.js', () => ({
+vi.mock('../src/features/audit-log/services/events/delivery.js', () => ({
   recordAuditLogEvent,
 }));
 

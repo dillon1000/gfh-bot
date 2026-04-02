@@ -16,10 +16,9 @@ const parseDurationValueToMs = (value: string): number => {
 
   let total = 0;
   let consumed = '';
-  let match: RegExpExecArray | null;
 
   durationTokenPattern.lastIndex = 0;
-  while ((match = durationTokenPattern.exec(normalized)) !== null) {
+  for (let match = durationTokenPattern.exec(normalized); match !== null; match = durationTokenPattern.exec(normalized)) {
     if (!match.groups?.value || !match.groups.unit) {
       throw new Error('Duration must use the format 30m, 24h, or 1d 12h 15m.');
     }

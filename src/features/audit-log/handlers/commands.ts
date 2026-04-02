@@ -3,10 +3,10 @@ import {
   type ChatInputCommandInteraction,
 } from 'discord.js';
 
-import { buildFeedbackEmbed } from '../../polls/ui/poll-embeds.js';
+import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
 import { auditLogCommand } from '../commands/definition.js';
 import { describeAuditLogConfig, disableAuditLog, getAuditLogConfig, setAuditLogConfig } from '../services/config.js';
-import { recordAuditLogEvent } from '../services/events.js';
+import { recordAuditLogEvent } from '../services/events/delivery.js';
 
 const buildAuditLogStatusEmbed = (title: string, description: string) =>
   buildFeedbackEmbed(title, description, 0x60a5fa);

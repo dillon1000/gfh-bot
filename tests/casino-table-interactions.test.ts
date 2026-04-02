@@ -47,24 +47,35 @@ vi.mock('../src/features/casino/services/config.js', () => ({
   describeCasinoConfig: vi.fn(),
 }));
 
-vi.mock('../src/features/casino/multiplayer/services/tables.js', () => ({
+vi.mock('../src/features/casino/multiplayer/services/tables/queries.js', () => ({
   createCasinoTable,
   attachCasinoTableMessage,
   attachCasinoTableThread,
-  joinCasinoTable,
-  leaveCasinoTable: vi.fn(),
   listCasinoTables,
   getCasinoTablePrivateView,
   getCasinoTable,
   getCasinoTableByThreadId,
-  closeCasinoTable: vi.fn(),
-  startCasinoTable: vi.fn(),
-  performCasinoTableAction,
-  advanceCasinoTableTimeout: vi.fn(),
-  closeCasinoTableForNoHumanTimeout: vi.fn(),
+}));
+
+vi.mock('../src/features/casino/multiplayer/services/tables/seating.js', () => ({
+  joinCasinoTable,
+  leaveCasinoTable: vi.fn(),
   setCasinoTableBotCount,
 }));
 
+vi.mock('../src/features/casino/multiplayer/services/tables/admin.js', () => ({
+  closeCasinoTable: vi.fn(),
+  closeCasinoTableForNoHumanTimeout: vi.fn(),
+}));
+
+vi.mock('../src/features/casino/multiplayer/services/tables/start.js', () => ({
+  startCasinoTable: vi.fn(),
+}));
+
+vi.mock('../src/features/casino/multiplayer/services/tables/actions.js', () => ({
+  performCasinoTableAction,
+  advanceCasinoTableTimeout: vi.fn(),
+}));
 vi.mock('../src/features/casino/multiplayer/ui/render.js', () => ({
   buildCasinoTableMessage,
   buildCasinoTableListEmbed,
@@ -93,8 +104,8 @@ vi.mock('../src/features/casino/state/sessions.js', () => ({
   deleteCasinoSession: vi.fn(),
 }));
 
-vi.mock('../src/features/economy/services/accounts.js', async () => {
-  const actual = await vi.importActual<typeof import('../src/features/economy/services/accounts.js')>('../src/features/economy/services/accounts.js');
+vi.mock('../src/lib/economy.js', async () => {
+  const actual = await vi.importActual<typeof import('../src/lib/economy.js')>('../src/lib/economy.js');
   return {
     ...actual,
     getEffectiveEconomyAccountPreview: vi.fn().mockResolvedValue({
@@ -105,7 +116,9 @@ vi.mock('../src/features/economy/services/accounts.js', async () => {
   };
 });
 
-import { handleCasinoButton, handleCasinoCommand, handleCasinoModal } from '../src/features/casino/handlers/interactions.js';
+import { handleCasinoButton } from '../src/features/casino/handlers/interactions/buttons.js';
+import { handleCasinoCommand } from '../src/features/casino/handlers/interactions/commands.js';
+import { handleCasinoModal } from '../src/features/casino/handlers/interactions/modals.js';
 
 const baseTable = {
   id: 'table_1',

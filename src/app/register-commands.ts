@@ -1,7 +1,7 @@
 import { REST, Routes } from 'discord.js';
 
-import { env } from './config.js';
 import { logger } from './logger.js';
+import { registerCommandsEnv as env } from './register-commands-config.js';
 import { applicationCommands } from '../discord/commands/index.js';
 
 const rest = new REST({ version: '10' }).setToken(env.DISCORD_TOKEN);

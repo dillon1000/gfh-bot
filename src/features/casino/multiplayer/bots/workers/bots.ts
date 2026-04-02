@@ -4,7 +4,7 @@ import type { Client } from 'discord.js';
 import { logger } from '../../../../../app/logger.js';
 import { casinoTableBotActionQueueName } from '../../../../../lib/queue.js';
 import { getBullConnectionOptions } from '../../../../../lib/redis.js';
-import { handleCasinoBotAction } from '../../../handlers/interactions.js';
+import { handleCasinoBotAction } from '../../../handlers/interactions/jobs.js';
 
 export const startCasinoBotWorker = (client: Client): Worker<{ tableId: string }, void, 'act'> => {
   const worker = new Worker<{ tableId: string }, void, 'act'>(

@@ -1,0 +1,62 @@
+name: Discord Command Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: GitHub environment that provides Discord command sync secrets
+        required: true
+        default: production
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discord-command-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 15
+
+    env:
+      DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+      DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+      DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+      LOG_LEVEL: info
+
+    steps:
+      - name: Ensure workflow runs from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Run this workflow from main so registered commands match production."
+          exit 1
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.27.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm prisma:generate
+
+      - name: Build
+        run: pnpm build
+
+      - name: Register Discord commands
+        run: pnpm register-commands:dist

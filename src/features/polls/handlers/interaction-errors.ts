@@ -8,7 +8,7 @@ import {
 } from 'discord.js';
 
 import { logger } from '../../../app/logger.js';
-import { buildFeedbackEmbed } from '../ui/poll-embeds.js';
+import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
 
 export const handlePollInteractionError = async (
   interaction:

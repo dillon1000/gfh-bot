@@ -62,7 +62,7 @@ vi.mock('../src/features/search/state/sessions.js', () => ({
   getSearchSession,
 }));
 
-vi.mock('../src/features/audit-log/services/events.js', () => ({
+vi.mock('../src/features/audit-log/services/events/delivery.js', () => ({
   recordAuditLogEvent,
 }));
 

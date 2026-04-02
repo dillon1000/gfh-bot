@@ -13,7 +13,8 @@ import {
 } from 'discord.js';
 
 import { buildPollCloseModal } from '../ui/poll-close-render.js';
-import { buildFeedbackEmbed, buildPollAuditEmbed } from '../ui/poll-embeds.js';
+import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
+import { buildPollAuditEmbed } from '../ui/poll-embeds.js';
 import { buildPollResultsResponse } from '../ui/poll-responses.js';
 import {
   closePollAndRefresh,

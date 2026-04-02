@@ -14,7 +14,7 @@ import {
   getStarboardPostLeaderboard,
   setStarboardConfig,
 } from '../services/starboard.js';
-import { recordAuditLogEvent } from '../../audit-log/services/events.js';
+import { recordAuditLogEvent } from '../../audit-log/services/events/delivery.js';
 
 const buildStarboardStatusEmbed = (description: string): EmbedBuilder =>
   new EmbedBuilder()

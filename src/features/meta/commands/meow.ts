@@ -10,7 +10,7 @@ import {
 import { env } from '../../../app/config.js';
 import { assertWithinRateLimit } from '../../../lib/rate-limit.js';
 import { redis } from '../../../lib/redis.js';
-import { buildFeedbackEmbed } from '../../polls/ui/poll-embeds.js';
+import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
 import { meowCommand } from './meow-definition.js';
 
 const createRandomCatUrl = (): string => `https://cataas.com/cat?type=medium&ts=${Date.now()}`;
