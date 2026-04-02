@@ -40,6 +40,7 @@ import {
 import {
   clearMarketJobs,
   scheduleMarketClose,
+  scheduleMarketLiquidity,
   scheduleMarketRefresh,
 } from '../../services/scheduler.js';
 import { cancelMarket } from '../../services/trading/cancel.js';
@@ -178,7 +179,10 @@ export const handleMarketCommand = async (
         ...(interaction.options.getString('outcomes') !== null ? { outcomes: parseMarketOutcomes(interaction.options.getString('outcomes', true)) } : {}),
       });
       await clearMarketJobs(updated.id);
-      await scheduleMarketClose(updated);
+      await Promise.all([
+        scheduleMarketClose(updated),
+        scheduleMarketLiquidity(updated),
+      ]);
       await refreshMarketMessage(client, updated.id);
       const changes = describeMarketEditChanges(market, updated);
       if (changes.length > 0) {
