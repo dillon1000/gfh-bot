@@ -92,7 +92,7 @@ vi.mock('../src/features/markets/services/account.js', () => ({
   grantMarketBankroll,
 }));
 
-vi.mock('../src/features/markets/services/forecast.js', () => ({
+vi.mock('../src/features/markets/services/forecast/queries.js', () => ({
   getMarketForecastProfile,
   getMarketForecastLeaderboard,
 }));
@@ -113,11 +113,20 @@ vi.mock('../src/features/markets/services/scheduler.js', () => ({
   scheduleMarketRefresh,
 }));
 
-vi.mock('../src/features/markets/services/trading.js', () => ({
+vi.mock('../src/features/markets/services/trading/quotes.js', () => ({
   calculateMarketTradeQuote,
+}));
+
+vi.mock('../src/features/markets/services/trading/execution.js', () => ({
   executeMarketTrade,
+}));
+
+vi.mock('../src/features/markets/services/trading/resolution.js', () => ({
   resolveMarket,
   resolveMarketOutcome,
+}));
+
+vi.mock('../src/features/markets/services/trading/cancel.js', () => ({
   cancelMarket,
 }));
 
@@ -141,7 +150,8 @@ vi.mock('../src/features/markets/services/lifecycle.js', () => ({
   clearMarketLifecycle: vi.fn(),
 }));
 
-import { handleMarketButton, handleMarketCommand } from '../src/features/markets/handlers/interactions.js';
+import { handleMarketButton } from '../src/features/markets/handlers/interactions/buttons.js';
+import { handleMarketCommand } from '../src/features/markets/handlers/interactions/commands.js';
 
 const defaultAdminUserIds = ['user_1'];
 

@@ -6,7 +6,7 @@ import {
   StringSelectMenuBuilder,
 } from 'discord.js';
 
-import { buildFeedbackEmbed } from '../../polls/ui/poll-embeds.js';
+import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
 import {
   casinoBlackjackHitButtonCustomId,
   casinoBlackjackStandButtonCustomId,

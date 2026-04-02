@@ -4,7 +4,7 @@ import { PermissionFlagsBits, type PermissionsBitField } from 'discord.js';
 import {
   defaultDailyTopUpFloor,
   startingBankroll as sharedStartingBankroll,
-} from '../../economy/services/accounts.js';
+} from '../../../lib/economy.js';
 import { computeLmsrProbabilities, computeSellPayout } from './math.js';
 import type { MarketStatus, MarketWithRelations } from './types.js';
 

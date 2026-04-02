@@ -1,5 +1,4 @@
-const discordMessageLinkPattern =
-  /^https?:\/\/(?:(?:ptb|canary)\.)?discord(?:app)?\.com\/channels\/(?<guildId>\d+)\/(?<channelId>\d+)\/(?<messageId>\d+)$/i;
+import { parseDiscordMessageLink } from '../../../lib/discord-message-links.js';
 
 export type ReactionRoleLookup =
   | {
@@ -24,13 +23,13 @@ export const parseReactionRoleLookup = (value: string): ReactionRoleLookup => {
     throw new Error('Reaction role lookup value cannot be empty.');
   }
 
-  const linkMatch = discordMessageLinkPattern.exec(trimmed);
-  if (linkMatch?.groups?.guildId && linkMatch.groups.channelId && linkMatch.groups.messageId) {
+  const linkMatch = parseDiscordMessageLink(trimmed);
+  if (linkMatch) {
     return {
       kind: 'message-link',
-      guildId: linkMatch.groups.guildId,
-      channelId: linkMatch.groups.channelId,
-      messageId: linkMatch.groups.messageId,
+      guildId: linkMatch.guildId,
+      channelId: linkMatch.channelId,
+      messageId: linkMatch.messageId,
     };
   }
 

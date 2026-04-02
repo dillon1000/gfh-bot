@@ -9,7 +9,8 @@ import type {
 } from '../../../core/types.js';
 import { chooseBlackjackBotDecision } from '../engines/blackjack.js';
 import { chooseHoldemBotDecision } from '../engines/holdem.js';
-import { getCasinoTable, performCasinoTableAction } from '../../services/tables.js';
+import { getCasinoTable } from '../../services/tables/queries.js';
+import { performCasinoTableAction } from '../../services/tables/actions.js';
 
 const getSeatProfile = (table: CasinoTableSummary, seatUserId: string): CasinoBotProfile | null =>
   table.seats.find((seat) => seat.userId === seatUserId)?.botProfile ?? null;

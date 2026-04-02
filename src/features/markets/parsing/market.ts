@@ -1,3 +1,5 @@
+import { parseDiscordMessageLink } from '../../../lib/discord-message-links.js';
+
 const maxOutcomes = 5;
 const minOutcomes = 2;
 const maxTitleLength = 120;
@@ -8,9 +10,6 @@ const maxTagLength = 24;
 const minTradeAmount = 10;
 const sellSharesPattern = /^(?<amount>\d+(?:\.\d+)?)\s*(?<unit>share|shares|sh)$/i;
 const sellPointsPattern = /^(?<amount>\d+)\s*(?<unit>pt|pts|point|points)?$/i;
-
-const discordMessageLinkPattern =
-  /^https?:\/\/(?:(?:ptb|canary)\.)?discord(?:app)?\.com\/channels\/(?<guildId>\d+)\/(?<channelId>\d+)\/(?<messageId>\d+)$/i;
 
 export type MarketLookup =
   | {
@@ -116,13 +115,13 @@ export const parseMarketLookup = (value: string): MarketLookup => {
     throw new Error('Market lookup value cannot be empty.');
   }
 
-  const linkMatch = discordMessageLinkPattern.exec(trimmed);
-  if (linkMatch?.groups?.guildId && linkMatch.groups.channelId && linkMatch.groups.messageId) {
+  const linkMatch = parseDiscordMessageLink(trimmed);
+  if (linkMatch) {
     return {
       kind: 'message-link',
-      guildId: linkMatch.groups.guildId,
-      channelId: linkMatch.groups.channelId,
-      messageId: linkMatch.groups.messageId,
+      guildId: linkMatch.guildId,
+      channelId: linkMatch.channelId,
+      messageId: linkMatch.messageId,
     };
   }
 

@@ -18,7 +18,8 @@ vi.mock('../src/features/markets/core/shared.js', () => ({
   })),
 }));
 
-import { buildMarketMessage, buildPortfolioMessage } from '../src/features/markets/ui/render.js';
+import { buildMarketMessage } from '../src/features/markets/ui/render/market.js';
+import { buildPortfolioMessage } from '../src/features/markets/ui/render/portfolio.js';
 
 const market = {
   id: 'market_1',

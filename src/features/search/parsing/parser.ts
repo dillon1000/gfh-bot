@@ -194,7 +194,9 @@ export const parseAttachmentExtensions = (value: string): string[] =>
   });
 
 const appendAll = (params: URLSearchParams, key: string, values?: string[]): void => {
-  values?.forEach((value) => params.append(key, value));
+  values?.forEach((value) => {
+    params.append(key, value);
+  });
 };
 
 export const serializeGuildMessageSearchFilters = (

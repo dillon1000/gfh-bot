@@ -16,8 +16,8 @@ import {
   getRemovalVotePollLink,
   secondRemovalVoteRequest,
   setRemovalMemberRole,
-} from '../services/removals.js';
-import { recordAuditLogEvent } from '../../audit-log/services/events.js';
+} from '../services/removals/requests.js';
+import { recordAuditLogEvent } from '../../audit-log/services/events/delivery.js';
 
 const buildEmbed = (
   title: string,

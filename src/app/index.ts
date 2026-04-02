@@ -4,7 +4,8 @@ import { logger } from './logger.js';
 import { applyConfiguredPresence } from './presence.js';
 import { env } from './config.js';
 import { registerInteractionRouter } from '../discord/router.js';
-import { registerAuditLogEventHandlers, replayUndeliveredAuditLogEntries } from '../features/audit-log/services/events.js';
+import { replayUndeliveredAuditLogEntries } from '../features/audit-log/services/events/delivery.js';
+import { registerAuditLogEventHandlers } from '../features/audit-log/services/events/register.js';
 import { startCasinoBotWorker } from '../features/casino/multiplayer/bots/workers/bots.js';
 import { syncOpenCasinoTableJobs } from '../features/casino/multiplayer/services/scheduler.js';
 import { startCasinoTableIdleCloseWorker, startCasinoTableTimeoutWorker } from '../features/casino/multiplayer/workers/tables.js';
@@ -15,23 +16,44 @@ import { recoverExpiredPolls, recoverMissedPollReminders } from '../features/pol
 import { syncOpenPollCloseJobs, syncOpenPollReminderJobs } from '../features/polls/services/repository.js';
 import { startPollReminderWorker, startPollWorker } from '../features/polls/workers/polls.js';
 import { syncReactionRolePanels } from '../features/reaction-roles/services/panels.js';
-import { expireStaleRemovalVoteRequests, recoverDueRemovalVoteStarts, syncWaitingRemovalVoteStartJobs } from '../features/removals/services/removals.js';
+import {
+  expireStaleRemovalVoteRequests,
+  recoverDueRemovalVoteStarts,
+  syncWaitingRemovalVoteStartJobs,
+} from '../features/removals/services/removals/schedule.js';
 import { startRemovalVoteWorker } from '../features/removals/workers/removals.js';
 import { removeStarboardEntryForSourceMessage, syncStarboardForReaction } from '../features/starboard/services/starboard.js';
-import { prisma } from '../lib/prisma.js';
-import {
-  casinoTableBotActionQueue,
-  casinoTableIdleCloseQueue,
-  casinoTableTimeoutQueue,
-  marketCloseQueue,
-  marketGraceQueue,
-  marketRefreshQueue,
-  pollCloseQueue,
-  pollReminderQueue,
-  removalVoteStartQueue,
-} from '../lib/queue.js';
-import { redis } from '../lib/redis.js';
+import { disconnectPrisma } from '../lib/prisma.js';
+import { closeAllQueues } from '../lib/queue.js';
+import { quitRedis } from '../lib/redis.js';
 import { installShutdownHooks, registerShutdownHandler } from '../lib/shutdown.js';
+
+type StartupTask = {
+  name: string;
+  run: () => Promise<void>;
+};
+
+const runStartupTasks = async (tasks: StartupTask[]): Promise<void> => {
+  const startedAt = Date.now();
+  let failedTaskCount = 0;
+
+  for (const task of tasks) {
+    const taskStartedAt = Date.now();
+
+    try {
+      await task.run();
+      logger.info({ startupTask: task.name, durationMs: Date.now() - taskStartedAt }, 'Startup task completed');
+    } catch (error) {
+      failedTaskCount += 1;
+      logger.error({ err: error, startupTask: task.name, durationMs: Date.now() - taskStartedAt }, 'Startup task failed');
+    }
+  }
+
+  logger.info(
+    { startupTaskCount: tasks.length, failedTaskCount, durationMs: Date.now() - startedAt },
+    'Startup task run finished',
+  );
+};
 
 const client = new Client({
   intents: [
@@ -68,21 +90,93 @@ registerInteractionRouter(client);
 registerAuditLogEventHandlers(client);
 
 client.once(Events.ClientReady, async (readyClient) => {
-  applyConfiguredPresence(readyClient);
   logger.info({ user: readyClient.user.tag }, 'Discord client ready');
-  await recoverExpiredPolls(readyClient);
-  await recoverMissedPollReminders(readyClient);
-  await recoverExpiredMarkets(readyClient);
-  await recoverExpiredMarketGraceNotices(readyClient);
-  await expireStaleRemovalVoteRequests();
-  await recoverDueRemovalVoteStarts(readyClient);
-  await syncOpenCasinoTableJobs();
-  await syncOpenPollCloseJobs();
-  await syncOpenPollReminderJobs();
-  await syncOpenMarketJobs();
-  await syncWaitingRemovalVoteStartJobs();
-  await syncReactionRolePanels(readyClient);
-  await replayUndeliveredAuditLogEntries(readyClient);
+  await runStartupTasks([
+    {
+      name: 'apply-configured-presence',
+      run: async () => {
+        applyConfiguredPresence(readyClient);
+      },
+    },
+    {
+      name: 'recover-expired-polls',
+      run: async () => {
+        await recoverExpiredPolls(readyClient);
+      },
+    },
+    {
+      name: 'recover-missed-poll-reminders',
+      run: async () => {
+        await recoverMissedPollReminders(readyClient);
+      },
+    },
+    {
+      name: 'recover-expired-markets',
+      run: async () => {
+        await recoverExpiredMarkets(readyClient);
+      },
+    },
+    {
+      name: 'recover-expired-market-grace-notices',
+      run: async () => {
+        await recoverExpiredMarketGraceNotices(readyClient);
+      },
+    },
+    {
+      name: 'expire-stale-removal-vote-requests',
+      run: async () => {
+        await expireStaleRemovalVoteRequests();
+      },
+    },
+    {
+      name: 'recover-due-removal-vote-starts',
+      run: async () => {
+        await recoverDueRemovalVoteStarts(readyClient);
+      },
+    },
+    {
+      name: 'sync-open-casino-table-jobs',
+      run: async () => {
+        await syncOpenCasinoTableJobs();
+      },
+    },
+    {
+      name: 'sync-open-poll-close-jobs',
+      run: async () => {
+        await syncOpenPollCloseJobs();
+      },
+    },
+    {
+      name: 'sync-open-poll-reminder-jobs',
+      run: async () => {
+        await syncOpenPollReminderJobs();
+      },
+    },
+    {
+      name: 'sync-open-market-jobs',
+      run: async () => {
+        await syncOpenMarketJobs();
+      },
+    },
+    {
+      name: 'sync-waiting-removal-vote-start-jobs',
+      run: async () => {
+        await syncWaitingRemovalVoteStartJobs();
+      },
+    },
+    {
+      name: 'sync-reaction-role-panels',
+      run: async () => {
+        await syncReactionRolePanels(readyClient);
+      },
+    },
+    {
+      name: 'replay-undelivered-audit-log-entries',
+      run: async () => {
+        await replayUndeliveredAuditLogEntries(readyClient);
+      },
+    },
+  ]);
 });
 
 client.on(Events.MessageReactionAdd, async (reaction, user) => {
@@ -130,17 +224,9 @@ registerShutdownHandler(async () => {
     casinoTableTimeoutWorker.close(),
     casinoTableIdleCloseWorker.close(),
     casinoBotWorker.close(),
-    pollCloseQueue.close(),
-    pollReminderQueue.close(),
-    removalVoteStartQueue.close(),
-    marketCloseQueue.close(),
-    marketRefreshQueue.close(),
-    marketGraceQueue.close(),
-    casinoTableTimeoutQueue.close(),
-    casinoTableIdleCloseQueue.close(),
-    casinoTableBotActionQueue.close(),
-    redis.quit(),
-    prisma.$disconnect(),
+    closeAllQueues(),
+    quitRedis(),
+    disconnectPrisma(),
     client.destroy(),
   ]);
 });

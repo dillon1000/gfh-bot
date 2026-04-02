@@ -37,8 +37,8 @@ vi.mock('../src/lib/prisma.js', () => ({
   prisma,
 }));
 
-vi.mock('../src/features/economy/services/accounts.js', async () => {
-  const actual = await vi.importActual<typeof import('../src/features/economy/services/accounts.js')>('../src/features/economy/services/accounts.js');
+vi.mock('../src/lib/economy.js', async () => {
+  const actual = await vi.importActual<typeof import('../src/lib/economy.js')>('../src/lib/economy.js');
   return {
     ...actual,
     ensureEconomyAccountTx,

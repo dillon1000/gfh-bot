@@ -2,7 +2,10 @@ import { Events, type Client, type Interaction } from 'discord.js';
 
 import { handleAuditLogCommand } from '../features/audit-log/handlers/commands.js';
 import { handleCasinoInteractionError } from '../features/casino/handlers/interaction-errors.js';
-import { handleCasinoButton, handleCasinoCommand, handleCasinoModal, handleCasinoSelect } from '../features/casino/handlers/interactions.js';
+import { handleCasinoButton } from '../features/casino/handlers/interactions/buttons.js';
+import { handleCasinoCommand } from '../features/casino/handlers/interactions/commands.js';
+import { handleCasinoModal } from '../features/casino/handlers/interactions/modals.js';
+import { handleCasinoSelect } from '../features/casino/handlers/interactions/selects.js';
 import {
   handleEmojiBuilderButton,
   handleEmojiBuilderCommand,
@@ -11,7 +14,10 @@ import {
 } from '../features/emojis/handlers/interactions.js';
 import { handleLatexCommand } from '../features/meta/commands/latex.js';
 import { handleMarketInteractionError } from '../features/markets/handlers/interaction-errors.js';
-import { handleMarketButton, handleMarketCommand, handleMarketModal, handleMarketSelect } from '../features/markets/handlers/interactions.js';
+import { handleMarketButton } from '../features/markets/handlers/interactions/buttons.js';
+import { handleMarketCommand } from '../features/markets/handlers/interactions/commands.js';
+import { handleMarketModal } from '../features/markets/handlers/interactions/modals.js';
+import { handleMarketSelect } from '../features/markets/handlers/interactions/selects.js';
 import { handleMeowCommand } from '../features/meta/commands/meow.js';
 import { handlePingCommand } from '../features/meta/commands/ping.js';
 import {

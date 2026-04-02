@@ -155,8 +155,8 @@ vi.mock('../src/lib/locks.js', () => ({
   withRedisLock: vi.fn(async (_client: unknown, _key: string, _ttlMs: number, fn: () => Promise<unknown>) => fn()),
 }));
 
-vi.mock('../src/features/economy/services/accounts.js', async () => {
-  const actual = await vi.importActual<typeof import('../src/features/economy/services/accounts.js')>('../src/features/economy/services/accounts.js');
+vi.mock('../src/lib/economy.js', async () => {
+  const actual = await vi.importActual<typeof import('../src/lib/economy.js')>('../src/lib/economy.js');
   return {
     ...actual,
     ensureEconomyAccountTx,
@@ -165,8 +165,8 @@ vi.mock('../src/features/economy/services/accounts.js', async () => {
 });
 
 let buildCasinoTableComponents: typeof import('../src/features/casino/multiplayer/ui/render.js').buildCasinoTableComponents;
-let performCasinoTableAction: typeof import('../src/features/casino/multiplayer/services/tables.js').performCasinoTableAction;
-let startCasinoTable: typeof import('../src/features/casino/multiplayer/services/tables.js').startCasinoTable;
+let performCasinoTableAction: typeof import('../src/features/casino/multiplayer/services/tables/actions.js').performCasinoTableAction;
+let startCasinoTable: typeof import('../src/features/casino/multiplayer/services/tables/start.js').startCasinoTable;
 
 const baseDate = new Date('2099-03-29T00:00:00.000Z');
 
@@ -267,8 +267,10 @@ describe('casino table service', () => {
     } = await import('../src/features/casino/multiplayer/ui/render.js'));
     ({
       performCasinoTableAction,
+    } = await import('../src/features/casino/multiplayer/services/tables/actions.js'));
+    ({
       startCasinoTable,
-    } = await import('../src/features/casino/multiplayer/services/tables.js'));
+    } = await import('../src/features/casino/multiplayer/services/tables/start.js'));
   });
 
   beforeEach(() => {

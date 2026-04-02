@@ -1,26 +1,19 @@
 import { type Market, type MarketOutcome, type MarketTrade, Prisma } from '@prisma/client';
 
-import { logger } from '../../../app/logger.js';
-import { prisma } from '../../../lib/prisma.js';
 import {
   clampSmall,
-  getMarketForUpdate,
   getMarketProbabilities,
-  marketInclude,
   roundCurrency,
   roundProbability,
-} from '../core/shared.js';
+} from '../../core/shared.js';
 import type {
-  MarketForecastLeaderboardEntry,
-  MarketForecastProfile,
   MarketForecastVectorEntry,
   MarketWithRelations,
-} from '../core/types.js';
+} from '../../core/types.js';
 
-const thirtyDayWindowMs = 30 * 24 * 60 * 60 * 1_000;
-const forecastBackfillCooldownMs = 5 * 60 * 1_000;
-const minimumForecastTradeCount = 2;
-const minimumForecastStakeWeight = 25;
+export const thirtyDayWindowMs = 30 * 24 * 60 * 60 * 1_000;
+export const minimumForecastTradeCount = 2;
+export const minimumForecastStakeWeight = 25;
 
 type RunningLongPosition = {
   shares: number;
@@ -45,7 +38,7 @@ type RunningProfitState = {
   shortPositions: Map<string, RunningShortPosition>;
 };
 
-type HydratedForecastRecord = {
+export type HydratedForecastRecord = {
   id: string;
   guildId: string;
   marketId: string;
@@ -62,8 +55,6 @@ type HydratedForecastRecord = {
   tradeCount: number;
   stakeWeight: number;
 };
-
-const forecastBackfillState = new Map<string, { lastStartedAt: number; promise: Promise<number> | null }>();
 
 const normalizeForecastVector = (
   market: Pick<Market, 'winningOutcomeId'> & {
@@ -107,13 +98,13 @@ const normalizeForecastVector = (
   }));
 };
 
-const buildCalibrationBucketLabel = (bucketIndex: number): string => {
+export const buildCalibrationBucketLabel = (bucketIndex: number): string => {
   const lower = bucketIndex * 10;
   const upper = bucketIndex === 9 ? 100 : (bucketIndex * 10) + 9;
   return `${lower}-${upper}%`;
 };
 
-const computeCurrentStreak = <T>(entries: T[], predicate: (entry: T) => boolean): number => {
+export const computeCurrentStreak = <T>(entries: T[], predicate: (entry: T) => boolean): number => {
   let streak = 0;
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     if (!predicate(entries[index] as T)) {
@@ -126,7 +117,7 @@ const computeCurrentStreak = <T>(entries: T[], predicate: (entry: T) => boolean)
   return streak;
 };
 
-const computeBestStreak = <T>(entries: T[], predicate: (entry: T) => boolean): number => {
+export const computeBestStreak = <T>(entries: T[], predicate: (entry: T) => boolean): number => {
   let best = 0;
   let current = 0;
 
@@ -142,13 +133,13 @@ const computeBestStreak = <T>(entries: T[], predicate: (entry: T) => boolean): n
   return best;
 };
 
-const getPredictedOutcomeProbability = (
+export const getPredictedOutcomeProbability = (
   forecastVector: MarketForecastVectorEntry[],
   predictedOutcomeId: string,
 ): number =>
   forecastVector.find((entry) => entry.outcomeId === predictedOutcomeId)?.probability ?? 0;
 
-const hydrateForecastRecord = (
+export const hydrateForecastRecord = (
   record: Prisma.MarketForecastRecordGetPayload<Record<string, never>>,
 ): HydratedForecastRecord => ({
   ...record,
@@ -289,7 +280,7 @@ const reconstructMarketProfitByUser = (
   return profits;
 };
 
-const buildForecastRecordsForMarket = (
+export const buildForecastRecordsForMarket = (
   market: MarketWithRelations,
 ): Array<{
   userId: string;
@@ -392,293 +383,4 @@ const buildForecastRecordsForMarket = (
       stakeWeight: roundCurrency(state.stakeWeight),
     }];
   });
-};
-
-export const persistForecastRecordsTx = async (
-  tx: Prisma.TransactionClient,
-  market: MarketWithRelations,
-): Promise<number> => {
-  const records = buildForecastRecordsForMarket(market);
-  await Promise.all(records.map((record) =>
-    tx.marketForecastRecord.upsert({
-      where: {
-        guildId_marketId_userId: {
-          guildId: market.guildId,
-          marketId: market.id,
-          userId: record.userId,
-        },
-      },
-      create: {
-        guildId: market.guildId,
-        marketId: market.id,
-        userId: record.userId,
-        resolvedAt: record.resolvedAt,
-        marketTagSnapshot: record.marketTagSnapshot,
-        forecastVector: record.forecastVector,
-        winningOutcomeId: record.winningOutcomeId,
-        winningOutcomeProbability: record.winningOutcomeProbability,
-        predictedOutcomeId: record.predictedOutcomeId,
-        brierScore: record.brierScore,
-        wasCorrect: record.wasCorrect,
-        realizedProfit: record.realizedProfit,
-        tradeCount: record.tradeCount,
-        stakeWeight: record.stakeWeight,
-      },
-      update: {
-        resolvedAt: record.resolvedAt,
-        marketTagSnapshot: record.marketTagSnapshot,
-        forecastVector: record.forecastVector,
-        winningOutcomeId: record.winningOutcomeId,
-        winningOutcomeProbability: record.winningOutcomeProbability,
-        predictedOutcomeId: record.predictedOutcomeId,
-        brierScore: record.brierScore,
-        wasCorrect: record.wasCorrect,
-        realizedProfit: record.realizedProfit,
-        tradeCount: record.tradeCount,
-        stakeWeight: record.stakeWeight,
-      },
-    })));
-
-  return records.length;
-};
-
-export const backfillMarketForecastRecords = async (guildId?: string): Promise<number> => {
-  const markets = await prisma.market.findMany({
-    where: {
-      ...(guildId ? { guildId } : {}),
-      cancelledAt: null,
-      resolvedAt: {
-        not: null,
-      },
-      trades: {
-        some: {},
-      },
-      forecastRecords: {
-        none: {},
-      },
-    },
-    include: marketInclude,
-    orderBy: {
-      resolvedAt: 'asc',
-    },
-  });
-
-  let recordCount = 0;
-  for (const market of markets) {
-    recordCount += await prisma.$transaction(async (tx) => {
-      const freshMarket = await getMarketForUpdate(tx, market.id);
-      if (!freshMarket || !freshMarket.resolvedAt || freshMarket.cancelledAt) {
-        return 0;
-      }
-
-      return persistForecastRecordsTx(tx, freshMarket);
-    });
-  }
-
-  return recordCount;
-};
-
-const scheduleForecastBackfill = (guildId: string): void => {
-  const now = Date.now();
-  const existing = forecastBackfillState.get(guildId);
-  if (existing?.promise) {
-    return;
-  }
-
-  if (existing && (now - existing.lastStartedAt) < forecastBackfillCooldownMs) {
-    return;
-  }
-
-  const promise = backfillMarketForecastRecords(guildId)
-    .catch((error) => {
-      logger.warn({ err: error, guildId }, 'Could not backfill market forecast records');
-      return 0;
-    })
-    .finally(() => {
-      const current = forecastBackfillState.get(guildId);
-      if (!current || current.promise !== promise) {
-        return;
-      }
-
-      forecastBackfillState.set(guildId, {
-        lastStartedAt: current.lastStartedAt,
-        promise: null,
-      });
-    });
-
-  forecastBackfillState.set(guildId, {
-    lastStartedAt: now,
-    promise,
-  });
-};
-
-const getForecastRecordsForGuild = async (guildId: string): Promise<HydratedForecastRecord[]> => {
-  scheduleForecastBackfill(guildId);
-  const records = await prisma.marketForecastRecord.findMany({
-    where: {
-      guildId,
-    },
-    orderBy: {
-      resolvedAt: 'asc',
-    },
-  });
-
-  return records.map(hydrateForecastRecord);
-};
-
-const filterForecastRecords = (
-  records: HydratedForecastRecord[],
-  input: {
-    userId?: string;
-    window?: 'all_time' | '30d';
-    tag?: string;
-  } = {},
-) => {
-  const thirtyDayCutoff = Date.now() - thirtyDayWindowMs;
-  return records.filter((record) => {
-    if (input.userId && record.userId !== input.userId) {
-      return false;
-    }
-
-    if (input.window === '30d' && record.resolvedAt.getTime() < thirtyDayCutoff) {
-      return false;
-    }
-
-    if (input.tag && !record.marketTagSnapshot.includes(input.tag)) {
-      return false;
-    }
-
-    return true;
-  });
-};
-
-const getMeanBrier = (records: HydratedForecastRecord[]): number | null => {
-  if (records.length === 0) {
-    return null;
-  }
-
-  return roundProbability(records.reduce((sum, record) => sum + record.brierScore, 0) / records.length);
-};
-
-export const getMarketForecastProfile = async (
-  guildId: string,
-  userId: string,
-): Promise<MarketForecastProfile> => {
-  const allGuildRecords = await getForecastRecordsForGuild(guildId);
-  const userRecords = filterForecastRecords(allGuildRecords, { userId });
-  const thirtyDayRecords = filterForecastRecords(allGuildRecords, { userId, window: '30d' });
-  const recordsByUser = allGuildRecords.reduce<Map<string, HydratedForecastRecord[]>>((map, record) => {
-    const existing = map.get(record.userId) ?? [];
-    existing.push(record);
-    map.set(record.userId, existing);
-    return map;
-  }, new Map());
-
-  const rankedUsers = [...recordsByUser.entries()]
-    .map(([candidateUserId, records]) => ({
-      userId: candidateUserId,
-      sampleCount: records.length,
-      meanBrier: getMeanBrier(records),
-    }))
-    .filter((entry): entry is { userId: string; sampleCount: number; meanBrier: number } =>
-      entry.sampleCount >= 5 && entry.meanBrier !== null)
-    .sort((left, right) => left.meanBrier - right.meanBrier || right.sampleCount - left.sampleCount || left.userId.localeCompare(right.userId));
-
-  const userRankIndex = rankedUsers.findIndex((entry) => entry.userId === userId);
-  const rank = userRankIndex >= 0 ? userRankIndex + 1 : null;
-  const rankedUserCount = rankedUsers.length;
-  const percentileRank = rank === null
-    ? null
-    : rankedUserCount <= 1
-      ? 100
-      : Math.round(((rankedUserCount - rank) / (rankedUserCount - 1)) * 100);
-
-  const calibrationBuckets = [...userRecords.reduce<Map<number, { confidenceSum: number; successCount: number; sampleCount: number }>>((map, record) => {
-    const predictedProbability = getPredictedOutcomeProbability(record.forecastVector, record.predictedOutcomeId);
-    const bucketIndex = Math.min(9, Math.max(0, Math.floor(predictedProbability * 10)));
-    const existing = map.get(bucketIndex) ?? { confidenceSum: 0, successCount: 0, sampleCount: 0 };
-    existing.confidenceSum += predictedProbability;
-    existing.successCount += record.wasCorrect ? 1 : 0;
-    existing.sampleCount += 1;
-    map.set(bucketIndex, existing);
-    return map;
-  }, new Map()).entries()]
-    .sort((left, right) => left[0] - right[0])
-    .map(([bucketIndex, value]) => ({
-      label: buildCalibrationBucketLabel(bucketIndex),
-      sampleCount: value.sampleCount,
-      averageConfidence: roundProbability(value.confidenceSum / value.sampleCount),
-      actualRate: roundProbability(value.successCount / value.sampleCount),
-    }));
-
-  const topTags = [...userRecords.reduce<Map<string, { brierSum: number; sampleCount: number; latestResolvedAt: number }>>((map, record) => {
-    for (const tag of record.marketTagSnapshot) {
-      const existing = map.get(tag) ?? { brierSum: 0, sampleCount: 0, latestResolvedAt: 0 };
-      existing.brierSum += record.brierScore;
-      existing.sampleCount += 1;
-      existing.latestResolvedAt = Math.max(existing.latestResolvedAt, record.resolvedAt.getTime());
-      map.set(tag, existing);
-    }
-    return map;
-  }, new Map()).entries()]
-    .map(([tag, value]) => ({
-      tag,
-      meanBrier: roundProbability(value.brierSum / value.sampleCount),
-      sampleCount: value.sampleCount,
-      latestResolvedAt: value.latestResolvedAt,
-    }))
-    .filter((entry) => entry.sampleCount >= 5)
-    .sort((left, right) => left.meanBrier - right.meanBrier || right.sampleCount - left.sampleCount || right.latestResolvedAt - left.latestResolvedAt)
-    .slice(0, 3)
-    .map(({ latestResolvedAt: _latestResolvedAt, ...entry }) => entry);
-
-  return {
-    userId,
-    allTimeMeanBrier: getMeanBrier(userRecords),
-    thirtyDayMeanBrier: getMeanBrier(thirtyDayRecords),
-    allTimeSampleCount: userRecords.length,
-    thirtyDaySampleCount: thirtyDayRecords.length,
-    percentileRank,
-    rank,
-    rankedUserCount,
-    currentCorrectPickStreak: computeCurrentStreak(userRecords, (record) => record.wasCorrect),
-    bestCorrectPickStreak: computeBestStreak(userRecords, (record) => record.wasCorrect),
-    currentProfitableMarketStreak: computeCurrentStreak(userRecords, (record) => record.realizedProfit > 0),
-    bestProfitableMarketStreak: computeBestStreak(userRecords, (record) => record.realizedProfit > 0),
-    calibrationBuckets,
-    topTags,
-  };
-};
-
-export const getMarketForecastLeaderboard = async (input: {
-  guildId: string;
-  window?: 'all_time' | '30d';
-  tag?: string;
-  limit?: number;
-}): Promise<MarketForecastLeaderboardEntry[]> => {
-  const filteredRecords = filterForecastRecords(await getForecastRecordsForGuild(input.guildId), {
-    window: input.window ?? 'all_time',
-    ...(input.tag ? { tag: input.tag } : {}),
-  });
-  const minimumSampleCount = (input.window ?? 'all_time') === '30d' ? 3 : 5;
-  const recordsByUser = filteredRecords.reduce<Map<string, HydratedForecastRecord[]>>((map, record) => {
-    const existing = map.get(record.userId) ?? [];
-    existing.push(record);
-    map.set(record.userId, existing);
-    return map;
-  }, new Map());
-
-  return [...recordsByUser.entries()]
-    .map(([userId, records]) => ({
-      userId,
-      meanBrier: getMeanBrier(records),
-      sampleCount: records.length,
-      correctPickRate: records.length === 0
-        ? 0
-        : roundProbability(records.filter((record) => record.wasCorrect).length / records.length),
-      currentCorrectPickStreak: computeCurrentStreak(records, (record) => record.wasCorrect),
-    }))
-    .filter((entry): entry is MarketForecastLeaderboardEntry => entry.meanBrier !== null && entry.sampleCount >= minimumSampleCount)
-    .sort((left, right) => left.meanBrier - right.meanBrier || right.sampleCount - left.sampleCount || left.userId.localeCompare(right.userId))
-    .slice(0, input.limit ?? 10);
 };

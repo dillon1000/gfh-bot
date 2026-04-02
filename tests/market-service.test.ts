@@ -86,14 +86,14 @@ vi.mock('../src/lib/queue.js', () => ({
   },
 }));
 
-let cancelMarket: typeof import('../src/features/markets/services/trading.js').cancelMarket;
-let calculateMarketTradeQuote: typeof import('../src/features/markets/services/trading.js').calculateMarketTradeQuote;
-let executeMarketTrade: typeof import('../src/features/markets/services/trading.js').executeMarketTrade;
+let cancelMarket: typeof import('../src/features/markets/services/trading/cancel.js').cancelMarket;
+let calculateMarketTradeQuote: typeof import('../src/features/markets/services/trading/quotes.js').calculateMarketTradeQuote;
+let executeMarketTrade: typeof import('../src/features/markets/services/trading/execution.js').executeMarketTrade;
 let grantMarketBankroll: typeof import('../src/features/markets/services/account.js').grantMarketBankroll;
-let getMarketForecastLeaderboard: typeof import('../src/features/markets/services/forecast.js').getMarketForecastLeaderboard;
-let getMarketForecastProfile: typeof import('../src/features/markets/services/forecast.js').getMarketForecastProfile;
-let resolveMarket: typeof import('../src/features/markets/services/trading.js').resolveMarket;
-let resolveMarketOutcome: typeof import('../src/features/markets/services/trading.js').resolveMarketOutcome;
+let getMarketForecastLeaderboard: typeof import('../src/features/markets/services/forecast/queries.js').getMarketForecastLeaderboard;
+let getMarketForecastProfile: typeof import('../src/features/markets/services/forecast/queries.js').getMarketForecastProfile;
+let resolveMarket: typeof import('../src/features/markets/services/trading/resolution.js').resolveMarket;
+let resolveMarketOutcome: typeof import('../src/features/markets/services/trading/resolution.js').resolveMarketOutcome;
 let summarizeMarketTraders: typeof import('../src/features/markets/services/records.js').summarizeMarketTraders;
 
 const baseAccount = {
@@ -195,15 +195,21 @@ describe('market service', () => {
   beforeAll(async () => {
     ({
       cancelMarket,
+    } = await import('../src/features/markets/services/trading/cancel.js'));
+    ({
       calculateMarketTradeQuote,
+    } = await import('../src/features/markets/services/trading/quotes.js'));
+    ({
       executeMarketTrade,
+    } = await import('../src/features/markets/services/trading/execution.js'));
+    ({
       resolveMarket,
       resolveMarketOutcome,
-    } = await import('../src/features/markets/services/trading.js'));
+    } = await import('../src/features/markets/services/trading/resolution.js'));
     ({
       getMarketForecastLeaderboard,
       getMarketForecastProfile,
-    } = await import('../src/features/markets/services/forecast.js'));
+    } = await import('../src/features/markets/services/forecast/queries.js'));
     ({
       grantMarketBankroll,
     } = await import('../src/features/markets/services/account.js'));

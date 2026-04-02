@@ -4,7 +4,7 @@ import {
   casinoTableTimeoutQueue,
 } from '../../../../lib/queue.js';
 import type { CasinoTableSummary, MultiplayerBlackjackState, MultiplayerHoldemState } from '../../core/types.js';
-import { listTimedCasinoTables } from './tables.js';
+import { listTimedCasinoTables } from './tables/queries.js';
 
 const botActionDelayMs = 150;
 

@@ -7,7 +7,7 @@ import {
 
 import { redis } from '../../../lib/redis.js';
 import { deletePollRankDraft, getPollRankDraft, savePollRankDraft } from '../state/rank-drafts.js';
-import { buildFeedbackEmbed } from '../ui/poll-embeds.js';
+import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
 import { buildRankedChoiceEditor } from '../ui/ranked-editor.js';
 import { assertUserCanVoteInPoll } from '../services/governance.js';
 import { refreshPollMessage } from '../services/lifecycle.js';

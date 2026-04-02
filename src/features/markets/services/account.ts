@@ -7,7 +7,7 @@ import {
   getEffectiveEconomyAccountPreview,
   grantEconomyBankroll,
   roundCurrency,
-} from '../../economy/services/accounts.js';
+} from '../../../lib/economy.js';
 import type { MarketAccountWithOpenPositions } from '../core/types.js';
 
 export const ensureMarketAccountTx = async (

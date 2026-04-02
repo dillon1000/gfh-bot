@@ -5,6 +5,7 @@ const handlers = vi.hoisted(() => ({
   handleCasinoInteractionError: vi.fn(),
   handleCasinoButton: vi.fn(),
   handleCasinoCommand: vi.fn(),
+  handleCasinoModal: vi.fn(),
   handleCasinoSelect: vi.fn(),
   handleEmojiBuilderButton: vi.fn(),
   handleEmojiBuilderCommand: vi.fn(),
@@ -72,9 +73,19 @@ vi.mock('../src/features/casino/handlers/interaction-errors.js', () => ({
   handleCasinoInteractionError: handlers.handleCasinoInteractionError,
 }));
 
-vi.mock('../src/features/casino/handlers/interactions.js', () => ({
+vi.mock('../src/features/casino/handlers/interactions/buttons.js', () => ({
   handleCasinoButton: handlers.handleCasinoButton,
+}));
+
+vi.mock('../src/features/casino/handlers/interactions/commands.js', () => ({
   handleCasinoCommand: handlers.handleCasinoCommand,
+}));
+
+vi.mock('../src/features/casino/handlers/interactions/modals.js', () => ({
+  handleCasinoModal: handlers.handleCasinoModal,
+}));
+
+vi.mock('../src/features/casino/handlers/interactions/selects.js', () => ({
   handleCasinoSelect: handlers.handleCasinoSelect,
 }));
 
@@ -93,10 +104,19 @@ vi.mock('../src/features/markets/handlers/interaction-errors.js', () => ({
   handleMarketInteractionError: handlers.handleMarketInteractionError,
 }));
 
-vi.mock('../src/features/markets/handlers/interactions.js', () => ({
+vi.mock('../src/features/markets/handlers/interactions/buttons.js', () => ({
   handleMarketButton: handlers.handleMarketButton,
+}));
+
+vi.mock('../src/features/markets/handlers/interactions/commands.js', () => ({
   handleMarketCommand: handlers.handleMarketCommand,
+}));
+
+vi.mock('../src/features/markets/handlers/interactions/modals.js', () => ({
   handleMarketModal: handlers.handleMarketModal,
+}));
+
+vi.mock('../src/features/markets/handlers/interactions/selects.js', () => ({
   handleMarketSelect: handlers.handleMarketSelect,
 }));
 

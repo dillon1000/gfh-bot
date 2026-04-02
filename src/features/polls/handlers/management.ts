@@ -18,7 +18,7 @@ import {
 } from '../ui/management-render.js';
 import { parseChoicesCsv, sanitizeQuestion } from '../parsing/parser.js';
 import { getPollDurationMinutes } from '../state/poll-state.js';
-import { buildFeedbackEmbed } from '../ui/poll-embeds.js';
+import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
 import { buildPollBuilderPreview } from '../ui/poll-builder-render.js';
 import { refreshPollMessage, isPollManager } from '../services/lifecycle.js';
 import {

@@ -2,7 +2,12 @@ import { type Client } from 'discord.js';
 
 import { logger } from '../../../app/logger.js';
 import { prisma } from '../../../lib/prisma.js';
-import { buildMarketEmbed, buildMarketMessage, buildMarketResolvePrompt, buildMarketStatusEmbed } from '../ui/render.js';
+import {
+  buildMarketEmbed,
+  buildMarketMessage,
+  buildMarketResolvePrompt,
+  buildMarketStatusEmbed,
+} from '../ui/render/market.js';
 import {
   attachMarketMessage,
   attachMarketThread,
@@ -13,7 +18,7 @@ import {
   scheduleMarketClose,
   scheduleMarketGrace,
 } from './scheduler.js';
-import { closeMarketTrading } from './trading.js';
+import { closeMarketTrading } from './trading/close.js';
 import type { MarketWithRelations } from '../core/types.js';
 import { buildMarketDiagram } from '../ui/visualize.js';
 

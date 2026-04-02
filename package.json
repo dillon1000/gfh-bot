@@ -10,6 +10,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/app/index.ts",
+    "lint": "biome lint --diagnostic-level=error .",
+    "lint:fix": "biome lint --write .",
     "start": "node dist/src/app/index.js",
     "register-commands": "tsx src/app/register-commands.ts",
     "register-commands:dist": "node dist/src/app/register-commands.js",
@@ -35,6 +37,7 @@
     "zod": "^4.1.5"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.10",
     "@types/d3": "^7.4.3",
     "@types/node": "^24.3.0",
     "tsx": "^4.20.5",

@@ -1,17 +1,34 @@
 import { Redis } from 'ioredis';
 
 import { env } from '../app/config.js';
+import { createLazyProxy } from './lazy.js';
 
-export const redis = new Redis(env.REDIS_URL, {
+const createConfiguredRedis = (): Redis => new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: null,
   enableReadyCheck: true,
 });
 
+const redisState = createLazyProxy(createConfiguredRedis);
+
+export const getRedis = (): Redis => redisState.getInstance();
+
+export const quitRedis = async (): Promise<void> => {
+  const instance = redisState.clearInstance();
+  if (!instance) {
+    return;
+  }
+
+  try {
+    await instance.quit();
+  } catch {
+    instance.disconnect();
+  }
+};
+
+export const redis = redisState.proxy;
+
 export const createRedisConnection = (): Redis =>
-  new Redis(env.REDIS_URL, {
-    maxRetriesPerRequest: null,
-    enableReadyCheck: true,
-  });
+  createConfiguredRedis();
 
 export const getBullConnectionOptions = (): {
   host: string;

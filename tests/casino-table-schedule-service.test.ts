@@ -27,7 +27,7 @@ vi.mock('../src/lib/queue.js', () => ({
   casinoTableTimeoutQueue,
 }));
 
-vi.mock('../src/features/casino/multiplayer/services/tables.js', () => ({
+vi.mock('../src/features/casino/multiplayer/services/tables/queries.js', () => ({
   listTimedCasinoTables,
 }));
 

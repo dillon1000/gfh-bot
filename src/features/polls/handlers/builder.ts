@@ -26,7 +26,7 @@ import {
 } from '../parsing/parser.js';
 import { normalizeQuestionFromMessage, resolvePollThreadName } from '../ui/present.js';
 import { pollBuilderButtonCustomId, pollBuilderModalCustomId } from '../ui/custom-ids.js';
-import { buildFeedbackEmbed } from '../ui/poll-embeds.js';
+import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
 import { buildPollBuilderModal, buildPollBuilderPreview } from '../ui/poll-builder-render.js';
 import { validatePollGovernanceConfig } from '../services/governance.js';
 import { hydratePollMessage } from '../services/lifecycle.js';

@@ -9,8 +9,8 @@ import { logger } from '../../../app/logger.js';
 import { env } from '../../../app/config.js';
 import { assertWithinRateLimit } from '../../../lib/rate-limit.js';
 import { redis } from '../../../lib/redis.js';
-import { recordAuditLogEvent } from '../../audit-log/services/events.js';
-import { buildFeedbackEmbed } from '../../polls/ui/poll-embeds.js';
+import { recordAuditLogEvent } from '../../audit-log/services/events/delivery.js';
+import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
 import {
   describeSearchConfig,
   getSearchConfig,

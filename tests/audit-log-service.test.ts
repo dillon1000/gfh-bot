@@ -110,9 +110,9 @@ vi.mock('../src/lib/prisma.js', () => ({
 
 import {
   recordAuditLogEvent,
-  registerAuditLogEventHandlers,
   replayUndeliveredAuditLogEntries,
-} from '../src/features/audit-log/services/events.js';
+} from '../src/features/audit-log/services/events/delivery.js';
+import { registerAuditLogEventHandlers } from '../src/features/audit-log/services/events/register.js';
 
 const flushAsync = async (): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 0));

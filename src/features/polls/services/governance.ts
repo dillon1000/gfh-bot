@@ -1,4 +1,4 @@
-import { PermissionFlagsBits, type Client, type Guild, type GuildBasedChannel, type GuildMember } from 'discord.js';
+import { PermissionFlagsBits, type Client, type Collection, type Guild, type GuildBasedChannel, type GuildMember } from 'discord.js';
 
 import { computePollOutcome, computePollResults } from '../core/results.js';
 import type {
@@ -312,10 +312,10 @@ const loadElectorateMembers = async (
   }
 
   const loadPromise = (async () => {
-    let members;
+    let members: Collection<string, GuildMember>;
     try {
       members = await guild.members.fetch();
-    } catch (error) {
+    } catch {
       throw buildGovernanceError(
         'This poll requires guild member access. Enable the Guild Members privileged intent and try again.',
       );

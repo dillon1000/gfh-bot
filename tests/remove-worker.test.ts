@@ -65,7 +65,8 @@ vi.mock('../src/features/polls/services/lifecycle.js', () => ({
   hydratePollMessage,
 }));
 
-import { attemptRemovalVoteStart, recoverDueRemovalVoteStarts, startRemovalVote } from '../src/features/removals/services/removals.js';
+import { recoverDueRemovalVoteStarts } from '../src/features/removals/services/removals/schedule.js';
+import { attemptRemovalVoteStart, startRemovalVote } from '../src/features/removals/services/removals/start.js';
 
 const baseRequest = {
   id: 'request_1',
