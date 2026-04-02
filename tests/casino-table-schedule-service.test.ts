@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   casinoTableBotActionQueue,
@@ -33,7 +33,7 @@ vi.mock('../src/features/casino/multiplayer/services/tables/queries.js', () => (
 
 let syncCasinoTableJobs: typeof import('../src/features/casino/multiplayer/services/scheduler.js').syncCasinoTableJobs;
 
-const activeBotTable = {
+const createActiveBotTable = (deadlineOffsetMs = 30_000) => ({
   id: 'table_1',
   guildId: 'guild_1',
   channelId: 'casino_channel_1',
@@ -51,7 +51,7 @@ const activeBotTable = {
   defaultBuyIn: 100,
   currentHandNumber: 1,
   actionTimeoutSeconds: 30,
-  actionDeadlineAt: new Date(Date.now() + 30_000),
+  actionDeadlineAt: new Date(Date.now() + deadlineOffsetMs),
   noHumanDeadlineAt: null,
   lobbyExpiresAt: null,
   createdAt: new Date('2099-03-29T00:00:00.000Z'),
@@ -109,10 +109,10 @@ const activeBotTable = {
       },
     ],
     sidePots: [],
-    actionDeadlineAt: new Date(Date.now() + 30_000).toISOString(),
+    actionDeadlineAt: new Date(Date.now() + deadlineOffsetMs).toISOString(),
     completedAt: null,
   },
-};
+});
 
 describe('casino table schedule service', () => {
   beforeAll(async () => {
@@ -120,6 +120,8 @@ describe('casino table schedule service', () => {
   });
 
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2099-03-29T00:00:00.000Z'));
     casinoTableBotActionQueue.add.mockReset();
     casinoTableBotActionQueue.remove.mockReset();
     casinoTableBotActionQueue.remove.mockResolvedValue(undefined);
@@ -132,8 +134,15 @@ describe('casino table schedule service', () => {
     listTimedCasinoTables.mockReset();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
   it('keeps a timeout job scheduled even when the acting seat is a bot', async () => {
-    await syncCasinoTableJobs(activeBotTable);
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+
+    await syncCasinoTableJobs(createActiveBotTable());
 
     expect(casinoTableBotActionQueue.add).toHaveBeenCalledOnce();
     expect(casinoTableTimeoutQueue.add).toHaveBeenCalledOnce();
@@ -142,6 +151,20 @@ describe('casino table schedule service', () => {
     }));
     expect(casinoTableTimeoutQueue.add.mock.calls[0]?.[2]).toEqual(expect.objectContaining({
       jobId: expect.not.stringContaining(':'),
+    }));
+    expect(casinoTableBotActionQueue.add.mock.calls[0]?.[2]).toEqual(expect.objectContaining({
+      delay: 1_000,
+    }));
+  });
+
+  it('caps a bot action delay so it stays ahead of the deadline', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.999);
+
+    await syncCasinoTableJobs(createActiveBotTable(1_500));
+
+    expect(casinoTableBotActionQueue.add).toHaveBeenCalledOnce();
+    expect(casinoTableBotActionQueue.add.mock.calls[0]?.[2]).toEqual(expect.objectContaining({
+      delay: 500,
     }));
   });
 });

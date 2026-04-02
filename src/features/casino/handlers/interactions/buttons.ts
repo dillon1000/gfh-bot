@@ -50,6 +50,7 @@ import {
   syncCasinoTableRuntime,
   syncCasinoTableThreadName,
 } from './table-runtime.js';
+import type { CasinoTableSummary } from '../../core/types.js';
 
 const replyWithExpiredGame = async (
   interaction: ButtonInteraction,
@@ -59,6 +60,15 @@ const replyWithExpiredGame = async (
     flags: MessageFlags.Ephemeral,
     embeds: [buildCasinoStatusEmbed('Game Expired', `That ${label} has expired.`, 0xef4444)],
   });
+};
+
+const updateCasinoTableInteraction = async (
+  interaction: ButtonInteraction,
+  table: CasinoTableSummary,
+): Promise<void> => {
+  await interaction.update(await buildCasinoTableMessage(table, {
+    replaceAttachments: true,
+  }));
 };
 
 export const handleCasinoButton = async (
@@ -146,7 +156,7 @@ export const handleCasinoButton = async (
         });
         await syncCasinoTableRuntime(updated);
         await syncCasinoTableThreadName(interaction.client, updated.id);
-        await interaction.update(buildCasinoTableMessage(updated));
+        await updateCasinoTableInteraction(interaction, updated);
       },
     },
     {
@@ -155,7 +165,7 @@ export const handleCasinoButton = async (
         const updated = await leaveCasinoTable(tableId, interaction.user.id);
         await syncCasinoTableRuntime(updated);
         await syncCasinoTableThreadName(interaction.client, updated.id);
-        await interaction.update(buildCasinoTableMessage(updated));
+        await updateCasinoTableInteraction(interaction, updated);
       },
     },
     {
@@ -164,7 +174,7 @@ export const handleCasinoButton = async (
         const updated = await startCasinoTable(tableId, interaction.user.id);
         await syncCasinoTableRuntime(updated);
         await ensureCasinoTableMessage(interaction.client, updated, interaction.channel?.id ?? null);
-        await interaction.update(buildCasinoTableMessage(updated));
+        await updateCasinoTableInteraction(interaction, updated);
       },
     },
     {
@@ -172,7 +182,7 @@ export const handleCasinoButton = async (
       handler: async (tableId) => {
         const updated = await closeCasinoTable(tableId, interaction.user.id);
         await syncCasinoTableRuntime(updated);
-        await interaction.update(buildCasinoTableMessage(updated));
+        await updateCasinoTableInteraction(interaction, updated);
         await finalizeClosedCasinoTableThread(interaction.client, updated.id);
       },
     },
@@ -195,7 +205,7 @@ export const handleCasinoButton = async (
           action: 'blackjack_hit',
         });
         await syncCasinoTableRuntime(updated);
-        await interaction.update(buildCasinoTableMessage(updated));
+        await updateCasinoTableInteraction(interaction, updated);
       },
     },
     {
@@ -207,7 +217,7 @@ export const handleCasinoButton = async (
           action: 'blackjack_stand',
         });
         await syncCasinoTableRuntime(updated);
-        await interaction.update(buildCasinoTableMessage(updated));
+        await updateCasinoTableInteraction(interaction, updated);
       },
     },
     {
@@ -219,7 +229,7 @@ export const handleCasinoButton = async (
           action: 'blackjack_double',
         });
         await syncCasinoTableRuntime(updated);
-        await interaction.update(buildCasinoTableMessage(updated));
+        await updateCasinoTableInteraction(interaction, updated);
       },
     },
     {
@@ -231,7 +241,7 @@ export const handleCasinoButton = async (
           action: 'holdem_fold',
         });
         await syncCasinoTableRuntime(updated);
-        await interaction.update(buildCasinoTableMessage(updated));
+        await updateCasinoTableInteraction(interaction, updated);
       },
     },
     {
@@ -243,7 +253,7 @@ export const handleCasinoButton = async (
           action: 'holdem_check',
         });
         await syncCasinoTableRuntime(updated);
-        await interaction.update(buildCasinoTableMessage(updated));
+        await updateCasinoTableInteraction(interaction, updated);
       },
     },
     {
@@ -255,7 +265,7 @@ export const handleCasinoButton = async (
           action: 'holdem_call',
         });
         await syncCasinoTableRuntime(updated);
-        await interaction.update(buildCasinoTableMessage(updated));
+        await updateCasinoTableInteraction(interaction, updated);
       },
     },
     {

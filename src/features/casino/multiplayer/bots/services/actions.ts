@@ -15,8 +15,6 @@ import { performCasinoTableAction } from '../../services/tables/actions.js';
 const getSeatProfile = (table: CasinoTableSummary, seatUserId: string): CasinoBotProfile | null =>
   table.seats.find((seat) => seat.userId === seatUserId)?.botProfile ?? null;
 
-const randomDelayMs = (): number => 1_000 + Math.floor(Math.random() * 1_500);
-
 export const chooseCasinoBotAction = async (tableId: string): Promise<
   | { action: 'blackjack_hit' | 'blackjack_stand' | 'blackjack_double'; userId: string }
   | { action: 'holdem_fold' | 'holdem_check' | 'holdem_call'; userId: string }
@@ -84,10 +82,6 @@ export const performCasinoBotTurn = async (
   }
 
   logger.debug({ tableId, userId: decision.userId, action: decision.action }, 'Running casino bot turn');
-  await new Promise((resolve) => {
-    setTimeout(resolve, randomDelayMs());
-  });
-
   await performCasinoTableAction({
     tableId,
     userId: decision.userId,
