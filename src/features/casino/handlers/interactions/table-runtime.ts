@@ -70,7 +70,9 @@ export const syncCasinoTableMessage = async (client: Client, tableId: string): P
   }
 
   await message.edit({
-    ...buildCasinoTableMessage(table),
+    ...(await buildCasinoTableMessage(table, {
+      replaceAttachments: true,
+    })),
     allowedMentions: {
       parse: [],
     },
@@ -152,7 +154,7 @@ export const ensureCasinoTableMessage = async (
     }
 
     const message = await thread.send({
-      ...buildCasinoTableMessage(latest),
+      ...(await buildCasinoTableMessage(latest)),
       allowedMentions: {
         parse: [],
       },

@@ -6,7 +6,9 @@ import {
 import type { CasinoTableSummary, MultiplayerBlackjackState, MultiplayerHoldemState } from '../../core/types.js';
 import { listTimedCasinoTables } from './tables/queries.js';
 
-const botActionDelayMs = 150;
+const minimumBotActionDelayMs = 1_000;
+const botActionDelayRangeMs = 1_500;
+const botActionDeadlineSafetyBufferMs = 1_000;
 
 const encodeJobKey = (prefix: string, tableId: string): string =>
   `${prefix}-${Buffer.from(tableId).toString('base64url')}`;
@@ -38,6 +40,19 @@ const isActingBot = (table: CasinoTableSummary): boolean => {
   return table.seats.some((seat) => seat.userId === actingUserId && seat.isBot);
 };
 
+const getBotActionDelayMs = (
+  deadlineAt: Date | null,
+  rng: () => number = Math.random,
+): number => {
+  const desiredDelay = minimumBotActionDelayMs + Math.floor(rng() * botActionDelayRangeMs);
+  if (!deadlineAt) {
+    return desiredDelay;
+  }
+
+  const latestSafeDelay = Math.max(0, deadlineAt.getTime() - Date.now() - botActionDeadlineSafetyBufferMs);
+  return Math.min(desiredDelay, latestSafeDelay);
+};
+
 export const scheduleCasinoTableTimeout = async (
   tableId: string,
   deadlineAt: Date,
@@ -53,10 +68,13 @@ export const clearCasinoTableTimeout = async (tableId: string): Promise<void> =>
   await casinoTableTimeoutQueue.remove(getTimeoutJobId(tableId)).catch(() => undefined);
 };
 
-export const scheduleCasinoBotAction = async (tableId: string): Promise<void> => {
+export const scheduleCasinoBotAction = async (
+  tableId: string,
+  deadlineAt: Date | null = null,
+): Promise<void> => {
   await casinoTableBotActionQueue.add('act', { tableId }, {
     jobId: getBotActionJobId(tableId),
-    delay: botActionDelayMs,
+    delay: getBotActionDelayMs(deadlineAt),
   });
 };
 
@@ -103,7 +121,7 @@ export const syncCasinoTableJobs = async (table: CasinoTableSummary): Promise<vo
   }
 
   if (isActingBot(table)) {
-    await scheduleCasinoBotAction(table.id);
+    await scheduleCasinoBotAction(table.id, table.actionDeadlineAt);
   }
 
   if (table.actionDeadlineAt) {

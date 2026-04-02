@@ -6,3 +6,4 @@ dist
 coverage
 prisma/dev.db
 .VSCodeCounter/
+/tmp/
