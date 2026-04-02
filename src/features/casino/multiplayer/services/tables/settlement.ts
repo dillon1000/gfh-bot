@@ -425,6 +425,7 @@ export const advanceCasinoTableTimeout = async (
   if (!actor) {
     return table;
   }
+  const amountToCall = Math.max(0, state.currentBet - actor.committedThisRound);
   const isActingBot = table.seats.some((seat) => seat.userId === actor.userId && seat.isBot);
   if (isActingBot && chooseCasinoBotAction) {
     const decision = await chooseCasinoBotAction(tableId);
@@ -434,9 +435,14 @@ export const advanceCasinoTableTimeout = async (
         ...decision,
       });
     }
+
+    return performCasinoTableAction({
+      tableId,
+      userId: actor.userId,
+      action: amountToCall === 0 ? 'holdem_check' : 'holdem_call',
+    });
   }
 
-  const amountToCall = Math.max(0, state.currentBet - actor.committedThisRound);
   return performCasinoTableAction({
     tableId,
     userId: actor.userId,
