@@ -2,6 +2,7 @@ import type { Market, MarketLiquidityEvent, MarketOutcome, MarketTrade, Prisma }
 
 import {
   clampSmall,
+  compareMarketHistoryEvents,
   computeSupplementaryBonusDistribution,
   getMarketProbabilities,
   roundCurrency,
@@ -311,18 +312,7 @@ const buildMarketHistory = (
       createdAt: liquidityEvent.createdAt,
       liquidityEvent,
     })),
-  ].sort((left, right) => {
-    const delta = left.createdAt.getTime() - right.createdAt.getTime();
-    if (delta !== 0) {
-      return delta;
-    }
-
-    return left.kind === right.kind
-      ? 0
-      : left.kind === 'liquidity'
-        ? -1
-        : 1;
-  });
+  ].sort(compareMarketHistoryEvents);
 
 export const buildForecastRecordsForMarket = (
   market: MarketWithRelations,

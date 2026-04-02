@@ -18,6 +18,7 @@ const {
     },
     marketOutcome: {
       update: vi.fn(),
+      deleteMany: vi.fn(),
     },
     marketPosition: {
       deleteMany: vi.fn(),
@@ -97,6 +98,7 @@ let getMarketForecastLeaderboard: typeof import('../src/features/markets/service
 let getMarketForecastProfile: typeof import('../src/features/markets/services/forecast/queries.js').getMarketForecastProfile;
 let injectMarketLiquidity: typeof import('../src/features/markets/services/liquidity.js').injectMarketLiquidity;
 let appendMarketOutcomes: typeof import('../src/features/markets/services/records.js').appendMarketOutcomes;
+let editMarketRecord: typeof import('../src/features/markets/services/records.js').editMarketRecord;
 let resolveMarket: typeof import('../src/features/markets/services/trading/resolution.js').resolveMarket;
 let resolveMarketOutcome: typeof import('../src/features/markets/services/trading/resolution.js').resolveMarketOutcome;
 let summarizeMarketTraders: typeof import('../src/features/markets/services/records.js').summarizeMarketTraders;
@@ -231,6 +233,7 @@ describe('market service', () => {
     } = await import('../src/features/markets/services/liquidity.js'));
     ({
       appendMarketOutcomes,
+      editMarketRecord,
       summarizeMarketTraders,
     } = await import('../src/features/markets/services/records.js'));
   });
@@ -243,6 +246,7 @@ describe('market service', () => {
     transaction.market.update.mockReset();
     prisma.market.findMany.mockReset();
     transaction.marketOutcome.update.mockReset();
+    transaction.marketOutcome.deleteMany.mockReset();
     transaction.marketPosition.deleteMany.mockReset();
     transaction.marketPosition.upsert.mockReset();
     transaction.marketAccount.findUnique.mockReset();
@@ -260,6 +264,7 @@ describe('market service', () => {
     transaction.market.findUnique.mockResolvedValue(market);
     transaction.market.findUniqueOrThrow.mockResolvedValue(market);
     transaction.marketOutcome.update.mockResolvedValue(undefined);
+    transaction.marketOutcome.deleteMany.mockResolvedValue({ count: 0 });
     prisma.market.findMany.mockResolvedValue([]);
     transaction.marketPosition.deleteMany.mockResolvedValue({ count: 0 });
     transaction.marketPosition.upsert.mockResolvedValue(undefined);
@@ -410,6 +415,37 @@ describe('market service', () => {
     );
 
     expect(transaction.market.update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['title', { title: 'Updated title' }],
+    ['description', { description: 'Updated description' }],
+    ['tags', { tags: ['updated'] }],
+    ['outcomes', { outcomes: ['Yes', 'No', 'Maybe'] }],
+  ])('rejects editing %s after the first trade', async (_field, input) => {
+    runTransaction();
+    transaction.market.findUnique.mockResolvedValue({
+      ...market,
+      trades: [{
+        id: 'trade_1',
+        marketId: 'market_1',
+        outcomeId: 'outcome_yes',
+        userId: 'user_2',
+        side: 'buy',
+        shareDelta: 5,
+        cashDelta: -40,
+        probabilitySnapshot: 0.55,
+        cumulativeVolume: 40,
+        createdAt: new Date('2099-03-29T01:00:00.000Z'),
+      }],
+    });
+
+    await expect(editMarketRecord('market_1', 'user_1', input)).rejects.toThrow(
+      'After the first trade, only close time and button style can be edited.',
+    );
+
+    expect(transaction.market.update).not.toHaveBeenCalled();
+    expect(transaction.marketOutcome.deleteMany).not.toHaveBeenCalled();
   });
 
   it('summarizes market traders by outgoing spend and trade count', () => {
@@ -892,6 +928,7 @@ describe('market service', () => {
   it('resolves an eliminated outcome without closing the whole market', async () => {
     const openMarket = {
       ...market,
+      supplementaryBonusPool: 12,
       positions: [
         makeLongPosition(),
         makeShortPosition({ outcomeId: 'outcome_no', proceeds: 4, collateralLocked: 6, shares: 6 }),
@@ -903,6 +940,8 @@ describe('market service', () => {
         { ...openMarket.outcomes[0], outstandingShares: 0, pricingShares: 0, settlementValue: 0, resolvedAt: new Date('2099-03-30T12:00:00.000Z') },
         openMarket.outcomes[1],
       ],
+      supplementaryBonusPool: 12,
+      supplementaryBonusDistributedAt: null,
       positions: [
         makeShortPosition({ outcomeId: 'outcome_no', proceeds: 4, collateralLocked: 6, shares: 6 }),
       ],
@@ -920,6 +959,8 @@ describe('market service', () => {
     });
 
     expect(result.market.resolvedAt).toBeNull();
+    expect(result.market.supplementaryBonusPool).toBe(12);
+    expect(result.market.supplementaryBonusDistributedAt).toBeNull();
     expect(result.outcome.settlementValue).toBe(0);
     expect(result.payouts).toEqual([
       {
@@ -1067,6 +1108,21 @@ describe('market service', () => {
     }));
   });
 
+  it('skips liquidity injection when the target liquidity matches the current market', async () => {
+    const now = new Date('2099-03-29T00:30:00.000Z');
+    runTransaction();
+
+    const result = await injectMarketLiquidity('market_1', now);
+
+    expect(result.didInject).toBe(false);
+    expect(result.bonusAccrued).toBe(0);
+    expect(result.nextInjectionAt?.toISOString()).toBe('2099-03-29T01:00:00.000Z');
+    expect(result.market).toBe(market);
+    expect(transaction.marketOutcome.update).not.toHaveBeenCalled();
+    expect(transaction.marketLiquidityEvent.create).not.toHaveBeenCalled();
+    expect(transaction.market.update).not.toHaveBeenCalled();
+  });
+
   it('distributes the supplementary bonus pool in proportion to positive market profit', async () => {
     const resolvedAt = new Date('2099-03-30T12:00:00.000Z');
     const bonusMarket = {
@@ -1079,7 +1135,21 @@ describe('market service', () => {
       ],
     };
 
+    vi.useFakeTimers();
+    vi.setSystemTime(resolvedAt);
     transaction.market.findUnique.mockResolvedValue(bonusMarket);
+    transaction.marketAccount.upsert.mockImplementation(async ({ where }: {
+      where: {
+        guildId_userId: {
+          guildId: string;
+          userId: string;
+        };
+      };
+    }) => ({
+      ...baseAccount,
+      id: `account_${where.guildId_userId.userId}`,
+      userId: where.guildId_userId.userId,
+    }));
     transaction.market.update.mockResolvedValue({
       ...bonusMarket,
       resolvedAt,
@@ -1088,38 +1158,54 @@ describe('market service', () => {
     });
     runTransaction();
 
-    const result = await resolveMarket({
-      marketId: 'market_1',
-      actorId: 'user_1',
-      winningOutcomeId: 'outcome_yes',
-    });
+    try {
+      const result = await resolveMarket({
+        marketId: 'market_1',
+        actorId: 'user_1',
+        winningOutcomeId: 'outcome_yes',
+      });
 
-    expect(result.payouts).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        userId: 'user_2',
-        payout: 10,
-        profit: 2,
-        bonus: 3,
-      }),
-      expect.objectContaining({
-        userId: 'user_3',
-        payout: 4,
-        profit: 6,
-        bonus: 9,
-      }),
-    ]));
-    expect(transaction.marketAccount.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        bankroll: 1013,
-        realizedProfit: 5,
-      }),
-    }));
-    expect(transaction.marketAccount.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        bankroll: 1013,
-        realizedProfit: 15,
-      }),
-    }));
+      expect(result.payouts).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          userId: 'user_2',
+          payout: 10,
+          profit: 2,
+          bonus: 3,
+        }),
+        expect.objectContaining({
+          userId: 'user_3',
+          payout: 4,
+          profit: 6,
+          bonus: 9,
+        }),
+      ]));
+      expect(transaction.market.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          supplementaryBonusDistributedAt: resolvedAt,
+          supplementaryBonusExpiredAt: null,
+        }),
+      }));
+      expect(transaction.marketAccount.update).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        where: {
+          id: 'account_user_2',
+        },
+        data: expect.objectContaining({
+          bankroll: 1013,
+          realizedProfit: 5,
+        }),
+      }));
+      expect(transaction.marketAccount.update).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        where: {
+          id: 'account_user_3',
+        },
+        data: expect.objectContaining({
+          bankroll: 1013,
+          realizedProfit: 15,
+        }),
+      }));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('quotes a buy trade with payout information before execution', async () => {

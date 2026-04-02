@@ -49,6 +49,26 @@ export const roundCurrency = (value: number): number => Math.round(value * 100) 
 export const roundProbability = (value: number): number => Math.round(value * 10_000) / 10_000;
 export const clampSmall = (value: number): number => Math.abs(value) < 1e-9 ? 0 : value;
 
+export const compareMarketHistoryEvents = <
+  T extends {
+    kind: 'trade' | 'liquidity';
+    createdAt: Date;
+  },
+>(left: T, right: T): number => {
+  const delta = left.createdAt.getTime() - right.createdAt.getTime();
+  if (delta !== 0) {
+    return delta;
+  }
+
+  // Liquidity rebases pricing shares. When a rebase and trade share a timestamp,
+  // replay the liquidity event first so later consumers reconstruct the same state.
+  return left.kind === right.kind
+    ? 0
+    : left.kind === 'liquidity'
+      ? -1
+      : 1;
+};
+
 const canModerateMarkets = (
   permissions: PermissionsBitField | Readonly<PermissionsBitField> | null | undefined,
 ): boolean => Boolean(permissions?.has(PermissionFlagsBits.ManageGuild));
