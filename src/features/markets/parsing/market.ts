@@ -54,25 +54,18 @@ export const sanitizeMarketDescription = (value: string | null | undefined): str
 };
 
 export const parseMarketOutcomes = (value: string): string[] => {
-  const outcomes = [...new Set(
-    value
-      .split(',')
-      .map((part) => part.trim())
-      .filter(Boolean),
-  )];
-
+  const outcomes = parseOutcomeList(value);
   if (outcomes.length < minOutcomes) {
     throw new Error(`Markets need at least ${minOutcomes} outcomes.`);
   }
 
-  if (outcomes.length > maxOutcomes) {
-    throw new Error(`Markets can have at most ${maxOutcomes} outcomes.`);
-  }
+  return outcomes;
+};
 
-  for (const outcome of outcomes) {
-    if (outcome.length > maxOutcomeLength) {
-      throw new Error(`Each outcome must be ${maxOutcomeLength} characters or fewer.`);
-    }
+export const parseAdditionalMarketOutcomes = (value: string): string[] => {
+  const outcomes = parseOutcomeList(value);
+  if (outcomes.length === 0) {
+    throw new Error('Add at least one outcome.');
   }
 
   return outcomes;
@@ -217,4 +210,25 @@ export const parseOutcomeSelection = (
   }
 
   throw new Error('Choose a valid market outcome by number, outcome ID, or exact label.');
+};
+
+const parseOutcomeList = (value: string): string[] => {
+  const outcomes = [...new Set(
+    value
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean),
+  )];
+
+  if (outcomes.length > maxOutcomes) {
+    throw new Error(`Markets can have at most ${maxOutcomes} outcomes.`);
+  }
+
+  for (const outcome of outcomes) {
+    if (outcome.length > maxOutcomeLength) {
+      throw new Error(`Each outcome must be ${maxOutcomeLength} characters or fewer.`);
+    }
+  }
+
+  return outcomes;
 };
