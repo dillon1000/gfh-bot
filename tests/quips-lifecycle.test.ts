@@ -175,7 +175,7 @@ describe('quips lifecycle', () => {
       promptProvider: 'xai',
       promptModel: 'model',
       promptOpenedAt: new Date('2026-04-03T08:00:00.000Z'),
-      answerClosesAt: new Date('2026-04-04T08:00:00.000Z'),
+      answerClosesAt: new Date('2026-04-03T20:00:00.000Z'),
       voteClosesAt: null,
       revealedAt: null,
       selectionSeed: null,
@@ -212,8 +212,8 @@ describe('quips lifecycle', () => {
       boardMessageId: 'board_1',
       activeRoundId: 'round_1',
       adultMode: true,
-      answerWindowMinutes: 720,
-      voteWindowMinutes: 720,
+      answerWindowMinutes: 5,
+      voteWindowMinutes: 5,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -253,11 +253,12 @@ describe('quips lifecycle', () => {
     quipsVoteCreate.mockResolvedValue(undefined);
   });
 
-  it('extends the answer window by one hour when activity is too low', async () => {
+  it('keeps the round open without rescheduling when activity is too low', async () => {
     await handleQuipsAnswerPhaseClose(client as never, 'round_1');
 
-    expect(scheduleQuipsAnswerClose).toHaveBeenCalledTimes(1);
-    expect(roundState?.answerClosesAt.toISOString()).toBe('2026-04-04T09:00:00.000Z');
+    expect(scheduleQuipsAnswerClose).not.toHaveBeenCalled();
+    expect(quipsRoundUpdate).not.toHaveBeenCalled();
+    expect(roundState?.answerClosesAt.toISOString()).toBe('2026-04-03T20:00:00.000Z');
   });
 
   it('blocks selected authors from voting on their own matchup', async () => {

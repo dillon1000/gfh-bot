@@ -31,6 +31,7 @@ vi.mock('../src/app/config.js', () => ({
 }));
 
 import {
+  buildQuipsPromptSystem,
   generateQuipsPrompt,
   validateGeneratedPrompt,
 } from '../src/features/quips/services/prompt-generator.js';
@@ -70,5 +71,36 @@ describe('quips prompt generator', () => {
     );
 
     expect(result.valid).toBe(false);
+  });
+
+  it('omits the adult instruction unless the 10 percent roll hits', async () => {
+    generateTextMock.mockResolvedValue({ text: 'A weird thing to whisper in a submarine' });
+
+    await generateQuipsPrompt(
+      {
+        recentPrompts: [],
+        adultMode: true,
+      },
+      {
+        random: () => 0.5,
+      },
+    );
+
+    expect(generateTextMock).toHaveBeenCalledWith(expect.objectContaining({
+      system: expect.not.stringContaining('Adult mode is enabled, so edgy humor is allowed, go wild!'),
+    }));
+  });
+
+  it('adds the adult instruction when the 10 percent roll hits', () => {
+    const system = buildQuipsPromptSystem(
+      ['Prompt A'],
+      ['Prompt B'],
+      {
+        adultMode: true,
+        includeAdultFlavor: true,
+      },
+    );
+
+    expect(system).toContain('Adult mode is enabled, so edgy humor is allowed, go wild!');
   });
 });

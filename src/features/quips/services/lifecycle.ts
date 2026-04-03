@@ -32,11 +32,12 @@ import {
 import type { QuipsRoundWithRelations } from '../core/types.js';
 import { quipsRoundInclude } from '../core/types.js';
 import {
+  quipsDefaultAnswerWindowMinutes,
+  quipsDefaultVoteWindowMinutes,
   getQuipsWeekKey,
   getRoundResumePhase,
   mulberry32,
   normalizeAnswerText,
-  quipsLowActivityExtensionMinutes,
   quipsMinimumSubmissionCount,
   quipsRecentPromptLimit,
   shuffle,
@@ -52,6 +53,10 @@ type SendableTextChannel = Exclude<TextBasedChannel, PartialGroupDMChannel>;
 
 const guildLockKey = (guildId: string): string => `quips:guild:${guildId}`;
 const roundLockKey = (roundId: string): string => `quips:round:${roundId}`;
+const hasMetSubmissionThreshold = (round: Pick<QuipsRoundWithRelations, 'submissions'>): boolean =>
+  round.submissions.length >= quipsMinimumSubmissionCount;
+const isAnswerWindowExpired = (round: Pick<QuipsRoundWithRelations, 'answerClosesAt'>): boolean =>
+  round.answerClosesAt.getTime() <= Date.now();
 
 const getRoundById = async (roundId: string): Promise<QuipsRoundWithRelations | null> =>
   prisma.quipsRound.findUnique({
@@ -301,11 +306,15 @@ export const installQuipsChannel = async (
         channelId: input.channelId,
         enabled: true,
         adultMode: true,
+        answerWindowMinutes: quipsDefaultAnswerWindowMinutes,
+        voteWindowMinutes: quipsDefaultVoteWindowMinutes,
       },
       update: {
         channelId: input.channelId,
         enabled: true,
         pausedAt: null,
+        answerWindowMinutes: quipsDefaultAnswerWindowMinutes,
+        voteWindowMinutes: quipsDefaultVoteWindowMinutes,
       },
     });
 
@@ -378,7 +387,11 @@ export const submitQuipsAnswer = async (
     const config = await getConfigOrThrow(round.guildId);
     const refreshedRound = await getRoundById(round.id);
     if (refreshedRound) {
-      await updateBoardMessage(client, config, refreshedRound);
+      if (hasMetSubmissionThreshold(refreshedRound) && isAnswerWindowExpired(refreshedRound)) {
+        await advanceRoundToVoting(client, refreshedRound.id);
+      } else {
+        await updateBoardMessage(client, config, refreshedRound);
+      }
     }
 
     return submission;
@@ -401,16 +414,7 @@ const advanceRoundToVoting = async (
   }
 
   const config = await getConfigOrThrow(round.guildId);
-  if (round.submissions.length < quipsMinimumSubmissionCount) {
-    const extendedRound = await prisma.quipsRound.update({
-      where: {
-        id: round.id,
-      },
-      data: {
-        answerClosesAt: new Date(round.answerClosesAt.getTime() + (quipsLowActivityExtensionMinutes * 60_000)),
-      },
-    });
-    await scheduleQuipsAnswerClose(extendedRound);
+  if (!hasMetSubmissionThreshold(round)) {
     const refreshed = await getRoundById(round.id);
     if (refreshed) {
       await updateBoardMessage(client, config, refreshed);
@@ -816,6 +820,9 @@ export const resumeQuips = async (
 
     const pauseDurationMs = Date.now() - pausedAt.getTime();
     const resumePhase = getRoundResumePhase(round);
+    const shouldKeepWaitingForSubmissions = resumePhase === 'answering'
+      && !hasMetSubmissionThreshold(round)
+      && isAnswerWindowExpired(round);
     await prisma.quipsRound.update({
       where: {
         id: round.id,
@@ -823,7 +830,9 @@ export const resumeQuips = async (
       data: resumePhase === 'answering'
         ? {
             phase: 'answering',
-            answerClosesAt: new Date(round.answerClosesAt.getTime() + pauseDurationMs),
+            answerClosesAt: shouldKeepWaitingForSubmissions
+              ? round.answerClosesAt
+              : new Date(round.answerClosesAt.getTime() + pauseDurationMs),
           }
         : {
             phase: 'voting',
@@ -837,9 +846,9 @@ export const resumeQuips = async (
     }
 
     const resumedConfig = await getConfigOrThrow(guildId);
-    if (resumePhase === 'answering') {
+    if (resumePhase === 'answering' && !shouldKeepWaitingForSubmissions) {
       await scheduleQuipsAnswerClose(resumedRound);
-    } else {
+    } else if (resumePhase === 'voting') {
       await scheduleQuipsVoteClose(resumedRound);
     }
 
