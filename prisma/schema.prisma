@@ -150,6 +150,8 @@ model GuildConfig {
   casinoChannelId    String?
   dilemmaEnabled     Boolean          @default(false)
   dilemmaChannelId   String?
+  muralEnabled       Boolean          @default(false)
+  muralChannelId     String?
   dilemmaRunHour     Int?
   dilemmaRunMinute   Int?
   dilemmaCooperationRate Float        @default(0.5)
@@ -162,6 +164,9 @@ model GuildConfig {
   marketAccounts     MarketAccount[]
   casinoTables       CasinoTable[]
   dilemmaRounds      DilemmaRound[]
+  muralPixels        MuralPixel[]
+  muralPlacements    MuralPlacement[]
+  muralResetProposals MuralResetProposal[]
 }
 
 model Poll {
@@ -193,9 +198,56 @@ model Poll {
   reminders      PollReminder[]
   votes          PollVote[]
   voteEvents     PollVoteEvent[]
+  muralResetProposal MuralResetProposal?
 
   @@index([guildId, channelId])
   @@index([closesAt, closedAt])
+}
+
+model MuralPixel {
+  id              String      @id @default(cuid())
+  guildId         String
+  x               Int
+  y               Int
+  color           String
+  updatedByUserId String
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  guildConfig     GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@unique([guildId, x, y])
+  @@index([guildId, updatedAt])
+}
+
+model MuralPlacement {
+  id          String      @id @default(cuid())
+  guildId     String
+  userId      String
+  x           Int
+  y           Int
+  color       String
+  createdAt   DateTime    @default(now())
+  guildConfig GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@index([guildId, userId, createdAt])
+  @@index([guildId, createdAt])
+}
+
+model MuralResetProposal {
+  id               String      @id @default(cuid())
+  guildId          String
+  pollId           String      @unique
+  channelId        String
+  proposedByUserId String
+  passed           Boolean?
+  finalizedAt      DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  guildConfig      GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  poll             Poll        @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, finalizedAt, createdAt])
+  @@index([pollId, finalizedAt])
 }
 
 model PollReminder {

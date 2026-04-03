@@ -8,6 +8,7 @@ import { latexCommand } from '../../features/meta/commands/latex.js';
 import { marketCommand } from '../../features/markets/commands/definition.js';
 import { meowCommand } from '../../features/meta/commands/meow-definition.js';
 import { pingCommand } from '../../features/meta/commands/ping.js';
+import { muralCommand } from '../../features/mural/commands/definition.js';
 import {
   pollAnalyticsCommand,
   pollAuditCommand,
@@ -41,6 +42,7 @@ export const applicationCommands: RESTPostAPIApplicationCommandsJSONBody[] = [
   marketCommand.toJSON(),
   meowCommand.toJSON(),
   pingCommand.toJSON(),
+  muralCommand.toJSON(),
   searchCommand.toJSON(),
   removeCommand.toJSON(),
   pollCommand.toJSON(),
