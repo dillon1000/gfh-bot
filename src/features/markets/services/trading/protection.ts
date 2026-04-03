@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { MarketLossProtection, Prisma } from '@prisma/client';
 
 import { runSerializableTransaction } from '../../../../lib/run-serializable-transaction.js';
 import { ensureMarketAccountTx } from '../account.js';
@@ -9,7 +9,6 @@ import {
   calculateProtectionPremium,
   getLossProtection,
   getLossProtectionMap,
-  getMarketLossProtectionDelegate,
   getMarketForUpdate,
   getMarketProbabilities,
   getPosition,
@@ -20,7 +19,6 @@ import {
   roundCurrency,
 } from '../../core/shared.js';
 import type {
-  MarketLossProtectionRecord,
   MarketLossProtectionPurchaseResult,
   MarketLossProtectionQuote,
   MarketWithRelations,
@@ -142,19 +140,18 @@ export const calculateLossProtectionQuote = async (input: {
 export const syncLossProtectionForSellTx = async (
   tx: Prisma.TransactionClient,
   input: {
-    existingProtection?: Pick<MarketLossProtectionRecord, 'id' | 'marketId' | 'outcomeId' | 'userId' | 'insuredCostBasis'> | null;
+    existingProtection?: Pick<MarketLossProtection, 'id' | 'marketId' | 'outcomeId' | 'userId' | 'insuredCostBasis'> | null;
     previousLongCostBasis: number;
     nextLongCostBasis: number;
   },
 ): Promise<void> => {
   const protection = input.existingProtection;
-  const protectionDelegate = getMarketLossProtectionDelegate(tx);
   if (!protection) {
     return;
   }
 
   if (input.nextLongCostBasis <= 1e-6 || input.previousLongCostBasis <= 1e-6) {
-    await protectionDelegate.deleteMany({
+    await tx.marketLossProtection.deleteMany({
       where: {
         marketId: protection.marketId,
         outcomeId: protection.outcomeId,
@@ -169,7 +166,7 @@ export const syncLossProtectionForSellTx = async (
     protection.insuredCostBasis * (input.nextLongCostBasis / input.previousLongCostBasis),
   ));
   if (nextInsuredCostBasis <= 1e-6) {
-    await protectionDelegate.deleteMany({
+    await tx.marketLossProtection.deleteMany({
       where: {
         marketId: protection.marketId,
         outcomeId: protection.outcomeId,
@@ -179,7 +176,7 @@ export const syncLossProtectionForSellTx = async (
     return;
   }
 
-  await protectionDelegate.update({
+  await tx.marketLossProtection.update({
     where: {
       marketId_outcomeId_userId: {
         marketId: protection.marketId,
@@ -211,14 +208,13 @@ export const purchaseLossProtection = async (input: {
       throw new Error('You do not have enough bankroll for that protection premium.');
     }
 
-    const protectionDelegate = getMarketLossProtectionDelegate(tx);
     const existingProtection = getLossProtection(
       getLossProtectionMap(market.lossProtections ?? []),
       input.userId,
       input.outcomeId,
     );
 
-    await protectionDelegate.upsert({
+    await tx.marketLossProtection.upsert({
       where: {
         marketId_outcomeId_userId: {
           marketId: market.id,

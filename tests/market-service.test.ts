@@ -38,6 +38,12 @@ const {
     marketLiquidityEvent: {
       create: vi.fn(),
     },
+    marketLossProtection: {
+      findMany: vi.fn(),
+      upsert: vi.fn(),
+      update: vi.fn(),
+      deleteMany: vi.fn(),
+    },
   };
 
   return {
@@ -254,6 +260,10 @@ describe('market service', () => {
     transaction.marketAccount.update.mockReset();
     transaction.marketForecastRecord.upsert.mockReset();
     transaction.marketLiquidityEvent.create.mockReset();
+    transaction.marketLossProtection.findMany.mockReset();
+    transaction.marketLossProtection.upsert.mockReset();
+    transaction.marketLossProtection.update.mockReset();
+    transaction.marketLossProtection.deleteMany.mockReset();
     prisma.guildConfig.findUnique.mockReset();
     prisma.marketAccount.findUnique.mockReset();
     prisma.marketForecastRecord.findMany.mockReset();
@@ -276,6 +286,10 @@ describe('market service', () => {
     }));
     transaction.marketForecastRecord.upsert.mockResolvedValue(undefined);
     transaction.marketLiquidityEvent.create.mockResolvedValue(undefined);
+    transaction.marketLossProtection.findMany.mockResolvedValue([]);
+    transaction.marketLossProtection.upsert.mockResolvedValue(undefined);
+    transaction.marketLossProtection.update.mockResolvedValue(undefined);
+    transaction.marketLossProtection.deleteMany.mockResolvedValue({ count: 0 });
     prisma.guildConfig.findUnique.mockResolvedValue({
       casinoEnabled: false,
     });

@@ -298,11 +298,11 @@ export const executeMarketTrade = async (input: {
             feeCharged,
             probabilitySnapshot: computedProbabilities[tradableIndex] ?? 0,
             cumulativeVolume: market.totalVolume + cashAmount,
-          } as any,
+          },
         },
       },
       include: marketInclude,
-    }) as MarketTradeResult['market'];
+    });
 
     return {
       market: updatedMarket,

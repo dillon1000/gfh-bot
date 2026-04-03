@@ -12,7 +12,6 @@ import type { MarketAccountWithOpenPositions } from '../core/types.js';
 import {
   getPositionCoverageRatio,
   getPositionUninsuredCostBasis,
-  getMarketLossProtectionDelegate,
 } from '../core/shared.js';
 
 export const ensureMarketAccountTx = async (
@@ -54,7 +53,7 @@ export const getMarketAccountSummary = async (
         updatedAt: 'desc',
       },
     });
-    const protections = await getMarketLossProtectionDelegate(tx).findMany({
+    const protections = await tx.marketLossProtection.findMany({
       where: {
         market: {
           guildId,
@@ -63,7 +62,7 @@ export const getMarketAccountSummary = async (
         },
         userId,
       },
-    }) as Array<{ marketId: string; outcomeId: string; insuredCostBasis: number; premiumPaid: number }>;
+    });
     const protectionByKey = new Map(
       protections.map((protection) => [`${protection.marketId}:${protection.outcomeId}`, protection]),
     );

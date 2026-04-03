@@ -3,6 +3,7 @@ import type {
   MarketAccount,
   MarketButtonStyle,
   MarketForecastRecord,
+  MarketLossProtection,
   MarketLiquidityEvent,
   MarketOutcome,
   MarketPositionSide,
@@ -14,20 +15,9 @@ export type MarketWithRelations = Market & {
   outcomes: MarketOutcome[];
   trades: MarketTrade[];
   positions: MarketPosition[];
-  lossProtections?: MarketLossProtectionRecord[];
+  lossProtections?: MarketLossProtection[];
   winningOutcome: MarketOutcome | null;
   liquidityEvents: MarketLiquidityEvent[];
-};
-
-export type MarketLossProtectionRecord = {
-  id: string;
-  marketId: string;
-  outcomeId: string;
-  userId: string;
-  insuredCostBasis: number;
-  premiumPaid: number;
-  createdAt: Date;
-  updatedAt: Date;
 };
 
 export type MarketPositionWithProtection = MarketPosition & {
