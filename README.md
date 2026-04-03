@@ -70,7 +70,17 @@ Copy `.env.example` to `.env` and fill in:
 - `DISCORD_ACTIVITY_URL` optional stream URL, only used when the activity type is `streaming`
 - `DATABASE_URL`
 - `REDIS_URL`
+- `LOG_LEVEL` optional
+- `POLL_CREATION_LIMIT_PER_HOUR` optional
+- `MEOW_LIMIT_PER_HOUR` optional
 - `SEARCH_LIMIT_PER_MINUTE`
+- `MARKET_DEFAULT_TIMEZONE` optional
+- `XAI_API_KEY` optional, required for AI-generated corpse openers or Grok-backed quips prompts
+- `CORPSE_OPENER_MODEL` optional
+- `QUIPS_GROK_MODEL` optional
+- `QUIPS_GEMINI_MODEL` optional
+- `GOOGLE_GENERATIVE_AI_API_KEY` optional, required for Gemini via Google AI Studio
+- `APP_REVISION` optional
 - `R2_ACCOUNT_ID` optional
 - `R2_ACCESS_KEY_ID` optional
 - `R2_SECRET_ACCESS_KEY` optional
