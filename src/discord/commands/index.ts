@@ -2,6 +2,7 @@ import type { RESTPostAPIApplicationCommandsJSONBody } from 'discord.js';
 
 import { auditLogCommand } from '../../features/audit-log/handlers/commands.js';
 import { casinoCommand } from '../../features/casino/commands/definition.js';
+import { dilemmaCommand } from '../../features/dilemma/commands/definition.js';
 import { emojiBuilderCommand } from '../../features/emojis/commands/definition.js';
 import { latexCommand } from '../../features/meta/commands/latex.js';
 import { marketCommand } from '../../features/markets/commands/definition.js';
@@ -34,6 +35,7 @@ import { starboardCommand } from '../../features/starboard/commands/definition.j
 export const applicationCommands: RESTPostAPIApplicationCommandsJSONBody[] = [
   auditLogCommand.toJSON(),
   casinoCommand.toJSON(),
+  dilemmaCommand.toJSON(),
   emojiBuilderCommand.toJSON(),
   latexCommand.toJSON(),
   marketCommand.toJSON(),

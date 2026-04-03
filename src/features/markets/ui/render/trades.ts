@@ -210,15 +210,11 @@ export const buildMarketTradeQuoteMessage = (
   embeds: [EmbedBuilder];
   components: [ActionRowBuilder<ButtonBuilder>];
 } => {
-  const grossImmediateCash = quote.grossImmediateCash ?? quote.immediateCash;
   const netImmediateCash = quote.netImmediateCash ?? quote.immediateCash;
-  const feeCharged = quote.feeCharged ?? 0;
   const description = quote.action === 'buy'
     ? [
         `Outcome: **${quote.outcomeLabel}**`,
-        `Base spend: **${formatMoney(grossImmediateCash)}**`,
-        feeCharged > 0 ? `Momentum tax: **${formatMoney(feeCharged)}**` : null,
-        `Total charged now: **${formatMoney(netImmediateCash)}**`,
+        `Spend now: **${formatMoney(netImmediateCash)}**`,
         `Shares received: **${quote.shares.toFixed(2)}**`,
         quote.averagePrice === null ? null : `Average price: **${formatMoney(quote.averagePrice)} / share**`,
         '',
@@ -229,9 +225,7 @@ export const buildMarketTradeQuoteMessage = (
       ].filter(Boolean).join('\n')
     : [
         `Outcome: **${quote.outcomeLabel}**`,
-        `Gross proceeds now: **${formatMoney(grossImmediateCash)}**`,
-        feeCharged > 0 ? `Momentum tax: **${formatMoney(feeCharged)}**` : null,
-        `Net proceeds after tax: **${formatMoney(netImmediateCash)}**`,
+        `Proceeds now: **${formatMoney(netImmediateCash)}**`,
         `Collateral locked: **${formatMoney(quote.collateralLocked)}**`,
         `Net bankroll change now: **${formatMoney(quote.netBankrollChange)}**`,
         `Shares shorted: **${quote.shares.toFixed(2)}**`,

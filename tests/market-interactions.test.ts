@@ -857,7 +857,7 @@ describe('market interactions', () => {
       components: [],
     }));
     const updatePayload = interaction.update.mock.calls[0]?.[0];
-    expect(updatePayload.embeds[0].data.description).toContain('Base spend: 45.00 pts');
+    expect(updatePayload.embeds[0].data.description).toContain('Spend: 45.00 pts');
     expect(updatePayload.embeds[0].data.description).toContain('If Yes is chosen: 70.00 pts');
   });
 

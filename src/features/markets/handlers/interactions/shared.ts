@@ -179,9 +179,7 @@ export const buildTradeExecutionDescription = (
   outcomeLabel: string,
   result: Awaited<ReturnType<typeof executeMarketTrade>>,
 ): string => {
-  const grossCashAmount = result.grossCashAmount ?? result.cashAmount;
   const netCashAmount = result.netCashAmount ?? result.cashAmount;
-  const feeCharged = result.feeCharged ?? 0;
   const settledShares = Math.abs(result.shareDelta);
   const payoutSummary = action === 'buy'
     ? { ifChosen: settledShares, ifNotChosen: 0 }
@@ -192,16 +190,10 @@ export const buildTradeExecutionDescription = (
   return [
     `Outcome: **${outcomeLabel}**`,
     action === 'buy'
-      ? `Base spend: ${grossCashAmount.toFixed(2)} pts`
+      ? `Spend: ${netCashAmount.toFixed(2)} pts`
       : action === 'short'
-        ? `Gross proceeds: ${grossCashAmount.toFixed(2)} pts`
+        ? `Proceeds: ${netCashAmount.toFixed(2)} pts`
         : `Cash: ${result.cashAmount.toFixed(2)} pts`,
-    feeCharged > 0 ? `Momentum tax: ${feeCharged.toFixed(2)} pts` : null,
-    action === 'buy'
-      ? `Total charged: ${netCashAmount.toFixed(2)} pts`
-      : action === 'short'
-        ? `Net proceeds after tax: ${netCashAmount.toFixed(2)} pts`
-        : null,
     `Shares: ${Math.abs(result.shareDelta).toFixed(2)}`,
     `Bankroll: ${result.account.bankroll.toFixed(2)} pts`,
     ...(payoutSummary

@@ -115,6 +115,24 @@ enum CasinoTableActionKind {
   cash_out
 }
 
+enum DilemmaRoundStatus {
+  active
+  completed
+  cancelled
+}
+
+enum DilemmaChoice {
+  cooperate
+  defect
+}
+
+enum DilemmaCancelReason {
+  timeout
+  dm_failed
+  no_pair_available
+  insufficient_time
+}
+
 model GuildConfig {
   id                 String           @id @default(cuid())
   guildId            String           @unique
@@ -130,6 +148,11 @@ model GuildConfig {
   marketChannelId    String?
   casinoEnabled      Boolean          @default(false)
   casinoChannelId    String?
+  dilemmaEnabled     Boolean          @default(false)
+  dilemmaChannelId   String?
+  dilemmaRunHour     Int?
+  dilemmaRunMinute   Int?
+  dilemmaCooperationRate Float        @default(0.5)
   starboardEmojiId   String?
   starboardEmojiName String?
   memberRoleId       String?
@@ -138,6 +161,7 @@ model GuildConfig {
   starboardEntries   StarboardEntry[]
   marketAccounts     MarketAccount[]
   casinoTables       CasinoTable[]
+  dilemmaRounds      DilemmaRound[]
 }
 
 model Poll {
@@ -653,4 +677,50 @@ model GuildMessageSnapshot {
 
   @@index([guildId, channelId])
   @@index([guildId, updatedAt])
+}
+
+model DilemmaRound {
+  id                    String              @id @default(cuid())
+  guildId               String
+  weekKey               String
+  attemptNumber         Int
+  status                DilemmaRoundStatus  @default(active)
+  stakePoints           Int
+  scheduledFor          DateTime
+  deadlineAt            DateTime
+  cancelReason          DilemmaCancelReason?
+  observedCooperation   Float?
+  cooperationRateBefore Float?
+  cooperationRateAfter  Float?
+  announcementChannelId String?
+  announcementMessageId String?
+  resolvedAt            DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  guildConfig           GuildConfig         @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  participants          DilemmaParticipant[]
+
+  @@unique([guildId, weekKey, attemptNumber])
+  @@index([guildId, weekKey, status])
+  @@index([status, deadlineAt])
+  @@index([guildId, createdAt])
+}
+
+model DilemmaParticipant {
+  id              String        @id @default(cuid())
+  roundId         String
+  userId          String
+  seatIndex       Int
+  choice          DilemmaChoice?
+  respondedAt     DateTime?
+  payoutDelta     Float?
+  promptChannelId String?
+  promptMessageId String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  round           DilemmaRound  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, userId])
+  @@unique([roundId, seatIndex])
+  @@index([userId, createdAt])
 }
