@@ -9,7 +9,6 @@ import {
   assertCanResolveOutcome,
   computeSupplementaryBonusDistribution,
   getLossProtection,
-  getMarketLossProtectionDelegate,
   getLossProtectionMap,
   getMarketForUpdate,
   marketInclude,
@@ -92,7 +91,7 @@ export const resolveMarketOutcome = async (input: {
         outcomeId: outcome.id,
       },
     });
-    await getMarketLossProtectionDelegate(tx).deleteMany({
+    await tx.marketLossProtection.deleteMany({
       where: {
         marketId: market.id,
         outcomeId: outcome.id,
@@ -235,7 +234,7 @@ export const resolveMarket = async (input: {
         marketId: market.id,
       },
     });
-    await getMarketLossProtectionDelegate(tx).deleteMany({
+    await tx.marketLossProtection.deleteMany({
       where: {
         marketId: market.id,
       },

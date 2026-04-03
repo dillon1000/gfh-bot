@@ -1,5 +1,6 @@
 import type {
   Market,
+  MarketLossProtection,
   MarketOutcome,
   MarketPosition,
   MarketPositionSide,
@@ -14,7 +15,6 @@ import {
 } from '../../../lib/economy.js';
 import { computeLmsrProbabilities, computeSellPayout } from './math.js';
 import type {
-  MarketLossProtectionRecord,
   MarketStatus,
   MarketWithRelations,
 } from './types.js';
@@ -101,15 +101,15 @@ export const getPosition = (
   positions.get(`${outcomeId}:${side}`);
 
 export const getLossProtectionMap = (
-  protections: MarketLossProtectionRecord[],
-): Map<string, MarketLossProtectionRecord> =>
+  protections: MarketLossProtection[],
+): Map<string, MarketLossProtection> =>
   new Map(protections.map((protection) => [`${protection.userId}:${protection.outcomeId}`, protection]));
 
 export const getLossProtection = (
-  protections: Map<string, MarketLossProtectionRecord>,
+  protections: Map<string, MarketLossProtection>,
   userId: string,
   outcomeId: string,
-): MarketLossProtectionRecord | undefined =>
+): MarketLossProtection | undefined =>
   protections.get(`${userId}:${outcomeId}`);
 
 export const isMarketOutcomeResolved = (
@@ -359,25 +359,6 @@ export const getPositionUninsuredCostBasis = (
   costBasis: number,
   insuredCostBasis: number,
 ): number => roundCurrency(Math.max(0, costBasis - insuredCostBasis));
-
-export const getMarketLossProtectionDelegate = <T extends object>(client: T): {
-  findMany: (...args: any[]) => Promise<any>;
-  upsert: (...args: any[]) => Promise<any>;
-  update: (...args: any[]) => Promise<any>;
-  deleteMany: (...args: any[]) => Promise<any>;
-} => (client as T & {
-  marketLossProtection?: {
-    findMany: (...args: any[]) => Promise<any>;
-    upsert: (...args: any[]) => Promise<any>;
-    update: (...args: any[]) => Promise<any>;
-    deleteMany: (...args: any[]) => Promise<any>;
-  };
-}).marketLossProtection ?? {
-  findMany: async () => [],
-  upsert: async () => undefined,
-  update: async () => undefined,
-  deleteMany: async () => ({ count: 0 }),
-};
 
 export const assertCanResolveMarket = (
   market: MarketWithRelations,
