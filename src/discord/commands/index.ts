@@ -33,6 +33,7 @@ import { reactionRoleBuilderCommand, reactionRolesCommand } from '../../features
 import { removeCommand } from '../../features/removals/commands/definition.js';
 import { searchCommand } from '../../features/search/commands/definition.js';
 import { starboardCommand } from '../../features/starboard/commands/definition.js';
+import { quipsCommand } from '../../features/quips/commands/definition.js';
 
 export const applicationCommands: RESTPostAPIApplicationCommandsJSONBody[] = [
   auditLogCommand.toJSON(),
@@ -45,6 +46,7 @@ export const applicationCommands: RESTPostAPIApplicationCommandsJSONBody[] = [
   meowCommand.toJSON(),
   pingCommand.toJSON(),
   muralCommand.toJSON(),
+  quipsCommand.toJSON(),
   searchCommand.toJSON(),
   removeCommand.toJSON(),
   pollCommand.toJSON(),

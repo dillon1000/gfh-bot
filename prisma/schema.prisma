@@ -147,6 +147,23 @@ enum CorpseParticipantState {
   timed_out
 }
 
+enum QuipsRoundPhase {
+  answering
+  voting
+  revealed
+  paused
+}
+
+enum QuipsProvider {
+  xai
+  google_ai_studio
+}
+
+enum QuipsSelectionSlot {
+  a
+  b
+}
+
 model GuildConfig {
   id                 String           @id @default(cuid())
   guildId            String           @unique
@@ -184,6 +201,10 @@ model GuildConfig {
   casinoTables       CasinoTable[]
   dilemmaRounds      DilemmaRound[]
   corpseGames        CorpseGame[]
+  quipsConfig        QuipsConfig?
+  quipsRounds        QuipsRound[]
+  quipsWeeklyStats   QuipsWeeklyStat[]
+  quipsLifetimeStats QuipsLifetimeStat[]
   muralPixels        MuralPixel[]
   muralPlacements    MuralPlacement[]
   muralResetProposals MuralResetProposal[]
@@ -858,4 +879,118 @@ model CorpseEntry {
   @@unique([gameId, turnIndex])
   @@index([gameId, createdAt])
   @@index([gameId, userId])
+}
+
+model QuipsConfig {
+  id                  String      @id @default(cuid())
+  guildId             String      @unique
+  channelId           String
+  enabled             Boolean     @default(true)
+  pausedAt            DateTime?
+  boardMessageId      String?     @unique
+  activeRoundId       String?     @unique
+  adultMode           Boolean     @default(true)
+  answerWindowMinutes Int         @default(720)
+  voteWindowMinutes   Int         @default(720)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  guildConfig         GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@index([enabled, pausedAt])
+}
+
+model QuipsRound {
+  id                   String           @id @default(cuid())
+  guildId              String
+  channelId            String
+  phase                QuipsRoundPhase  @default(answering)
+  promptText           String
+  promptFingerprint    String
+  promptProvider       QuipsProvider
+  promptModel          String
+  promptOpenedAt       DateTime         @default(now())
+  answerClosesAt       DateTime
+  voteClosesAt         DateTime?
+  revealedAt           DateTime?
+  selectionSeed        Int?
+  selectedSubmissionAId String?
+  selectedSubmissionBId String?
+  winningSubmissionId  String?
+  boardMessageId       String
+  resultMessageId      String?          @unique
+  weekKey              String
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  guildConfig          GuildConfig      @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  submissions          QuipsSubmission[]
+  votes                QuipsVote[]
+
+  @@index([guildId, createdAt])
+  @@index([guildId, weekKey, createdAt])
+  @@index([phase, answerClosesAt])
+  @@index([phase, voteClosesAt])
+}
+
+model QuipsSubmission {
+  id            String             @id @default(cuid())
+  roundId        String
+  userId         String
+  answerText     String
+  submittedAt    DateTime          @default(now())
+  isSelected     Boolean           @default(false)
+  selectionSlot  QuipsSelectionSlot?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  round          QuipsRound        @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, userId])
+  @@index([roundId, submittedAt])
+  @@index([roundId, isSelected])
+  @@index([roundId, selectionSlot])
+}
+
+model QuipsVote {
+  id            String      @id @default(cuid())
+  roundId        String
+  userId         String
+  submissionId   String
+  createdAt      DateTime   @default(now())
+  round          QuipsRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, userId])
+  @@index([roundId, submissionId])
+  @@index([submissionId, createdAt])
+}
+
+model QuipsWeeklyStat {
+  id                  String      @id @default(cuid())
+  guildId             String
+  weekKey             String
+  userId              String
+  wins                Int         @default(0)
+  votesReceived       Int         @default(0)
+  selectedAppearances Int         @default(0)
+  submissions         Int         @default(0)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  guildConfig         GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@unique([guildId, weekKey, userId])
+  @@index([guildId, weekKey, wins, votesReceived])
+}
+
+model QuipsLifetimeStat {
+  id                  String      @id @default(cuid())
+  guildId             String
+  userId              String
+  wins                Int         @default(0)
+  votesReceived       Int         @default(0)
+  selectedAppearances Int         @default(0)
+  submissions         Int         @default(0)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  guildConfig         GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@index([guildId, wins, votesReceived])
 }

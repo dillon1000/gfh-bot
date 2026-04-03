@@ -22,6 +22,9 @@ import { startMarketCloseWorker, startMarketGraceWorker, startMarketLiquidityWor
 import { recoverExpiredPolls, recoverMissedPollReminders } from '../features/polls/services/lifecycle.js';
 import { syncOpenPollCloseJobs, syncOpenPollReminderJobs } from '../features/polls/services/repository.js';
 import { startPollReminderWorker, startPollWorker } from '../features/polls/workers/polls.js';
+import { recoverOverdueQuipsRounds } from '../features/quips/services/lifecycle.js';
+import { syncOpenQuipsJobs } from '../features/quips/services/scheduler.js';
+import { startQuipsAnswerCloseWorker, startQuipsVoteCloseWorker } from '../features/quips/workers/quips.js';
 import { syncReactionRolePanels } from '../features/reaction-roles/services/panels.js';
 import {
   expireStaleRemovalVoteRequests,
@@ -124,6 +127,12 @@ client.once(Events.ClientReady, async (readyClient) => {
       },
     },
     {
+      name: 'recover-overdue-quips-rounds',
+      run: async () => {
+        await recoverOverdueQuipsRounds(readyClient);
+      },
+    },
+    {
       name: 'recover-overdue-corpse-turns',
       run: async () => {
         await recoverOverdueCorpseTurns(readyClient);
@@ -157,6 +166,12 @@ client.once(Events.ClientReady, async (readyClient) => {
       name: 'recover-due-removal-vote-starts',
       run: async () => {
         await recoverDueRemovalVoteStarts(readyClient);
+      },
+    },
+    {
+      name: 'sync-open-quips-jobs',
+      run: async () => {
+        await syncOpenQuipsJobs();
       },
     },
     {
@@ -266,6 +281,8 @@ const corpseStartWorker = startCorpseStartWorker(client);
 const corpseTurnTimeoutWorker = startCorpseTurnTimeoutWorker(client);
 const dilemmaStartWorker = startDilemmaStartWorker(client);
 const dilemmaTimeoutWorker = startDilemmaTimeoutWorker(client);
+const quipsAnswerCloseWorker = startQuipsAnswerCloseWorker(client);
+const quipsVoteCloseWorker = startQuipsVoteCloseWorker(client);
 
 registerShutdownHandler(async () => {
   await Promise.allSettled([
@@ -283,6 +300,8 @@ registerShutdownHandler(async () => {
     corpseTurnTimeoutWorker.close(),
     dilemmaStartWorker.close(),
     dilemmaTimeoutWorker.close(),
+    quipsAnswerCloseWorker.close(),
+    quipsVoteCloseWorker.close(),
     closeAllQueues(),
     quitRedis(),
     disconnectPrisma(),

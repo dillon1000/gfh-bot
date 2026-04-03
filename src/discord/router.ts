@@ -28,6 +28,9 @@ import { handleMeowCommand } from '../features/meta/commands/meow.js';
 import { handlePingCommand } from '../features/meta/commands/ping.js';
 import { handleMuralCommand } from '../features/mural/handlers/commands.js';
 import { handleMuralInteractionError } from '../features/mural/handlers/interaction-errors.js';
+import { handleQuipsCommand } from '../features/quips/handlers/commands.js';
+import { handleQuipsInteractionError } from '../features/quips/handlers/interaction-errors.js';
+import { handleQuipsButton, handleQuipsModal } from '../features/quips/handlers/interactions.js';
 import {
   handlePollAnalyticsCommand,
 } from '../features/polls/handlers/analytics.js';
@@ -121,6 +124,9 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'mural':
             await handleMuralCommand(client, interaction);
+            return;
+          case 'quips':
+            await handleQuipsCommand(client, interaction);
             return;
           case 'search':
             await handleSearchCommand(client, interaction);
@@ -229,6 +235,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('corpse:')) {
           await handleCorpseButton(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('quips:')) {
+          await handleQuipsButton(client, interaction);
           return;
         }
 
@@ -357,6 +368,11 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
+        if (interaction.customId.startsWith('quips:')) {
+          await handleQuipsModal(client, interaction);
+          return;
+        }
+
         if (interaction.customId.startsWith('corpse:')) {
           await handleCorpseModal(client, interaction);
           return;
@@ -399,6 +415,12 @@ export const registerInteractionRouter = (client: Client): void => {
           (interaction.isStringSelectMenu() && interaction.customId.startsWith('reaction-role:'))
         ) {
           await handleReactionRoleInteractionError(interaction, error);
+        } else if (
+          (interaction.isChatInputCommand() && interaction.commandName === 'quips')
+          || (interaction.isButton() && interaction.customId.startsWith('quips:'))
+          || (interaction.isModalSubmit() && interaction.customId.startsWith('quips:'))
+        ) {
+          await handleQuipsInteractionError(interaction, error);
         } else if (
           (interaction.isChatInputCommand() && interaction.commandName === 'corpse')
           || (interaction.isButton() && interaction.customId.startsWith('corpse:'))
