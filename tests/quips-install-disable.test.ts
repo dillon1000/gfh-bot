@@ -199,8 +199,8 @@ describe('quips install and disable flows', () => {
       boardMessageId: null,
       activeRoundId: 'round_1',
       adultMode: true,
-      answerWindowMinutes: 720,
-      voteWindowMinutes: 720,
+      answerWindowMinutes: 5,
+      voteWindowMinutes: 5,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -287,6 +287,16 @@ describe('quips install and disable flows', () => {
     expect(quipsConfigUpsert).toHaveBeenCalledTimes(1);
     expect(round.id).toBe('round_1');
     expect(configState.boardMessageId).toBe('board_sent_1');
+    expect(quipsConfigUpsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({
+        answerWindowMinutes: 5,
+        voteWindowMinutes: 5,
+      }),
+      update: expect.objectContaining({
+        answerWindowMinutes: 5,
+        voteWindowMinutes: 5,
+      }),
+    }));
   });
 
   it('publishes a fresh board message when the board moves to another channel', async () => {

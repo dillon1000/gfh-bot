@@ -10,6 +10,7 @@ import {
   fingerprintPrompt,
   isPromptNearDuplicate,
   normalizePromptText,
+  quipsAdultPromptChance,
   quipsPromptSampleSize,
   shuffle,
 } from '../core/shared.js';
@@ -22,9 +23,17 @@ type ProviderAttempt = {
 export const buildQuipsPromptSystem = (
   seedCorpus: readonly string[],
   recentPrompts: readonly string[],
-  tone: 'adult',
+  options: {
+    adultMode: boolean;
+    includeAdultFlavor: boolean;
+  },
 ): string => {
   const samples = shuffle(seedCorpus).slice(0, quipsPromptSampleSize);
+  const toneInstruction = options.adultMode
+    ? options.includeAdultFlavor
+      ? 'Adult mode is enabled, so edgy humor is allowed, go wild!'
+      : null
+    : 'Keep it playful and broadly server-safe.';
 
   return [
     'You are a comedy writer for the game Quiplash',
@@ -33,14 +42,12 @@ export const buildQuipsPromptSystem = (
     'Use a wide variety of formats and sentence shapes.',
     'Do not explain yourself or output multiple options.',
     'Avoid copying or closely paraphrasing recent prompts. Be creative and don\'t repeat common patterns.',
-    tone === 'adult'
-      ? 'Adult mode is enabled, so edgy humor is allowed, go wild!'
-      : 'Keep it playful and broadly server-safe.',
+    toneInstruction,
     'Recent prompts to avoid repeating:',
     ...recentPrompts.map((prompt) => `- ${prompt}`),
     'Style examples (Come up with something ORIGINAL — don\'t copy these examples.):',
     ...samples.map((prompt) => `- ${prompt}`),
-  ].join('\n');
+  ].filter((line): line is string => Boolean(line)).join('\n');
 };
 
 export const validateGeneratedPrompt = (
@@ -142,10 +149,14 @@ export const generateQuipsPrompt = async (
 ): Promise<GeneratedQuipsPrompt> => {
   const attempts = getProviderAttempts(options?.random);
   const errors: string[] = [];
+  const random = options?.random ?? Math.random;
   const system = buildQuipsPromptSystem(
     quipsSeedPrompts,
     input.recentPrompts,
-    input.adultMode ? 'adult' : 'adult',
+    {
+      adultMode: input.adultMode,
+      includeAdultFlavor: input.adultMode && random() < quipsAdultPromptChance,
+    },
   );
 
   for (const attempt of attempts) {

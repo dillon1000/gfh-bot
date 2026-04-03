@@ -890,8 +890,8 @@ model QuipsConfig {
   boardMessageId      String?     @unique
   activeRoundId       String?     @unique
   adultMode           Boolean     @default(true)
-  answerWindowMinutes Int         @default(720)
-  voteWindowMinutes   Int         @default(720)
+  answerWindowMinutes Int         @default(5)
+  voteWindowMinutes   Int         @default(5)
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
   guildConfig         GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)

@@ -16,6 +16,7 @@ import type { QuipsConfigView, QuipsRoundWithRelations } from '../core/types.js'
 import {
   quipsDefaultAnswerWindowMinutes,
   quipsDefaultVoteWindowMinutes,
+  quipsMinimumSubmissionCount,
   quipsMaxAnswerLength,
 } from '../core/shared.js';
 import {
@@ -71,6 +72,9 @@ const getSelectedSubmission = (
   slot: 'a' | 'b',
 ): QuipsSubmission | null => round.submissions.find((submission) => submission.selectionSlot === slot) ?? null;
 
+const getPromptModelFooter = (round: Pick<QuipsRoundWithRelations, 'promptModel'>): string =>
+  `Prompt model: ${round.promptModel}`;
+
 export const buildQuipsBoardMessage = (
   config: Pick<QuipsConfig, 'adultMode'>,
   round: QuipsRoundWithRelations,
@@ -89,7 +93,8 @@ export const buildQuipsBoardMessage = (
             `Prompt: **${round.promptText}**`,
             'The board is paused by an admin.',
             'Resume to continue the current round.',
-          ].join('\n')),
+          ].join('\n'))
+          .setFooter({ text: getPromptModelFooter(round) }),
       ],
       components: [buildAdminControls(round.phase)],
       allowedMentions: {
@@ -119,7 +124,8 @@ export const buildQuipsBoardMessage = (
             `Votes cast: **${round.votes.length}**`,
             `Adult mode: ${config.adultMode ? 'enabled' : 'disabled'}.`,
             `Live score: **A ${votesForA}** vs **B ${votesForB}**`,
-          ].join('\n')),
+          ].join('\n'))
+          .setFooter({ text: getPromptModelFooter(round) }),
       ],
       components: [
         new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -140,6 +146,13 @@ export const buildQuipsBoardMessage = (
     };
   }
 
+  const isWaitingForMoreSubmissions = round.submissions.length < quipsMinimumSubmissionCount
+    && round.answerClosesAt.getTime() <= Date.now();
+  const submissionsNeeded = Math.max(0, quipsMinimumSubmissionCount - round.submissions.length);
+  const answerStatusLine = isWaitingForMoreSubmissions
+    ? `Waiting for ${submissionsNeeded} more submission${submissionsNeeded === 1 ? '' : 's'} to start voting.`
+    : `Submit your answer before ${formatDiscordRelativeTimestamp(round.answerClosesAt)}.`;
+
   return {
     embeds: [
       new EmbedBuilder()
@@ -147,13 +160,11 @@ export const buildQuipsBoardMessage = (
         .setColor(0x60a5fa)
         .setDescription([
           `Prompt: **${round.promptText}**`,
-          `Submit your answer before ${formatDiscordRelativeTimestamp(round.answerClosesAt)}.`,
+          answerStatusLine,
           '',
-          `Submissions so far: **${round.submissions.length}**`,
-          'One answer per user. Resubmitting replaces your previous answer.',
-          'When the round closes, two answers will be chosen at random for the vote.',
-          `Adult mode: ${config.adultMode ? 'enabled' : 'disabled'}.`,
-        ].join('\n')),
+          `${round.submissions.length} submissions so far. Submit or edit your answer.`,
+        ].join('\n'))
+        .setFooter({ text: getPromptModelFooter(round) }),
     ],
     components: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(

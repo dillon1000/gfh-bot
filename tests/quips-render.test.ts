@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { QuipsRoundWithRelations } from '../src/features/quips/core/types.js';
 import { buildQuipsBoardMessage } from '../src/features/quips/ui/render.js';
@@ -7,19 +7,24 @@ const buildRound = (phase: 'answering' | 'voting' | 'paused'): QuipsRoundWithRel
   id: 'round_1',
   guildId: 'guild_1',
   channelId: 'channel_1',
-  messageId: 'message_1',
   phase,
   promptText: 'What should the raccoon say at the press conference?',
-  adultMode: true,
   promptFingerprint: 'fingerprint_1',
   promptProvider: 'xai',
   promptModel: 'grok-test',
+  promptOpenedAt: new Date('2026-04-03T11:50:00.000Z'),
   answerClosesAt: new Date('2026-04-03T12:00:00.000Z'),
   voteClosesAt: new Date('2026-04-03T12:05:00.000Z'),
+  revealedAt: null,
+  selectionSeed: 123,
+  selectedSubmissionAId: 'submission_a',
+  selectedSubmissionBId: 'submission_b',
   createdAt: new Date('2026-04-03T11:50:00.000Z'),
   updatedAt: new Date('2026-04-03T11:50:00.000Z'),
-  completedAt: null,
   winningSubmissionId: null,
+  boardMessageId: 'board_1',
+  resultMessageId: null,
+  weekKey: '2026-04-03',
   submissions: [
     {
       id: 'submission_a',
@@ -51,12 +56,16 @@ const buildRound = (phase: 'answering' | 'voting' | 'paused'): QuipsRoundWithRel
       submissionId: 'submission_a',
       userId: 'voter_1',
       createdAt: new Date('2026-04-03T11:57:00.000Z'),
-      updatedAt: new Date('2026-04-03T11:57:00.000Z'),
     },
   ],
 });
 
 describe('quips board render', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-03T11:58:00.000Z'));
+  });
+
   it('does not duplicate component custom ids while collecting answers', () => {
     const payload = buildQuipsBoardMessage(
       { adultMode: true },
@@ -70,5 +79,34 @@ describe('quips board render', () => {
           : []));
 
     expect(new Set(customIds).size).toBe(customIds.length);
+  });
+
+  it('keeps the answer embed concise and shows the prompt model in the footer', () => {
+    const payload = buildQuipsBoardMessage(
+      { adultMode: true },
+      buildRound('answering'),
+    );
+
+    expect(payload.embeds[0]?.toJSON()).toMatchObject({
+      description: expect.stringContaining('2 submissions so far. Submit or edit your answer.'),
+      footer: {
+        text: 'Prompt model: grok-test',
+      },
+    });
+    expect(payload.embeds[0]?.toJSON().description).not.toContain('One answer per user.');
+    expect(payload.embeds[0]?.toJSON().description).not.toContain('Adult mode: enabled.');
+  });
+
+  it('shows a waiting message after the timer expires without enough submissions', () => {
+    const round = buildRound('answering');
+    round.answerClosesAt = new Date('2026-04-03T11:57:00.000Z');
+    round.submissions = [round.submissions[0]!];
+
+    const payload = buildQuipsBoardMessage(
+      { adultMode: true },
+      round,
+    );
+
+    expect(payload.embeds[0]?.toJSON().description).toContain('Waiting for 1 more submission to start voting.');
   });
 });

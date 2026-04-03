@@ -4,10 +4,10 @@ import type { QuipsRoundPhase } from '@prisma/client';
 
 import { formatDateKeyInTimeZone } from '../../corpse/core/shared.js';
 
-export const quipsDefaultAnswerWindowMinutes = 12 * 60;
-export const quipsDefaultVoteWindowMinutes = 12 * 60;
+export const quipsDefaultAnswerWindowMinutes = 5;
+export const quipsDefaultVoteWindowMinutes = 5;
 export const quipsMinimumSubmissionCount = 2;
-export const quipsLowActivityExtensionMinutes = 60;
+export const quipsAdultPromptChance = 0.1;
 export const quipsMaxAnswerLength = 140;
 export const quipsPromptSampleSize = 80;
 export const quipsRecentPromptLimit = 40;
