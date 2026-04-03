@@ -29,7 +29,7 @@ export const buildPortfolioEmbed = (
           ? 'No open positions right now.'
           : portfolio.openPositions.slice(0, 10).map((position) =>
             position.side === 'long'
-              ? `• **${position.market.title}** — LONG ${position.outcome.label}: ${position.shares.toFixed(2)} shares (${formatMoney(position.costBasis)} basis)`
+              ? `• **${position.market.title}** — LONG ${position.outcome.label}: ${position.shares.toFixed(2)} shares (${formatMoney(position.costBasis)} basis, ${formatMoney(position.insuredCostBasis ?? 0)} insured)`
               : `• **${position.market.title}** — SHORT ${position.outcome.label}: ${position.shares.toFixed(2)} shares (${formatMoney(position.proceeds)} proceeds, ${formatMoney(position.collateralLocked)} locked)`).join('\n'),
       ].join('\n'),
     );
@@ -54,11 +54,26 @@ export const buildPortfolioMessage = (
           .setMinValues(1)
           .setMaxValues(1)
           .addOptions(
-            manageablePositions.slice(0, 25).map((position) => ({
-              label: `${position.side === 'long' ? 'Sell' : 'Cover'} ${truncateLabel(position.market.title, 40)}`,
-              value: `${position.side === 'long' ? 'sell' : 'cover'}:${position.marketId}:${position.outcomeId}`,
-              description: `${position.outcome.label} • ${position.shares.toFixed(2)} shares`,
-            })),
+            manageablePositions
+              .slice(0, 25)
+              .flatMap((position) => position.side === 'long'
+                ? [
+                    {
+                      label: `Sell ${truncateLabel(position.market.title, 40)}`,
+                      value: `sell:${position.marketId}:${position.outcomeId}`,
+                      description: `${position.outcome.label} • ${position.shares.toFixed(2)} shares`,
+                    },
+                    {
+                      label: `Protect ${truncateLabel(position.market.title, 40)}`,
+                      value: `protect:${position.marketId}:${position.outcomeId}`,
+                      description: `${position.outcome.label} • ${formatMoney(position.insuredCostBasis ?? 0)} insured`,
+                    },
+                  ]
+                : [{
+                    label: `Cover ${truncateLabel(position.market.title, 40)}`,
+                    value: `cover:${position.marketId}:${position.outcomeId}`,
+                    description: `${position.outcome.label} • ${position.shares.toFixed(2)} shares`,
+                  }]),
           ),
       ),
     );

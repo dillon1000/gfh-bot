@@ -14,16 +14,34 @@ export type MarketWithRelations = Market & {
   outcomes: MarketOutcome[];
   trades: MarketTrade[];
   positions: MarketPosition[];
+  lossProtections?: MarketLossProtectionRecord[];
   winningOutcome: MarketOutcome | null;
   liquidityEvents: MarketLiquidityEvent[];
 };
 
+export type MarketLossProtectionRecord = {
+  id: string;
+  marketId: string;
+  outcomeId: string;
+  userId: string;
+  insuredCostBasis: number;
+  premiumPaid: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MarketPositionWithProtection = MarketPosition & {
+  market: Market;
+  outcome: MarketOutcome;
+  insuredCostBasis?: number;
+  premiumPaid?: number;
+  coverageRatio?: number;
+  uninsuredCostBasis?: number;
+};
+
 export type MarketAccountWithOpenPositions = MarketAccount & {
   lockedCollateral: number;
-  openPositions: Array<MarketPosition & {
-    market: Market;
-    outcome: MarketOutcome;
-  }>;
+  openPositions: MarketPositionWithProtection[];
 };
 
 export type MarketStatus = 'open' | 'closed' | 'resolved' | 'cancelled';
@@ -48,6 +66,9 @@ export type MarketTradeResult = {
   positionSide: MarketPositionSide;
   shareDelta: number;
   cashAmount: number;
+  grossCashAmount: number;
+  netCashAmount: number;
+  feeCharged: number;
   realizedProfitDelta: number;
 };
 
@@ -67,6 +88,9 @@ export type MarketTradeQuote = {
   shares: number;
   averagePrice: number | null;
   immediateCash: number;
+  grossImmediateCash: number;
+  netImmediateCash: number;
+  feeCharged: number;
   collateralLocked: number;
   netBankrollChange: number;
   settlementIfChosen: number;
@@ -78,6 +102,7 @@ export type MarketTradeQuote = {
 };
 
 export type MarketTradeQuoteSession = {
+  kind: 'trade';
   sessionId: string;
   action: MarketTradeQuoteAction;
   guildId: string;
@@ -92,6 +117,9 @@ export type MarketTradeQuoteSession = {
   shares: number;
   averagePrice: number | null;
   immediateCash: number;
+  grossImmediateCash: number;
+  netImmediateCash: number;
+  feeCharged: number;
   collateralLocked: number;
   netBankrollChange: number;
   settlementIfChosen: number;
@@ -101,6 +129,42 @@ export type MarketTradeQuoteSession = {
   maxLossIfChosen: number;
   maxLossIfNotChosen: number;
   expiresAt: string;
+};
+
+export type MarketLossProtectionQuote = {
+  marketId: string;
+  marketTitle: string;
+  outcomeId: string;
+  outcomeLabel: string;
+  guildId: string;
+  userId: string;
+  currentProbability: number;
+  currentLongCostBasis: number;
+  alreadyInsuredCostBasis: number;
+  targetCoverage: number;
+  targetInsuredCostBasis: number;
+  incrementalInsuredCostBasis: number;
+  premium: number;
+  payoutIfLoses: number;
+};
+
+export type MarketLossProtectionQuoteSession = MarketLossProtectionQuote & {
+  kind: 'protection';
+  sessionId: string;
+  expiresAt: string;
+};
+
+export type MarketQuoteSession = MarketTradeQuoteSession | MarketLossProtectionQuoteSession;
+
+export type MarketLossProtectionPurchaseResult = {
+  market: MarketWithRelations;
+  outcome: MarketOutcome;
+  account: MarketAccount;
+  insuredCostBasis: number;
+  premiumPaid: number;
+  coverageRatio: number;
+  uninsuredCostBasis: number;
+  premiumCharged: number;
 };
 
 export type MarketForecastVectorEntry = {

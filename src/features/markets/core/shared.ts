@@ -1,4 +1,11 @@
-import type { Market, MarketOutcome, MarketPosition, MarketPositionSide, MarketTradeSide, Prisma } from '@prisma/client';
+import type {
+  Market,
+  MarketOutcome,
+  MarketPosition,
+  MarketPositionSide,
+  MarketTradeSide,
+  Prisma,
+} from '@prisma/client';
 import { PermissionFlagsBits, type PermissionsBitField } from 'discord.js';
 
 import {
@@ -6,7 +13,11 @@ import {
   startingBankroll as sharedStartingBankroll,
 } from '../../../lib/economy.js';
 import { computeLmsrProbabilities, computeSellPayout } from './math.js';
-import type { MarketStatus, MarketWithRelations } from './types.js';
+import type {
+  MarketLossProtectionRecord,
+  MarketStatus,
+  MarketWithRelations,
+} from './types.js';
 
 export const startingBankroll = sharedStartingBankroll;
 export const dailyTopUpFloor = defaultDailyTopUpFloor;
@@ -18,6 +29,10 @@ export const resolutionGraceMs = 24 * 60 * 60 * 1_000;
 export const refreshDelayMs = 5_000;
 export const maxOpenProbability = 0.98;
 export const minOpenProbability = 0.02;
+export const momentumTaxFreeThreshold = 0.6;
+export const momentumTaxMaxThreshold = 0.95;
+export const momentumTaxMaxRate = 0.2;
+export const protectionPremiumMultiplier = 1.05;
 
 export const marketInclude = {
   outcomes: {
@@ -31,6 +46,7 @@ export const marketInclude = {
     },
   },
   positions: true,
+  lossProtections: true,
   winningOutcome: true,
   forecastRecords: false,
   liquidityEvents: {
@@ -48,6 +64,7 @@ export const startOfUtcDay = (date: Date): Date =>
 export const roundCurrency = (value: number): number => Math.round(value * 100) / 100;
 export const roundProbability = (value: number): number => Math.round(value * 10_000) / 10_000;
 export const clampSmall = (value: number): number => Math.abs(value) < 1e-9 ? 0 : value;
+export const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 
 export const compareMarketHistoryEvents = <
   T extends {
@@ -82,6 +99,18 @@ export const getPosition = (
   side: MarketPositionSide,
 ): MarketPosition | undefined =>
   positions.get(`${outcomeId}:${side}`);
+
+export const getLossProtectionMap = (
+  protections: MarketLossProtectionRecord[],
+): Map<string, MarketLossProtectionRecord> =>
+  new Map(protections.map((protection) => [`${protection.userId}:${protection.outcomeId}`, protection]));
+
+export const getLossProtection = (
+  protections: Map<string, MarketLossProtectionRecord>,
+  userId: string,
+  outcomeId: string,
+): MarketLossProtectionRecord | undefined =>
+  protections.get(`${userId}:${outcomeId}`);
 
 export const isMarketOutcomeResolved = (
   outcome: Pick<MarketOutcome, 'settlementValue'>,
@@ -281,6 +310,73 @@ export const getTradeLockReason = (
   }
 
   return null;
+};
+
+export const calculateMomentumTaxRate = (consensusProbability: number): number => {
+  if (consensusProbability <= momentumTaxFreeThreshold) {
+    return 0;
+  }
+
+  return clamp(
+    ((consensusProbability - momentumTaxFreeThreshold)
+      / (momentumTaxMaxThreshold - momentumTaxFreeThreshold))
+      * momentumTaxMaxRate,
+    0,
+    momentumTaxMaxRate,
+  );
+};
+
+export const calculateMomentumTax = (
+  action: MarketTradeSide,
+  probability: number,
+  baseTradeCash: number,
+): number => {
+  if (action !== 'buy' && action !== 'short') {
+    return 0;
+  }
+
+  const consensusProbability = action === 'buy' ? probability : 1 - probability;
+  return roundCurrency(baseTradeCash * calculateMomentumTaxRate(consensusProbability));
+};
+
+export const calculateProtectionPremium = (
+  incrementalInsuredCostBasis: number,
+  loseProbability: number,
+): number => roundCurrency(incrementalInsuredCostBasis * loseProbability * protectionPremiumMultiplier);
+
+export const getPositionCoverageRatio = (
+  costBasis: number,
+  insuredCostBasis: number,
+): number => {
+  if (costBasis <= 1e-6) {
+    return 0;
+  }
+
+  return roundCurrency(clamp(insuredCostBasis / costBasis, 0, 1));
+};
+
+export const getPositionUninsuredCostBasis = (
+  costBasis: number,
+  insuredCostBasis: number,
+): number => roundCurrency(Math.max(0, costBasis - insuredCostBasis));
+
+export const getMarketLossProtectionDelegate = <T extends object>(client: T): {
+  findMany: (...args: any[]) => Promise<any>;
+  upsert: (...args: any[]) => Promise<any>;
+  update: (...args: any[]) => Promise<any>;
+  deleteMany: (...args: any[]) => Promise<any>;
+} => (client as T & {
+  marketLossProtection?: {
+    findMany: (...args: any[]) => Promise<any>;
+    upsert: (...args: any[]) => Promise<any>;
+    update: (...args: any[]) => Promise<any>;
+    deleteMany: (...args: any[]) => Promise<any>;
+  };
+}).marketLossProtection ?? {
+  findMany: async () => [],
+  upsert: async () => undefined,
+  update: async () => undefined,
+  deleteMany: async () => ({ count: 0 }),
 };
 
 export const assertCanResolveMarket = (

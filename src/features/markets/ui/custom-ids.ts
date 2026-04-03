@@ -10,7 +10,14 @@ export const marketQuickTradeButtonCustomId = (
   outcomeId: string,
 ): string => `market:quick:${action}:${marketId}:${outcomeId}`;
 export const marketPortfolioButtonCustomId = (marketId: string): string => `market:portfolio:${marketId}`;
+export const marketProtectButtonCustomId = (marketId: string): string => `market:protect:${marketId}`;
 export const marketPortfolioSelectCustomId = (): string => 'market:portfolio-select';
+export const marketProtectionSelectCustomId = (marketId: string): string => `market:protection-select:${marketId}`;
+export const marketProtectionCoverageButtonCustomId = (
+  marketId: string,
+  outcomeId: string,
+  targetCoverage: number,
+): string => `market:protection-coverage:${marketId}:${outcomeId}:${targetCoverage}`;
 export const marketRefreshButtonCustomId = (marketId: string): string => `market:refresh:${marketId}`;
 export const marketTradeSelectCustomId = (action: 'buy' | 'sell' | 'short' | 'cover', marketId: string): string =>
   `market:trade-select:${action}:${marketId}`;

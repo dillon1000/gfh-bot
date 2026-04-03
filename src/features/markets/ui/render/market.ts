@@ -11,6 +11,7 @@ import {
   marketDetailsButtonCustomId,
   marketOutcomeButtonCustomId,
   marketPortfolioButtonCustomId,
+  marketProtectButtonCustomId,
   marketRefreshButtonCustomId,
   marketResolveButtonCustomId,
 } from '../custom-ids.js';
@@ -203,6 +204,14 @@ export const buildMarketMessage = (
       .setCustomId(marketPortfolioButtonCustomId(market.id))
       .setLabel('My Positions')
       .setStyle(ButtonStyle.Secondary),
+  );
+  appendButtonToRows(
+    tradeRows,
+    new ButtonBuilder()
+      .setCustomId(marketProtectButtonCustomId(market.id))
+      .setLabel('Protect')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(tradingClosed),
   );
   appendButtonToRows(
     tradeRows,

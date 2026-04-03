@@ -91,7 +91,7 @@ describe('market render', () => {
     const payload = buildMarketMessage(market);
     const utilityLabels = (payload.components[1]!.toJSON().components as Array<{ label?: string }>).map((component) => component.label);
 
-    expect(utilityLabels).toEqual(['My Positions', 'Details', 'Refresh']);
+    expect(utilityLabels).toEqual(['My Positions', 'Protect', 'Details', 'Refresh']);
   });
 
   it('omits resolved outcomes from the quick trade board', () => {
@@ -191,8 +191,10 @@ describe('market render', () => {
     const options = selectJson.options ?? [];
     expect(options[0]?.label).toContain('Sell');
     expect(options[0]?.value).toBe('sell:market_1:a');
-    expect(options[1]?.label).toContain('Cover');
-    expect(options[1]?.value).toBe('cover:market_1:c');
+    expect(options[1]?.label).toContain('Protect');
+    expect(options[1]?.value).toBe('protect:market_1:a');
+    expect(options[2]?.label).toContain('Cover');
+    expect(options[2]?.value).toBe('cover:market_1:c');
   });
 
   it('omits closed positions from the portfolio management selector', () => {
@@ -251,7 +253,8 @@ describe('market render', () => {
     expect(payload.components).toHaveLength(1);
     const select = payload.components[0]!.components[0]!;
     const selectJson = select.toJSON();
-    expect(selectJson.options).toHaveLength(1);
+    expect(selectJson.options).toHaveLength(2);
     expect(selectJson.options?.[0]?.value).toBe('sell:market_1:a');
+    expect(selectJson.options?.[1]?.value).toBe('protect:market_1:a');
   });
 });

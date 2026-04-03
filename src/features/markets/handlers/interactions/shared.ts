@@ -71,6 +71,21 @@ export const parseMarketOutcomeCustomId = (
   };
 };
 
+export const parseProtectionCoverageCustomId = (
+  customId: string,
+): { marketId: string; outcomeId: string; targetCoverage: number } | null => {
+  const match = /^market:protection-coverage:([^:]+):([^:]+):([^:]+)$/.exec(customId);
+  if (!match?.[1] || !match[2] || !match[3]) {
+    return null;
+  }
+
+  return {
+    marketId: match[1],
+    outcomeId: match[2],
+    targetCoverage: Number(match[3]),
+  };
+};
+
 export const parseTradeSelectCustomId = (
   customId: string,
 ): { action: TradeAction; marketId: string } | null => {
@@ -115,14 +130,14 @@ export const parseQuoteSessionId = (
 
 export const parsePortfolioSelectionValue = (
   value: string,
-): { action: 'sell' | 'cover'; marketId: string; outcomeId: string } | null => {
-  const match = /^(sell|cover):([^:]+):([^:]+)$/.exec(value);
+): { action: 'sell' | 'cover' | 'protect'; marketId: string; outcomeId: string } | null => {
+  const match = /^(sell|cover|protect):([^:]+):([^:]+)$/.exec(value);
   if (!match?.[1] || !match[2] || !match[3]) {
     return null;
   }
 
   return {
-    action: match[1] as 'sell' | 'cover',
+    action: match[1] as 'sell' | 'cover' | 'protect',
     marketId: match[2],
     outcomeId: match[3],
   };
@@ -164,6 +179,9 @@ export const buildTradeExecutionDescription = (
   outcomeLabel: string,
   result: Awaited<ReturnType<typeof executeMarketTrade>>,
 ): string => {
+  const grossCashAmount = result.grossCashAmount ?? result.cashAmount;
+  const netCashAmount = result.netCashAmount ?? result.cashAmount;
+  const feeCharged = result.feeCharged ?? 0;
   const settledShares = Math.abs(result.shareDelta);
   const payoutSummary = action === 'buy'
     ? { ifChosen: settledShares, ifNotChosen: 0 }
@@ -173,7 +191,17 @@ export const buildTradeExecutionDescription = (
 
   return [
     `Outcome: **${outcomeLabel}**`,
-    `Cash: ${result.cashAmount} pts`,
+    action === 'buy'
+      ? `Base spend: ${grossCashAmount.toFixed(2)} pts`
+      : action === 'short'
+        ? `Gross proceeds: ${grossCashAmount.toFixed(2)} pts`
+        : `Cash: ${result.cashAmount.toFixed(2)} pts`,
+    feeCharged > 0 ? `Momentum tax: ${feeCharged.toFixed(2)} pts` : null,
+    action === 'buy'
+      ? `Total charged: ${netCashAmount.toFixed(2)} pts`
+      : action === 'short'
+        ? `Net proceeds after tax: ${netCashAmount.toFixed(2)} pts`
+        : null,
     `Shares: ${Math.abs(result.shareDelta).toFixed(2)}`,
     `Bankroll: ${result.account.bankroll.toFixed(2)} pts`,
     ...(payoutSummary
@@ -182,7 +210,7 @@ export const buildTradeExecutionDescription = (
           `If ${outcomeLabel} is not chosen: ${payoutSummary.ifNotChosen.toFixed(2)} pts`,
         ]
       : []),
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 };
 
 export const parseTradeInputAmount = (

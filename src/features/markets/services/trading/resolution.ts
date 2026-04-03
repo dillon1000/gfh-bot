@@ -8,6 +8,9 @@ import {
   assertCanResolveMarket,
   assertCanResolveOutcome,
   computeSupplementaryBonusDistribution,
+  getLossProtection,
+  getMarketLossProtectionDelegate,
+  getLossProtectionMap,
   getMarketForUpdate,
   marketInclude,
   roundCurrency,
@@ -46,6 +49,7 @@ export const resolveMarketOutcome = async (input: {
     const positionsByUser = groupPositionsByUser(
       market.positions.filter((entry) => entry.outcomeId === outcome.id),
     );
+    const protectionMap = getLossProtectionMap((market.lossProtections ?? []).filter((entry) => entry.outcomeId === outcome.id));
 
     for (const [userId, positions] of positionsByUser) {
       const account = await ensureMarketAccountTx(tx, market.guildId, userId);
@@ -54,6 +58,9 @@ export const resolveMarketOutcome = async (input: {
 
       for (const position of positions) {
         if (position.side === 'long') {
+          const protection = getLossProtection(protectionMap, userId, position.outcomeId);
+          payout += protection?.insuredCostBasis ?? 0;
+          profit += protection?.insuredCostBasis ?? 0;
           profit -= position.costBasis;
           continue;
         }
@@ -80,6 +87,12 @@ export const resolveMarketOutcome = async (input: {
     }
 
     await tx.marketPosition.deleteMany({
+      where: {
+        marketId: market.id,
+        outcomeId: outcome.id,
+      },
+    });
+    await getMarketLossProtectionDelegate(tx).deleteMany({
       where: {
         marketId: market.id,
         outcomeId: outcome.id,
@@ -157,6 +170,7 @@ export const resolveMarket = async (input: {
       positions: MarketResolutionResult['payouts'][number]['positions'];
     }>();
     const positionsByUser = groupPositionsByUser(market.positions);
+    const protectionMap = getLossProtectionMap(market.lossProtections ?? []);
 
     for (const [userId, positions] of positionsByUser) {
       let payout = 0;
@@ -166,8 +180,10 @@ export const resolveMarket = async (input: {
         if (position.side === 'long') {
           const isWinner = position.outcomeId === winningOutcome.id;
           const positionPayout = isWinner ? position.shares : 0;
+          const protection = isWinner ? undefined : getLossProtection(protectionMap, userId, position.outcomeId);
           payout += positionPayout;
-          profit += positionPayout - position.costBasis;
+          payout += protection?.insuredCostBasis ?? 0;
+          profit += positionPayout + (protection?.insuredCostBasis ?? 0) - position.costBasis;
           continue;
         }
 
@@ -215,6 +231,11 @@ export const resolveMarket = async (input: {
     }
 
     await tx.marketPosition.deleteMany({
+      where: {
+        marketId: market.id,
+      },
+    });
+    await getMarketLossProtectionDelegate(tx).deleteMany({
       where: {
         marketId: market.id,
       },
