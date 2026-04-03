@@ -161,10 +161,6 @@ export const buildQuipsBoardMessage = (
           .setCustomId(quipsAnswerButtonCustomId(round.id))
           .setLabel('Answer')
           .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-          .setCustomId(quipsLeaderboardButtonCustomId())
-          .setLabel('Leaderboard')
-          .setStyle(ButtonStyle.Secondary),
       ),
       buildAdminControls(round.phase),
     ],
