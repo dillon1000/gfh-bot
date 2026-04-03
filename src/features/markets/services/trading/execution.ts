@@ -92,7 +92,7 @@ export const executeMarketTrade = async (input: {
           throw new Error('You must cover your short position in that outcome before buying it.');
         }
 
-        if (account.bankroll < input.amount) {
+        if (account.bankroll < input.amount - 1e-6) {
           throw new Error('You do not have enough bankroll for that trade.');
         }
 

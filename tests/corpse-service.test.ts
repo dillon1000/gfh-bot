@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   gameFindUnique,
@@ -318,6 +318,10 @@ describe('corpse lifecycle services', () => {
       gameState.entries.push(entry);
       return { ...entry };
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('records a failed weekly start when opener generation fails', async () => {

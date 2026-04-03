@@ -264,7 +264,9 @@ export const closePollAndRefresh = async (
 
   if (didClose) {
     await sendPollCloseAnnouncement(client, await evaluatePollSnapshotForLifecycle(client, poll, 'close-announcement'), closedByUserId);
-    await finalizeMuralResetProposalForPoll(client, poll.id);
+    await finalizeMuralResetProposalForPoll(client, poll.id).catch((error) => {
+      logger.error({ err: error, pollId: poll.id }, 'Could not finalize mural reset proposal during poll close');
+    });
   }
 };
 
