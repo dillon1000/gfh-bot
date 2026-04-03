@@ -29,6 +29,31 @@ export const getLiveQuipsConfigRecord = async (guildId: string): Promise<QuipsCo
     },
   });
 
+export const normalizeQuipsConfigDefaults = async (guildId: string): Promise<QuipsConfig | null> => {
+  const config = await getLiveQuipsConfigRecord(guildId);
+  if (!config) {
+    return null;
+  }
+
+  const defaults = buildQuipsConfigDefaults();
+  if (
+    config.answerWindowMinutes === defaults.answerWindowMinutes
+    && config.voteWindowMinutes === defaults.voteWindowMinutes
+  ) {
+    return config;
+  }
+
+  return prisma.quipsConfig.update({
+    where: {
+      guildId,
+    },
+    data: {
+      answerWindowMinutes: defaults.answerWindowMinutes,
+      voteWindowMinutes: defaults.voteWindowMinutes,
+    },
+  });
+};
+
 export const upsertQuipsConfig = async (
   guildId: string,
   input: {
