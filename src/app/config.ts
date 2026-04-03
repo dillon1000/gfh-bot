@@ -36,6 +36,8 @@ const envSchema = z.object({
   MEOW_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(5),
   SEARCH_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(5),
   MARKET_DEFAULT_TIMEZONE: z.string().min(1).default('America/Chicago'),
+  XAI_API_KEY: z.string().min(1).optional(),
+  CORPSE_OPENER_MODEL: z.string().min(1).default('grok-2-1212'),
   APP_REVISION: z.string().min(1).optional(),
   R2_ACCOUNT_ID: z.string().min(1).optional(),
   R2_ACCESS_KEY_ID: z.string().min(1).optional(),

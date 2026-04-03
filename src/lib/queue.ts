@@ -15,6 +15,8 @@ export const casinoTableBotActionQueueName = 'casino-table-bot-action';
 export const casinoTableIdleCloseQueueName = 'casino-table-idle-close';
 export const dilemmaStartQueueName = 'dilemma-start';
 export const dilemmaTimeoutQueueName = 'dilemma-timeout';
+export const corpseStartQueueName = 'corpse-start';
+export const corpseTurnTimeoutQueueName = 'corpse-turn-timeout';
 
 const createQueueState = <Data, ResultType, NameType extends string>(
   name: string,
@@ -40,6 +42,8 @@ const casinoTableBotActionQueueState = createQueueState<{ tableId: string }, voi
 const casinoTableIdleCloseQueueState = createQueueState<{ tableId: string }, void, 'close'>(casinoTableIdleCloseQueueName);
 const dilemmaStartQueueState = createQueueState<{ guildId: string }, void, 'start'>(dilemmaStartQueueName);
 const dilemmaTimeoutQueueState = createQueueState<{ roundId: string }, void, 'timeout'>(dilemmaTimeoutQueueName);
+const corpseStartQueueState = createQueueState<{ guildId: string }, void, 'start'>(corpseStartQueueName);
+const corpseTurnTimeoutQueueState = createQueueState<{ gameId: string }, void, 'timeout'>(corpseTurnTimeoutQueueName);
 
 export const pollCloseQueue = pollCloseQueueState.proxy;
 export const pollReminderQueue = pollReminderQueueState.proxy;
@@ -53,6 +57,8 @@ export const casinoTableBotActionQueue = casinoTableBotActionQueueState.proxy;
 export const casinoTableIdleCloseQueue = casinoTableIdleCloseQueueState.proxy;
 export const dilemmaStartQueue = dilemmaStartQueueState.proxy;
 export const dilemmaTimeoutQueue = dilemmaTimeoutQueueState.proxy;
+export const corpseStartQueue = corpseStartQueueState.proxy;
+export const corpseTurnTimeoutQueue = corpseTurnTimeoutQueueState.proxy;
 
 const closeQueueIfInitialized = async (state: {
   clearInstance: () => Queue<unknown, unknown, string> | null;
@@ -79,5 +85,7 @@ export const closeAllQueues = async (): Promise<void> => {
     closeQueueIfInitialized(casinoTableIdleCloseQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
     closeQueueIfInitialized(dilemmaStartQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
     closeQueueIfInitialized(dilemmaTimeoutQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
+    closeQueueIfInitialized(corpseStartQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
+    closeQueueIfInitialized(corpseTurnTimeoutQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
   ]);
 };
