@@ -14,6 +14,7 @@ import { syncActiveDilemmaTimeoutJobs, syncDilemmaStartJobs } from '../features/
 import { startDilemmaStartWorker, startDilemmaTimeoutWorker } from '../features/dilemma/workers/dilemma.js';
 import { recoverExpiredMarketGraceNotices, recoverExpiredMarkets } from '../features/markets/services/lifecycle.js';
 import { syncOpenMarketJobs } from '../features/markets/services/scheduler.js';
+import { recoverClosedMuralResetProposals } from '../features/mural/services/mural.js';
 import { startMarketCloseWorker, startMarketGraceWorker, startMarketLiquidityWorker, startMarketRefreshWorker } from '../features/markets/workers/market.js';
 import { recoverExpiredPolls, recoverMissedPollReminders } from '../features/polls/services/lifecycle.js';
 import { syncOpenPollCloseJobs, syncOpenPollReminderJobs } from '../features/polls/services/repository.js';
@@ -111,6 +112,12 @@ client.once(Events.ClientReady, async (readyClient) => {
       name: 'recover-missed-poll-reminders',
       run: async () => {
         await recoverMissedPollReminders(readyClient);
+      },
+    },
+    {
+      name: 'recover-closed-mural-reset-proposals',
+      run: async () => {
+        await recoverClosedMuralResetProposals(readyClient);
       },
     },
     {

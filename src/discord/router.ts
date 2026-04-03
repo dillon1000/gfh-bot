@@ -23,6 +23,8 @@ import { handleMarketModal } from '../features/markets/handlers/interactions/mod
 import { handleMarketSelect } from '../features/markets/handlers/interactions/selects.js';
 import { handleMeowCommand } from '../features/meta/commands/meow.js';
 import { handlePingCommand } from '../features/meta/commands/ping.js';
+import { handleMuralCommand } from '../features/mural/handlers/commands.js';
+import { handleMuralInteractionError } from '../features/mural/handlers/interaction-errors.js';
 import {
   handlePollAnalyticsCommand,
 } from '../features/polls/handlers/analytics.js';
@@ -110,6 +112,9 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'ping':
             await handlePingCommand(interaction);
+            return;
+          case 'mural':
+            await handleMuralCommand(client, interaction);
             return;
           case 'search':
             await handleSearchCommand(client, interaction);
@@ -390,6 +395,10 @@ export const registerInteractionRouter = (client: Client): void => {
           || (interaction.isModalSubmit() && interaction.customId.startsWith('casino:'))
         ) {
           await handleCasinoInteractionError(interaction, error);
+        } else if (
+          interaction.isChatInputCommand() && interaction.commandName === 'mural'
+        ) {
+          await handleMuralInteractionError(interaction, error);
         } else if (
           (interaction.isChatInputCommand() && interaction.commandName === 'market')
           || (interaction.isButton() && interaction.customId.startsWith('market:'))
