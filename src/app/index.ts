@@ -9,6 +9,9 @@ import { registerAuditLogEventHandlers } from '../features/audit-log/services/ev
 import { startCasinoBotWorker } from '../features/casino/multiplayer/bots/workers/bots.js';
 import { syncOpenCasinoTableJobs } from '../features/casino/multiplayer/services/scheduler.js';
 import { startCasinoTableIdleCloseWorker, startCasinoTableTimeoutWorker } from '../features/casino/multiplayer/workers/tables.js';
+import { recoverOverdueDilemmaRounds } from '../features/dilemma/services/lifecycle.js';
+import { syncActiveDilemmaTimeoutJobs, syncDilemmaStartJobs } from '../features/dilemma/services/scheduler.js';
+import { startDilemmaStartWorker, startDilemmaTimeoutWorker } from '../features/dilemma/workers/dilemma.js';
 import { recoverExpiredMarketGraceNotices, recoverExpiredMarkets } from '../features/markets/services/lifecycle.js';
 import { syncOpenMarketJobs } from '../features/markets/services/scheduler.js';
 import { startMarketCloseWorker, startMarketGraceWorker, startMarketLiquidityWorker, startMarketRefreshWorker } from '../features/markets/workers/market.js';
@@ -111,6 +114,12 @@ client.once(Events.ClientReady, async (readyClient) => {
       },
     },
     {
+      name: 'recover-overdue-dilemma-rounds',
+      run: async () => {
+        await recoverOverdueDilemmaRounds(readyClient);
+      },
+    },
+    {
       name: 'recover-expired-markets',
       run: async () => {
         await recoverExpiredMarkets(readyClient);
@@ -132,6 +141,18 @@ client.once(Events.ClientReady, async (readyClient) => {
       name: 'recover-due-removal-vote-starts',
       run: async () => {
         await recoverDueRemovalVoteStarts(readyClient);
+      },
+    },
+    {
+      name: 'sync-dilemma-start-jobs',
+      run: async () => {
+        await syncDilemmaStartJobs();
+      },
+    },
+    {
+      name: 'sync-active-dilemma-timeout-jobs',
+      run: async () => {
+        await syncActiveDilemmaTimeoutJobs();
       },
     },
     {
@@ -213,6 +234,8 @@ const marketLiquidityWorker = startMarketLiquidityWorker(client);
 const casinoTableTimeoutWorker = startCasinoTableTimeoutWorker(client);
 const casinoTableIdleCloseWorker = startCasinoTableIdleCloseWorker(client);
 const casinoBotWorker = startCasinoBotWorker(client);
+const dilemmaStartWorker = startDilemmaStartWorker(client);
+const dilemmaTimeoutWorker = startDilemmaTimeoutWorker(client);
 
 registerShutdownHandler(async () => {
   await Promise.allSettled([
@@ -226,6 +249,8 @@ registerShutdownHandler(async () => {
     casinoTableTimeoutWorker.close(),
     casinoTableIdleCloseWorker.close(),
     casinoBotWorker.close(),
+    dilemmaStartWorker.close(),
+    dilemmaTimeoutWorker.close(),
     closeAllQueues(),
     quitRedis(),
     disconnectPrisma(),

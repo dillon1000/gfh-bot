@@ -5,7 +5,6 @@ import { ensureMarketAccountTx } from '../account.js';
 import {
   assertMarketOpen,
   assertOutcomeTradable,
-  calculateMomentumTax,
   getMarketForUpdate,
   getMarketProbabilities,
   getLossProtection,
@@ -85,8 +84,6 @@ export const executeMarketTrade = async (input: {
     let netCashAmount = input.amount;
     let feeCharged = 0;
     let positionSide: MarketPositionSide = 'long';
-    const currentProbabilities = getMarketProbabilities(market);
-    const currentProbability = currentProbabilities[outcomeIndex] ?? 0;
     const protection = getLossProtection(getLossProtectionMap(market.lossProtections ?? []), input.userId, outcome.id);
 
     switch (input.action) {
@@ -100,17 +97,13 @@ export const executeMarketTrade = async (input: {
         }
 
         shareDelta = solveBuySharesForAmount(pricingShares, tradableIndex, input.amount, market.liquidityParameter);
-        feeCharged = calculateMomentumTax('buy', currentProbability, input.amount);
-        if (account.bankroll < (input.amount + feeCharged) - 1e-6) {
-          throw new Error('You do not have enough bankroll for that trade.');
-        }
         nextPricingShares[tradableIndex] = (nextPricingShares[tradableIndex] ?? 0) + shareDelta;
         nextOutstandingShares[tradableIndex] = (nextOutstandingShares[tradableIndex] ?? 0) + shareDelta;
         nextLongShares += shareDelta;
-        nextLongCostBasis += input.amount + feeCharged;
-        nextBankroll -= input.amount + feeCharged;
+        nextLongCostBasis += input.amount;
+        nextBankroll -= input.amount;
         grossCashAmount = roundCurrency(input.amount);
-        netCashAmount = roundCurrency(input.amount + feeCharged);
+        netCashAmount = roundCurrency(input.amount);
         positionSide = 'long';
         break;
       }
@@ -156,9 +149,8 @@ export const executeMarketTrade = async (input: {
         const proceedsReceived = input.amountMode === 'shares'
           ? roundCurrency(computeSellPayout(pricingShares, tradableIndex, sharesToShort, market.liquidityParameter))
           : input.amount;
-        feeCharged = calculateMomentumTax('short', currentProbability, proceedsReceived);
         const collateralToLock = roundCurrency(sharesToShort);
-        if ((account.bankroll + proceedsReceived - collateralToLock - feeCharged) < -1e-6) {
+        if ((account.bankroll + proceedsReceived - collateralToLock) < -1e-6) {
           throw new Error('You do not have enough bankroll to collateralize that short.');
         }
 
@@ -166,12 +158,12 @@ export const executeMarketTrade = async (input: {
         nextPricingShares[tradableIndex] = (nextPricingShares[tradableIndex] ?? 0) + shareDelta;
         nextOutstandingShares[tradableIndex] = (nextOutstandingShares[tradableIndex] ?? 0) + shareDelta;
         nextShortShares += sharesToShort;
-        nextShortProceeds += proceedsReceived - feeCharged;
+        nextShortProceeds += proceedsReceived;
         nextShortCollateral += collateralToLock;
-        nextBankroll += proceedsReceived - collateralToLock - feeCharged;
+        nextBankroll += proceedsReceived - collateralToLock;
         cashAmount = roundCurrency(proceedsReceived);
         grossCashAmount = roundCurrency(proceedsReceived);
-        netCashAmount = roundCurrency(proceedsReceived - feeCharged);
+        netCashAmount = roundCurrency(proceedsReceived);
         positionSide = 'short';
         break;
       }

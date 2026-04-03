@@ -6,6 +6,9 @@ import { handleCasinoButton } from '../features/casino/handlers/interactions/but
 import { handleCasinoCommand } from '../features/casino/handlers/interactions/commands.js';
 import { handleCasinoModal } from '../features/casino/handlers/interactions/modals.js';
 import { handleCasinoSelect } from '../features/casino/handlers/interactions/selects.js';
+import { handleDilemmaCommand } from '../features/dilemma/handlers/commands.js';
+import { handleDilemmaInteractionError } from '../features/dilemma/handlers/interaction-errors.js';
+import { handleDilemmaButton } from '../features/dilemma/handlers/interactions.js';
 import {
   handleEmojiBuilderButton,
   handleEmojiBuilderCommand,
@@ -89,6 +92,9 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'casino':
             await handleCasinoCommand(client, interaction);
+            return;
+          case 'dilemma':
+            await handleDilemmaCommand(interaction);
             return;
           case 'emoji-builder':
             await handleEmojiBuilderCommand(interaction);
@@ -207,6 +213,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('casino:')) {
           await handleCasinoButton(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('dilemma:')) {
+          await handleDilemmaButton(client, interaction);
           return;
         }
 
@@ -367,6 +378,11 @@ export const registerInteractionRouter = (client: Client): void => {
           (interaction.isStringSelectMenu() && interaction.customId.startsWith('reaction-role:'))
         ) {
           await handleReactionRoleInteractionError(interaction, error);
+        } else if (
+          (interaction.isChatInputCommand() && interaction.commandName === 'dilemma')
+          || (interaction.isButton() && interaction.customId.startsWith('dilemma:'))
+        ) {
+          await handleDilemmaInteractionError(interaction, error);
         } else if (
           (interaction.isChatInputCommand() && interaction.commandName === 'casino')
           || (interaction.isButton() && interaction.customId.startsWith('casino:'))

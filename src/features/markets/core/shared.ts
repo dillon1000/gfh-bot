@@ -29,9 +29,6 @@ export const resolutionGraceMs = 24 * 60 * 60 * 1_000;
 export const refreshDelayMs = 5_000;
 export const maxOpenProbability = 0.98;
 export const minOpenProbability = 0.02;
-export const momentumTaxFreeThreshold = 0.6;
-export const momentumTaxMaxThreshold = 0.95;
-export const momentumTaxMaxRate = 0.2;
 export const protectionPremiumMultiplier = 1.05;
 
 export const marketInclude = {
@@ -310,33 +307,6 @@ export const getTradeLockReason = (
   }
 
   return null;
-};
-
-export const calculateMomentumTaxRate = (consensusProbability: number): number => {
-  if (consensusProbability <= momentumTaxFreeThreshold) {
-    return 0;
-  }
-
-  return clamp(
-    ((consensusProbability - momentumTaxFreeThreshold)
-      / (momentumTaxMaxThreshold - momentumTaxFreeThreshold))
-      * momentumTaxMaxRate,
-    0,
-    momentumTaxMaxRate,
-  );
-};
-
-export const calculateMomentumTax = (
-  action: MarketTradeSide,
-  probability: number,
-  baseTradeCash: number,
-): number => {
-  if (action !== 'buy' && action !== 'short') {
-    return 0;
-  }
-
-  const consensusProbability = action === 'buy' ? probability : 1 - probability;
-  return roundCurrency(baseTradeCash * calculateMomentumTaxRate(consensusProbability));
 };
 
 export const calculateProtectionPremium = (
