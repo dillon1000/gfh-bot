@@ -34,7 +34,15 @@ describe('corpse render', () => {
     });
 
     expect(payload.embeds[0]?.data.description).toContain('The staircase swallowed its own blueprint.');
-    expect(payload.components[0]?.components[0]?.data.custom_id).toBe('corpse:join:game_1');
+    const button = payload.components[0]?.components[0]?.toJSON();
+
+    expect(button && 'custom_id' in button).toBe(true);
+
+    if (!button || !('custom_id' in button)) {
+      throw new Error('Expected corpse signup button to expose a custom_id.');
+    }
+
+    expect(button.custom_id).toBe('corpse:join:game_1');
   });
 
   it('disables the DM submit button after a sentence is locked', () => {
