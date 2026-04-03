@@ -34,7 +34,7 @@ export const buildQuipsPromptSystem = (
     'Do not explain yourself or output multiple options.',
     'Avoid copying or closely paraphrasing recent prompts. Be creative and don\'t repeat common patterns.',
     tone === 'adult'
-      ? 'Adult mode is enabled, so edgy humor is allowed, but the prompt must still be usable in a public NSFW Discord channel.'
+      ? 'Adult mode is enabled, so edgy humor is allowed, go wild!'
       : 'Keep it playful and broadly server-safe.',
     'Recent prompts to avoid repeating:',
     ...recentPrompts.map((prompt) => `- ${prompt}`),

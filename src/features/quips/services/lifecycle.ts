@@ -22,7 +22,6 @@ import { logger } from '../../../app/logger.js';
 import { withRedisLock } from '../../../lib/locks.js';
 import { prisma } from '../../../lib/prisma.js';
 import { redis } from '../../../lib/redis.js';
-import { getLiveQuipsConfigRecord } from './config.js';
 import { generateQuipsPrompt } from './prompt-generator.js';
 import {
   removeScheduledQuipsAnswerClose,
@@ -86,6 +85,18 @@ const getConfigOrThrow = async (guildId: string): Promise<QuipsConfig> => {
   }
 
   return config;
+};
+
+const ensureGuildConfigRecord = async (guildId: string): Promise<void> => {
+  await prisma.guildConfig.upsert({
+    where: {
+      guildId,
+    },
+    create: {
+      guildId,
+    },
+    update: {},
+  });
 };
 
 const updateBoardMessage = async (
@@ -154,6 +165,22 @@ const publishNewBoardMessage = async (
   return message.id;
 };
 
+const getOrCreateBoardMessageId = async (
+  client: Client,
+  config: QuipsConfig,
+  round: QuipsRoundWithRelations,
+): Promise<string> => {
+  if (config.boardMessageId) {
+    const channel = await getAnnouncementChannel(client, config.channelId);
+    const message = await channel.messages.fetch(config.boardMessageId).catch(() => null);
+    if (message) {
+      return message.id;
+    }
+  }
+
+  return publishNewBoardMessage(client, config.channelId, buildQuipsBoardMessage(config, round));
+};
+
 const createNextRound = async (
   guildId: string,
 ): Promise<QuipsRound> => {
@@ -196,9 +223,7 @@ const attachRoundToBoard = async (
     throw new Error('Continuous Quips round not found.');
   }
 
-  const boardMessageId = config.boardMessageId
-    ? config.boardMessageId
-    : await publishNewBoardMessage(client, config.channelId, buildQuipsBoardMessage(config, round));
+  const boardMessageId = await getOrCreateBoardMessageId(client, config, round);
 
   await prisma.quipsConfig.update({
     where: {
@@ -265,9 +290,7 @@ export const installQuipsChannel = async (
       throw new Error('Continuous Quips needs a text-based channel.');
     }
 
-    if ('nsfw' in channel && !channel.nsfw) {
-      throw new Error('Continuous Quips requires an NSFW channel because adult mode is enabled by default.');
-    }
+    await ensureGuildConfigRecord(input.guildId);
 
     const config = await prisma.quipsConfig.upsert({
       where: {
@@ -924,9 +947,21 @@ export const disableQuipsBoard = async (
   }
 
   if (config.activeRoundId) {
+    const round = await getRoundById(config.activeRoundId);
     await Promise.all([
       removeScheduledQuipsAnswerClose(config.activeRoundId),
       removeScheduledQuipsVoteClose(config.activeRoundId),
+      round && round.phase !== 'revealed'
+        ? prisma.quipsRound.update({
+            where: {
+              id: round.id,
+            },
+            data: {
+              phase: 'revealed',
+              revealedAt: new Date(),
+            },
+          })
+        : Promise.resolve(null),
     ]);
   }
 

@@ -10,11 +10,11 @@ export const quipsCommand = new SlashCommandBuilder()
       .addSubcommand((subcommand) =>
         subcommand
           .setName('set')
-          .setDescription('Install Continuous Quips in an NSFW text channel.')
+          .setDescription('Install Continuous Quips in a text channel.')
           .addChannelOption((option) =>
             option
               .setName('channel')
-              .setDescription('The NSFW text channel that should host the board')
+              .setDescription('The text channel that should host the board')
               .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
               .setRequired(true),
           ),
