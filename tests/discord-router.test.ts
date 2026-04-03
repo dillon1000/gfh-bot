@@ -7,6 +7,10 @@ const handlers = vi.hoisted(() => ({
   handleCasinoCommand: vi.fn(),
   handleCasinoModal: vi.fn(),
   handleCasinoSelect: vi.fn(),
+  handleCorpseButton: vi.fn(),
+  handleCorpseCommand: vi.fn(),
+  handleCorpseInteractionError: vi.fn(),
+  handleCorpseModal: vi.fn(),
   handleEmojiBuilderButton: vi.fn(),
   handleEmojiBuilderCommand: vi.fn(),
   handleEmojiBuilderInteractionError: vi.fn(),
@@ -87,6 +91,19 @@ vi.mock('../src/features/casino/handlers/interactions/modals.js', () => ({
 
 vi.mock('../src/features/casino/handlers/interactions/selects.js', () => ({
   handleCasinoSelect: handlers.handleCasinoSelect,
+}));
+
+vi.mock('../src/features/corpse/handlers/commands.js', () => ({
+  handleCorpseCommand: handlers.handleCorpseCommand,
+}));
+
+vi.mock('../src/features/corpse/handlers/interaction-errors.js', () => ({
+  handleCorpseInteractionError: handlers.handleCorpseInteractionError,
+}));
+
+vi.mock('../src/features/corpse/handlers/interactions.js', () => ({
+  handleCorpseButton: handlers.handleCorpseButton,
+  handleCorpseModal: handlers.handleCorpseModal,
 }));
 
 vi.mock('../src/features/emojis/handlers/interactions.js', () => ({
@@ -216,6 +233,24 @@ const createStringSelectInteraction = (customId: string) => ({
   isModalSubmit: () => false,
 });
 
+const createButtonInteraction = (customId: string) => ({
+  customId,
+  isChatInputCommand: () => false,
+  isMessageContextMenuCommand: () => false,
+  isButton: () => true,
+  isStringSelectMenu: () => false,
+  isModalSubmit: () => false,
+});
+
+const createModalInteraction = (customId: string) => ({
+  customId,
+  isChatInputCommand: () => false,
+  isMessageContextMenuCommand: () => false,
+  isButton: () => false,
+  isStringSelectMenu: () => false,
+  isModalSubmit: () => true,
+});
+
 describe('discord router', () => {
   beforeEach(() => {
     Object.values(handlers).forEach((handler) => {
@@ -256,5 +291,33 @@ describe('discord router', () => {
 
     expect(handlers.handleCasinoSelect).toHaveBeenCalledWith(interaction);
     expect(handlers.handleMarketSelect).not.toHaveBeenCalled();
+  });
+
+  it('routes corpse buttons to the corpse button handler', async () => {
+    const client = {
+      on: vi.fn(),
+    };
+
+    registerInteractionRouter(client as never);
+
+    const interactionHandler = client.on.mock.calls[0]?.[1];
+    const interaction = createButtonInteraction('corpse:join:game_1');
+    await interactionHandler?.(interaction);
+
+    expect(handlers.handleCorpseButton).toHaveBeenCalledWith(client, interaction);
+  });
+
+  it('routes corpse modals to the corpse modal handler', async () => {
+    const client = {
+      on: vi.fn(),
+    };
+
+    registerInteractionRouter(client as never);
+
+    const interactionHandler = client.on.mock.calls[0]?.[1];
+    const interaction = createModalInteraction('corpse:submit-modal:game_1');
+    await interactionHandler?.(interaction);
+
+    expect(handlers.handleCorpseModal).toHaveBeenCalledWith(client, interaction);
   });
 });

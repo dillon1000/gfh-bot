@@ -133,6 +133,20 @@ enum DilemmaCancelReason {
   insufficient_time
 }
 
+enum CorpseGameStatus {
+  collecting
+  active
+  revealed
+  failed_to_start
+}
+
+enum CorpseParticipantState {
+  queued
+  active
+  submitted
+  timed_out
+}
+
 model GuildConfig {
   id                 String           @id @default(cuid())
   guildId            String           @unique
@@ -150,10 +164,15 @@ model GuildConfig {
   casinoChannelId    String?
   dilemmaEnabled     Boolean          @default(false)
   dilemmaChannelId   String?
+  corpseEnabled      Boolean          @default(false)
+  corpseChannelId    String?
   muralEnabled       Boolean          @default(false)
   muralChannelId     String?
+  corpseRunWeekday   Int?
   dilemmaRunHour     Int?
   dilemmaRunMinute   Int?
+  corpseRunHour      Int?
+  corpseRunMinute    Int?
   dilemmaCooperationRate Float        @default(0.5)
   starboardEmojiId   String?
   starboardEmojiName String?
@@ -164,6 +183,7 @@ model GuildConfig {
   marketAccounts     MarketAccount[]
   casinoTables       CasinoTable[]
   dilemmaRounds      DilemmaRound[]
+  corpseGames        CorpseGame[]
   muralPixels        MuralPixel[]
   muralPlacements    MuralPlacement[]
   muralResetProposals MuralResetProposal[]
@@ -775,4 +795,67 @@ model DilemmaParticipant {
   @@unique([roundId, userId])
   @@unique([roundId, seatIndex])
   @@index([userId, createdAt])
+}
+
+model CorpseGame {
+  id                 String               @id @default(cuid())
+  guildId            String
+  weekKey            String
+  channelId          String
+  status             CorpseGameStatus     @default(collecting)
+  openerText         String?
+  signupMessageId    String?              @unique
+  revealMessageId    String?              @unique
+  aiFailureReason    String?
+  scheduledFor       DateTime
+  startedAt          DateTime?
+  turnDeadlineAt     DateTime?
+  endedAt            DateTime?
+  archivedAt         DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  guildConfig        GuildConfig          @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  participants       CorpseParticipant[]
+  entries            CorpseEntry[]
+
+  @@unique([guildId, weekKey])
+  @@index([guildId, status, createdAt])
+  @@index([status, turnDeadlineAt])
+}
+
+model CorpseParticipant {
+  id               String                 @id @default(cuid())
+  gameId           String
+  userId           String
+  queuePosition    Int
+  state            CorpseParticipantState @default(queued)
+  promptChannelId  String?
+  promptMessageId  String?
+  joinedAt         DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  game             CorpseGame             @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  entries          CorpseEntry[]
+
+  @@unique([gameId, userId])
+  @@unique([gameId, queuePosition])
+  @@index([gameId, state, queuePosition])
+  @@index([userId, joinedAt])
+}
+
+model CorpseEntry {
+  id                  String            @id @default(cuid())
+  gameId              String
+  participantId       String
+  userId              String
+  turnIndex           Int
+  visibleSentence     String
+  sentenceText        String
+  createdAt           DateTime          @default(now())
+  game                CorpseGame        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  participant         CorpseParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, participantId])
+  @@unique([gameId, turnIndex])
+  @@index([gameId, createdAt])
+  @@index([gameId, userId])
 }

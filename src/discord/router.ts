@@ -6,6 +6,9 @@ import { handleCasinoButton } from '../features/casino/handlers/interactions/but
 import { handleCasinoCommand } from '../features/casino/handlers/interactions/commands.js';
 import { handleCasinoModal } from '../features/casino/handlers/interactions/modals.js';
 import { handleCasinoSelect } from '../features/casino/handlers/interactions/selects.js';
+import { handleCorpseCommand } from '../features/corpse/handlers/commands.js';
+import { handleCorpseInteractionError } from '../features/corpse/handlers/interaction-errors.js';
+import { handleCorpseButton, handleCorpseModal } from '../features/corpse/handlers/interactions.js';
 import { handleDilemmaCommand } from '../features/dilemma/handlers/commands.js';
 import { handleDilemmaInteractionError } from '../features/dilemma/handlers/interaction-errors.js';
 import { handleDilemmaButton } from '../features/dilemma/handlers/interactions.js';
@@ -94,6 +97,9 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'casino':
             await handleCasinoCommand(client, interaction);
+            return;
+          case 'corpse':
+            await handleCorpseCommand(client, interaction);
             return;
           case 'dilemma':
             await handleDilemmaCommand(interaction);
@@ -218,6 +224,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('casino:')) {
           await handleCasinoButton(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('corpse:')) {
+          await handleCorpseButton(client, interaction);
           return;
         }
 
@@ -346,6 +357,11 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
+        if (interaction.customId.startsWith('corpse:')) {
+          await handleCorpseModal(client, interaction);
+          return;
+        }
+
         if (interaction.customId.startsWith('casino:')) {
           await handleCasinoModal(client, interaction);
           return;
@@ -383,6 +399,12 @@ export const registerInteractionRouter = (client: Client): void => {
           (interaction.isStringSelectMenu() && interaction.customId.startsWith('reaction-role:'))
         ) {
           await handleReactionRoleInteractionError(interaction, error);
+        } else if (
+          (interaction.isChatInputCommand() && interaction.commandName === 'corpse')
+          || (interaction.isButton() && interaction.customId.startsWith('corpse:'))
+          || (interaction.isModalSubmit() && interaction.customId.startsWith('corpse:'))
+        ) {
+          await handleCorpseInteractionError(interaction, error);
         } else if (
           (interaction.isChatInputCommand() && interaction.commandName === 'dilemma')
           || (interaction.isButton() && interaction.customId.startsWith('dilemma:'))

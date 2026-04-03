@@ -9,6 +9,9 @@ import { registerAuditLogEventHandlers } from '../features/audit-log/services/ev
 import { startCasinoBotWorker } from '../features/casino/multiplayer/bots/workers/bots.js';
 import { syncOpenCasinoTableJobs } from '../features/casino/multiplayer/services/scheduler.js';
 import { startCasinoTableIdleCloseWorker, startCasinoTableTimeoutWorker } from '../features/casino/multiplayer/workers/tables.js';
+import { recoverOverdueCorpseTurns } from '../features/corpse/services/lifecycle.js';
+import { syncActiveCorpseTurnTimeoutJobs, syncCorpseStartJobs } from '../features/corpse/services/scheduler.js';
+import { startCorpseStartWorker, startCorpseTurnTimeoutWorker } from '../features/corpse/workers/corpse.js';
 import { recoverOverdueDilemmaRounds } from '../features/dilemma/services/lifecycle.js';
 import { syncActiveDilemmaTimeoutJobs, syncDilemmaStartJobs } from '../features/dilemma/services/scheduler.js';
 import { startDilemmaStartWorker, startDilemmaTimeoutWorker } from '../features/dilemma/workers/dilemma.js';
@@ -121,6 +124,12 @@ client.once(Events.ClientReady, async (readyClient) => {
       },
     },
     {
+      name: 'recover-overdue-corpse-turns',
+      run: async () => {
+        await recoverOverdueCorpseTurns(readyClient);
+      },
+    },
+    {
       name: 'recover-overdue-dilemma-rounds',
       run: async () => {
         await recoverOverdueDilemmaRounds(readyClient);
@@ -148,6 +157,18 @@ client.once(Events.ClientReady, async (readyClient) => {
       name: 'recover-due-removal-vote-starts',
       run: async () => {
         await recoverDueRemovalVoteStarts(readyClient);
+      },
+    },
+    {
+      name: 'sync-corpse-start-jobs',
+      run: async () => {
+        await syncCorpseStartJobs();
+      },
+    },
+    {
+      name: 'sync-active-corpse-turn-timeout-jobs',
+      run: async () => {
+        await syncActiveCorpseTurnTimeoutJobs();
       },
     },
     {
@@ -241,6 +262,8 @@ const marketLiquidityWorker = startMarketLiquidityWorker(client);
 const casinoTableTimeoutWorker = startCasinoTableTimeoutWorker(client);
 const casinoTableIdleCloseWorker = startCasinoTableIdleCloseWorker(client);
 const casinoBotWorker = startCasinoBotWorker(client);
+const corpseStartWorker = startCorpseStartWorker(client);
+const corpseTurnTimeoutWorker = startCorpseTurnTimeoutWorker(client);
 const dilemmaStartWorker = startDilemmaStartWorker(client);
 const dilemmaTimeoutWorker = startDilemmaTimeoutWorker(client);
 
@@ -256,6 +279,8 @@ registerShutdownHandler(async () => {
     casinoTableTimeoutWorker.close(),
     casinoTableIdleCloseWorker.close(),
     casinoBotWorker.close(),
+    corpseStartWorker.close(),
+    corpseTurnTimeoutWorker.close(),
     dilemmaStartWorker.close(),
     dilemmaTimeoutWorker.close(),
     closeAllQueues(),
