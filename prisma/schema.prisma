@@ -340,7 +340,7 @@ model Market {
   resolutionEvidenceUrl  String?
   resolvedByUserId       String?
   winningOutcomeId       String?
-  totalVolume            Int              @default(0)
+  totalVolume            Float            @default(0)
   supplementaryBonusPool Float            @default(0)
   supplementaryBonusDistributedAt DateTime?
   supplementaryBonusExpiredAt DateTime?
@@ -428,11 +428,11 @@ model MarketTrade {
   outcomeId            String
   userId               String
   side                 MarketTradeSide
-  cashDelta            Int
+  cashDelta            Float
   shareDelta           Float
   feeCharged           Float            @default(0)
   probabilitySnapshot  Float
-  cumulativeVolume     Int
+  cumulativeVolume     Float
   createdAt            DateTime         @default(now())
   market               Market           @relation(fields: [marketId], references: [id], onDelete: Cascade)
   outcome              MarketOutcome    @relation(fields: [outcomeId], references: [id], onDelete: Cascade)
