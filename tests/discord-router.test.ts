@@ -23,6 +23,10 @@ const handlers = vi.hoisted(() => ({
   handleMarketSelect: vi.fn(),
   handleMeowCommand: vi.fn(),
   handlePingCommand: vi.fn(),
+  handleQuipsButton: vi.fn(),
+  handleQuipsCommand: vi.fn(),
+  handleQuipsInteractionError: vi.fn(),
+  handleQuipsModal: vi.fn(),
   handlePollAnalyticsCommand: vi.fn(),
   handlePollBuilderButton: vi.fn(),
   handlePollBuilderCommand: vi.fn(),
@@ -143,6 +147,19 @@ vi.mock('../src/features/meta/commands/meow.js', () => ({
 
 vi.mock('../src/features/meta/commands/ping.js', () => ({
   handlePingCommand: handlers.handlePingCommand,
+}));
+
+vi.mock('../src/features/quips/handlers/commands.js', () => ({
+  handleQuipsCommand: handlers.handleQuipsCommand,
+}));
+
+vi.mock('../src/features/quips/handlers/interaction-errors.js', () => ({
+  handleQuipsInteractionError: handlers.handleQuipsInteractionError,
+}));
+
+vi.mock('../src/features/quips/handlers/interactions.js', () => ({
+  handleQuipsButton: handlers.handleQuipsButton,
+  handleQuipsModal: handlers.handleQuipsModal,
 }));
 
 vi.mock('../src/features/polls/handlers/analytics.js', () => ({
@@ -319,5 +336,33 @@ describe('discord router', () => {
     await interactionHandler?.(interaction);
 
     expect(handlers.handleCorpseModal).toHaveBeenCalledWith(client, interaction);
+  });
+
+  it('routes quips buttons to the quips button handler', async () => {
+    const client = {
+      on: vi.fn(),
+    };
+
+    registerInteractionRouter(client as never);
+
+    const interactionHandler = client.on.mock.calls[0]?.[1];
+    const interaction = createButtonInteraction('quips:answer:round_1');
+    await interactionHandler?.(interaction);
+
+    expect(handlers.handleQuipsButton).toHaveBeenCalledWith(client, interaction);
+  });
+
+  it('routes quips modals to the quips modal handler', async () => {
+    const client = {
+      on: vi.fn(),
+    };
+
+    registerInteractionRouter(client as never);
+
+    const interactionHandler = client.on.mock.calls[0]?.[1];
+    const interaction = createModalInteraction('quips:answer-modal:round_1');
+    await interactionHandler?.(interaction);
+
+    expect(handlers.handleQuipsModal).toHaveBeenCalledWith(client, interaction);
   });
 });

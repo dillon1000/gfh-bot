@@ -17,6 +17,8 @@ export const dilemmaStartQueueName = 'dilemma-start';
 export const dilemmaTimeoutQueueName = 'dilemma-timeout';
 export const corpseStartQueueName = 'corpse-start';
 export const corpseTurnTimeoutQueueName = 'corpse-turn-timeout';
+export const quipsAnswerCloseQueueName = 'quips-answer-close';
+export const quipsVoteCloseQueueName = 'quips-vote-close';
 
 const createQueueState = <Data, ResultType, NameType extends string>(
   name: string,
@@ -44,6 +46,8 @@ const dilemmaStartQueueState = createQueueState<{ guildId: string }, void, 'star
 const dilemmaTimeoutQueueState = createQueueState<{ roundId: string }, void, 'timeout'>(dilemmaTimeoutQueueName);
 const corpseStartQueueState = createQueueState<{ guildId: string }, void, 'start'>(corpseStartQueueName);
 const corpseTurnTimeoutQueueState = createQueueState<{ gameId: string }, void, 'timeout'>(corpseTurnTimeoutQueueName);
+const quipsAnswerCloseQueueState = createQueueState<{ roundId: string }, void, 'close'>(quipsAnswerCloseQueueName);
+const quipsVoteCloseQueueState = createQueueState<{ roundId: string }, void, 'close'>(quipsVoteCloseQueueName);
 
 export const pollCloseQueue = pollCloseQueueState.proxy;
 export const pollReminderQueue = pollReminderQueueState.proxy;
@@ -59,6 +63,8 @@ export const dilemmaStartQueue = dilemmaStartQueueState.proxy;
 export const dilemmaTimeoutQueue = dilemmaTimeoutQueueState.proxy;
 export const corpseStartQueue = corpseStartQueueState.proxy;
 export const corpseTurnTimeoutQueue = corpseTurnTimeoutQueueState.proxy;
+export const quipsAnswerCloseQueue = quipsAnswerCloseQueueState.proxy;
+export const quipsVoteCloseQueue = quipsVoteCloseQueueState.proxy;
 
 const closeQueueIfInitialized = async (state: {
   clearInstance: () => Queue<unknown, unknown, string> | null;
@@ -87,5 +93,7 @@ export const closeAllQueues = async (): Promise<void> => {
     closeQueueIfInitialized(dilemmaTimeoutQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
     closeQueueIfInitialized(corpseStartQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
     closeQueueIfInitialized(corpseTurnTimeoutQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
+    closeQueueIfInitialized(quipsAnswerCloseQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
+    closeQueueIfInitialized(quipsVoteCloseQueueState as unknown as { clearInstance: () => Queue<unknown, unknown, string> | null }),
   ]);
 };
