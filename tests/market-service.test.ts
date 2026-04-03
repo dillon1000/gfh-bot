@@ -97,6 +97,7 @@ vi.mock('../src/lib/queue.js', () => ({
 }));
 
 let cancelMarket: typeof import('../src/features/markets/services/trading/cancel.js').cancelMarket;
+let calculateLossProtectionQuote: typeof import('../src/features/markets/services/trading/protection.js').calculateLossProtectionQuote;
 let calculateMarketTradeQuote: typeof import('../src/features/markets/services/trading/quotes.js').calculateMarketTradeQuote;
 let executeMarketTrade: typeof import('../src/features/markets/services/trading/execution.js').executeMarketTrade;
 let grantMarketBankroll: typeof import('../src/features/markets/services/account.js').grantMarketBankroll;
@@ -105,9 +106,11 @@ let getMarketForecastProfile: typeof import('../src/features/markets/services/fo
 let injectMarketLiquidity: typeof import('../src/features/markets/services/liquidity.js').injectMarketLiquidity;
 let appendMarketOutcomes: typeof import('../src/features/markets/services/records.js').appendMarketOutcomes;
 let editMarketRecord: typeof import('../src/features/markets/services/records.js').editMarketRecord;
+let purchaseLossProtection: typeof import('../src/features/markets/services/trading/protection.js').purchaseLossProtection;
 let resolveMarket: typeof import('../src/features/markets/services/trading/resolution.js').resolveMarket;
 let resolveMarketOutcome: typeof import('../src/features/markets/services/trading/resolution.js').resolveMarketOutcome;
 let summarizeMarketTraders: typeof import('../src/features/markets/services/records.js').summarizeMarketTraders;
+let syncLossProtectionForSellTx: typeof import('../src/features/markets/services/trading/protection.js').syncLossProtectionForSellTx;
 
 const baseAccount = {
   id: 'account_1',
@@ -160,6 +163,7 @@ const market = {
   ],
   trades: [],
   positions: [],
+  lossProtections: [],
   liquidityEvents: [],
 };
 
@@ -217,6 +221,11 @@ describe('market service', () => {
     ({
       cancelMarket,
     } = await import('../src/features/markets/services/trading/cancel.js'));
+    ({
+      calculateLossProtectionQuote,
+      purchaseLossProtection,
+      syncLossProtectionForSellTx,
+    } = await import('../src/features/markets/services/trading/protection.js'));
     ({
       calculateMarketTradeQuote,
     } = await import('../src/features/markets/services/trading/quotes.js'));
@@ -1270,6 +1279,108 @@ describe('market service', () => {
     expect(quote.collateralLocked).toBeGreaterThan(0);
     expect(quote.settlementIfChosen).toBe(0);
     expect(quote.settlementIfNotChosen).toBeGreaterThan(0);
+  });
+
+  it('quotes incremental long loss protection against the current position basis', async () => {
+    prisma.market.findUnique.mockResolvedValue({
+      ...market,
+      positions: [makeLongPosition({ costBasis: 80, shares: 10 })],
+      lossProtections: [{
+        id: 'protection_1',
+        marketId: 'market_1',
+        outcomeId: 'outcome_yes',
+        userId: 'user_2',
+        insuredCostBasis: 20,
+        premiumPaid: 5,
+        createdAt: new Date('2099-03-29T00:30:00.000Z'),
+        updatedAt: new Date('2099-03-29T00:30:00.000Z'),
+      }],
+      outcomes: [
+        { ...market.outcomes[0], pricingShares: 20, outstandingShares: 20 },
+        { ...market.outcomes[1], pricingShares: 0, outstandingShares: 0 },
+      ],
+    });
+
+    const quote = await calculateLossProtectionQuote({
+      marketId: 'market_1',
+      userId: 'user_2',
+      outcomeId: 'outcome_yes',
+      targetCoverage: 0.5,
+    });
+
+    expect(quote.currentLongCostBasis).toBe(80);
+    expect(quote.alreadyInsuredCostBasis).toBe(20);
+    expect(quote.targetInsuredCostBasis).toBe(40);
+    expect(quote.incrementalInsuredCostBasis).toBe(20);
+    expect(quote.premium).toBeGreaterThan(0);
+  });
+
+  it('purchases long loss protection and debits bankroll/profit by the premium', async () => {
+    runTransaction();
+    transaction.market.findUnique.mockResolvedValue({
+      ...market,
+      positions: [makeLongPosition({ costBasis: 60, shares: 6 })],
+      lossProtections: [],
+    });
+    transaction.market.findUniqueOrThrow.mockResolvedValue({
+      ...market,
+      positions: [makeLongPosition({ costBasis: 60, shares: 6 })],
+      lossProtections: [{
+        id: 'protection_1',
+        marketId: 'market_1',
+        outcomeId: 'outcome_yes',
+        userId: 'user_2',
+        insuredCostBasis: 30,
+        premiumPaid: 15.75,
+        createdAt: new Date('2099-03-29T00:30:00.000Z'),
+        updatedAt: new Date('2099-03-29T00:30:00.000Z'),
+      }],
+    });
+
+    const result = await purchaseLossProtection({
+      marketId: 'market_1',
+      userId: 'user_2',
+      outcomeId: 'outcome_yes',
+      targetCoverage: 0.5,
+    });
+
+    expect(transaction.marketLossProtection.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({
+        insuredCostBasis: 30,
+      }),
+    }));
+    expect(transaction.marketAccount.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        bankroll: expect.any(Number),
+        realizedProfit: expect.any(Number),
+      }),
+    }));
+    expect(result.insuredCostBasis).toBe(30);
+    expect(result.premiumCharged).toBeGreaterThan(0);
+    expect(result.account.bankroll).toBeLessThan(baseAccount.bankroll);
+    expect(result.account.realizedProfit).toBeLessThanOrEqual(baseAccount.realizedProfit);
+  });
+
+  it('shrinks insured basis proportionally after a partial sell', async () => {
+    runTransaction();
+
+    await syncLossProtectionForSellTx(transaction as never, {
+      existingProtection: {
+        id: 'protection_1',
+        marketId: 'market_1',
+        outcomeId: 'outcome_yes',
+        userId: 'user_2',
+        insuredCostBasis: 60,
+      },
+      previousLongCostBasis: 100,
+      nextLongCostBasis: 40,
+    });
+
+    expect(transaction.marketLossProtection.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: {
+        insuredCostBasis: 24,
+      },
+    }));
   });
 
   it('rejects buy quotes requested in shares mode', async () => {

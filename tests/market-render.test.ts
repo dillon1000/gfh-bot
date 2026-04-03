@@ -257,4 +257,52 @@ describe('market render', () => {
     expect(selectJson.options?.[0]?.value).toBe('sell:market_1:a');
     expect(selectJson.options?.[1]?.value).toBe('protect:market_1:a');
   });
+
+  it('caps portfolio management options at Discord’s 25-option limit', () => {
+    const openPositions = Array.from({ length: 20 }, (_, index) => ({
+      id: `position_${index}`,
+      marketId: `market_${index}`,
+      outcomeId: `outcome_${index}`,
+      userId: 'user_1',
+      side: 'long' as const,
+      shares: 2,
+      costBasis: 10,
+      proceeds: 0,
+      collateralLocked: 0,
+      insuredCostBasis: 0,
+      premiumPaid: 0,
+      coverageRatio: 0,
+      uninsuredCostBasis: 10,
+      createdAt: new Date('2099-03-29T00:00:00.000Z'),
+      updatedAt: new Date('2099-03-29T00:00:00.000Z'),
+      market: {
+        ...market,
+        id: `market_${index}`,
+        title: `Market ${index}`,
+      },
+      outcome: {
+        ...market.outcomes[0]!,
+        id: `outcome_${index}`,
+        marketId: `market_${index}`,
+        label: `Outcome ${index}`,
+      },
+    }));
+
+    const payload = buildPortfolioMessage('user_1', {
+      id: 'account_1',
+      guildConfigId: 'guild_config_1',
+      guildId: 'guild_1',
+      userId: 'user_1',
+      bankroll: 900,
+      realizedProfit: 15,
+      lastTopUpAt: null,
+      createdAt: new Date('2099-03-29T00:00:00.000Z'),
+      updatedAt: new Date('2099-03-29T00:00:00.000Z'),
+      lockedCollateral: 0,
+      openPositions,
+    }, true);
+
+    const selectJson = payload.components[0]!.components[0]!.toJSON();
+    expect(selectJson.options).toHaveLength(25);
+  });
 });
