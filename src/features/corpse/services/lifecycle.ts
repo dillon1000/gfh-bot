@@ -254,57 +254,29 @@ const activateNextQueuedParticipant = async (
   previousSentence: string,
 ): Promise<void> => {
   while (true) {
-    const game = await getGameById(gameId);
-    if (!game || !game.openerText || game.status === 'revealed') {
-      return;
-    }
-
-    const nextParticipant = game.participants.find((participant) => participant.state === 'queued') ?? null;
-    if (!nextParticipant) {
-      await revealCorpseGame(client, game.id);
-      return;
-    }
-
-    const deadlineAt = new Date(Date.now() + corpseTurnWindowMs);
-    await prisma.corpseParticipant.update({
-      where: {
-        id: nextParticipant.id,
-      },
-      data: {
-        state: 'active',
-      },
-    });
-    await prisma.corpseGame.update({
-      where: {
-        id: game.id,
-      },
-      data: {
-        status: 'active',
-        turnDeadlineAt: deadlineAt,
-      },
-    });
-
-    try {
-      const refreshedGame = await getGameById(game.id);
-      if (!refreshedGame) {
-        return;
+    const activation = await withRedisLock(redis, getGameLockKey(gameId), 15_000, async () => {
+      const game = await getGameById(gameId);
+      if (!game || !game.openerText || game.status === 'revealed') {
+        return {
+          state: 'done' as const,
+        };
       }
 
-      await sendPromptForParticipant(client, refreshedGame, nextParticipant, previousSentence, deadlineAt);
-      await scheduleCorpseTurnTimeout({
-        id: refreshedGame.id,
-        turnDeadlineAt: deadlineAt,
-      } as Pick<CorpseGame, 'id' | 'turnDeadlineAt'>);
-      await refreshCorpseSignupMessage(client, refreshedGame.id);
-      return;
-    } catch (error) {
-      logger.warn({ err: error, gameId: game.id, userId: nextParticipant.userId }, 'Could not send corpse DM prompt; skipping participant');
+      const nextParticipant = game.participants.find((participant) => participant.state === 'queued') ?? null;
+      if (!nextParticipant) {
+        return {
+          state: 'reveal' as const,
+          gameId: game.id,
+        };
+      }
+
+      const deadlineAt = new Date(Date.now() + corpseTurnWindowMs);
       await prisma.corpseParticipant.update({
         where: {
           id: nextParticipant.id,
         },
         data: {
-          state: 'timed_out',
+          state: 'active',
         },
       });
       await prisma.corpseGame.update({
@@ -312,8 +284,66 @@ const activateNextQueuedParticipant = async (
           id: game.id,
         },
         data: {
-          turnDeadlineAt: null,
+          status: 'active',
+          turnDeadlineAt: deadlineAt,
         },
+      });
+
+      return {
+        state: 'activate' as const,
+        gameId: game.id,
+        userId: nextParticipant.userId,
+        participantId: nextParticipant.id,
+        deadlineAt,
+      };
+    });
+
+    if (activation === null || activation.state === 'done') {
+      return;
+    }
+
+    if (activation.state === 'reveal') {
+      await revealCorpseGame(client, activation.gameId);
+      return;
+    }
+
+    try {
+      const refreshedGame = await getGameById(activation.gameId);
+      if (!refreshedGame) {
+        return;
+      }
+
+      const nextParticipant = refreshedGame.participants.find((participant) => participant.id === activation.participantId);
+      if (!nextParticipant) {
+        return;
+      }
+
+      await sendPromptForParticipant(client, refreshedGame, nextParticipant, previousSentence, activation.deadlineAt);
+      await scheduleCorpseTurnTimeout({
+        id: refreshedGame.id,
+        turnDeadlineAt: activation.deadlineAt,
+      } as Pick<CorpseGame, 'id' | 'turnDeadlineAt'>);
+      await refreshCorpseSignupMessage(client, refreshedGame.id);
+      return;
+    } catch (error) {
+      logger.warn({ err: error, gameId: activation.gameId, userId: activation.userId }, 'Could not send corpse DM prompt; skipping participant');
+      await withRedisLock(redis, getGameLockKey(activation.gameId), 15_000, async () => {
+        await prisma.corpseParticipant.update({
+          where: {
+            id: activation.participantId,
+          },
+          data: {
+            state: 'timed_out',
+          },
+        });
+        await prisma.corpseGame.update({
+          where: {
+            id: activation.gameId,
+          },
+          data: {
+            turnDeadlineAt: null,
+          },
+        });
       });
     }
   }
@@ -555,7 +585,18 @@ export const joinCorpseGame = async (
       },
     });
 
-    const shouldStart = game.status === 'collecting' && game.participants.length + 1 >= corpseTargetParticipantCount;
+    const shouldStart = game.status === 'collecting' && game.participants.length + 1 === corpseTargetParticipantCount;
+    if (shouldStart) {
+      await prisma.corpseGame.update({
+        where: {
+          id: game.id,
+        },
+        data: {
+          status: 'active',
+        },
+      });
+    }
+
     return {
       gameId: game.id,
       queuePosition,

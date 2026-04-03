@@ -317,11 +317,11 @@ export const createMuralResetProposal = async (
         },
       });
 
-      await publishResetPoll(client, poll, input.channelId);
+      const published = await publishResetPoll(client, poll, input.channelId);
       return toResetProposalRecord({
         ...proposal,
         poll: {
-          messageId: poll.messageId,
+          messageId: published.messageId,
         },
       });
     } catch (error) {
