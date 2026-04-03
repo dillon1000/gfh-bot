@@ -23,6 +23,7 @@ import { withRedisLock } from '../../../lib/locks.js';
 import { prisma } from '../../../lib/prisma.js';
 import { redis } from '../../../lib/redis.js';
 import { generateQuipsPrompt } from './prompt-generator.js';
+import { normalizeQuipsConfigDefaults } from './config.js';
 import {
   removeScheduledQuipsAnswerClose,
   removeScheduledQuipsVoteClose,
@@ -79,11 +80,7 @@ const getAnnouncementChannel = async (
 };
 
 const getConfigOrThrow = async (guildId: string): Promise<QuipsConfig> => {
-  const config = await prisma.quipsConfig.findUnique({
-    where: {
-      guildId,
-    },
-  });
+  const config = await normalizeQuipsConfigDefaults(guildId);
 
   if (!config || !config.enabled || !config.channelId) {
     throw new Error('Continuous Quips is not configured for this server.');
@@ -126,6 +123,41 @@ const updateBoardMessage = async (
   await message.edit(buildQuipsBoardMessage(config, round)).catch((error) => {
     logger.warn({ err: error, guildId: config.guildId, roundId: round.id }, 'Could not refresh quips board message');
   });
+};
+
+const publishBoardMessageForRound = async (
+  client: Client,
+  config: QuipsConfig,
+  round: QuipsRoundWithRelations,
+): Promise<QuipsRoundWithRelations> => {
+  const boardMessageId = await publishNewBoardMessage(client, config.channelId, buildQuipsBoardMessage(config, round));
+
+  await prisma.quipsConfig.update({
+    where: {
+      guildId: config.guildId,
+    },
+    data: {
+      boardMessageId,
+      activeRoundId: round.id,
+    },
+  });
+
+  await prisma.quipsRound.update({
+    where: {
+      id: round.id,
+    },
+    data: {
+      boardMessageId,
+      channelId: config.channelId,
+    },
+  });
+
+  const refreshedRound = await getRoundById(round.id);
+  if (!refreshedRound) {
+    throw new Error('Continuous Quips round not found after publishing board message.');
+  }
+
+  return refreshedRound;
 };
 
 const getRecentPromptTexts = async (guildId: string): Promise<string[]> => {
@@ -186,6 +218,38 @@ const getOrCreateBoardMessageId = async (
   return publishNewBoardMessage(client, config.channelId, buildQuipsBoardMessage(config, round));
 };
 
+const reconcileAnsweringRoundTiming = async (
+  round: QuipsRoundWithRelations,
+  config: QuipsConfig,
+): Promise<QuipsRoundWithRelations> => {
+  if (round.phase !== 'answering') {
+    return round;
+  }
+
+  const expectedAnswerClosesAt = new Date(round.promptOpenedAt.getTime() + (config.answerWindowMinutes * 60_000));
+  if (round.answerClosesAt.getTime() <= expectedAnswerClosesAt.getTime()) {
+    return round;
+  }
+
+  const updatedRound = await prisma.quipsRound.update({
+    where: {
+      id: round.id,
+    },
+    data: {
+      answerClosesAt: expectedAnswerClosesAt,
+    },
+    include: quipsRoundInclude,
+  });
+
+  if (expectedAnswerClosesAt.getTime() > Date.now()) {
+    await scheduleQuipsAnswerClose(updatedRound);
+  } else {
+    await removeScheduledQuipsAnswerClose(updatedRound.id);
+  }
+
+  return updatedRound;
+};
+
 const createNextRound = async (
   guildId: string,
 ): Promise<QuipsRound> => {
@@ -228,39 +292,8 @@ const attachRoundToBoard = async (
     throw new Error('Continuous Quips round not found.');
   }
 
-  const boardMessageId = await getOrCreateBoardMessageId(client, config, round);
-
-  await prisma.quipsConfig.update({
-    where: {
-      guildId: config.guildId,
-    },
-    data: {
-      boardMessageId,
-      activeRoundId: roundId,
-    },
-  });
-
-  await prisma.quipsRound.update({
-    where: {
-      id: roundId,
-    },
-    data: {
-      boardMessageId,
-      channelId: config.channelId,
-    },
-  });
-
-  round = await getRoundById(roundId);
-  if (!round) {
-    throw new Error('Continuous Quips round not found after board attachment.');
-  }
-
-  await updateBoardMessage(client, {
-    ...config,
-    boardMessageId,
-  }, round);
-
-  return round;
+  round = await reconcileAnsweringRoundTiming(round, config);
+  return publishBoardMessageForRound(client, config, round);
 };
 
 const startNextRoundInternal = async (
@@ -271,8 +304,12 @@ const startNextRoundInternal = async (
   if (config.activeRoundId) {
     const activeRound = await getRoundById(config.activeRoundId);
     if (activeRound && activeRound.phase !== 'revealed') {
-      await updateBoardMessage(client, config, activeRound);
-      return activeRound;
+      const reconciledRound = await reconcileAnsweringRoundTiming(activeRound, config);
+      if (reconciledRound.phase === 'answering' && hasMetSubmissionThreshold(reconciledRound) && isAnswerWindowExpired(reconciledRound)) {
+        return (await advanceRoundToVoting(client, reconciledRound.id)) ?? reconciledRound;
+      }
+
+      return reconciledRound;
     }
   }
 
@@ -475,8 +512,7 @@ const advanceRoundToVoting = async (
   }
 
   await scheduleQuipsVoteClose(refreshedRound);
-  await updateBoardMessage(client, config, refreshedRound);
-  return refreshedRound;
+  return publishBoardMessageForRound(client, config, refreshedRound);
 };
 
 const updateStatsForRound = async (
@@ -779,7 +815,7 @@ export const pauseQuips = async (
     if (pausedConfig.activeRoundId) {
       const pausedRound = await getRoundById(pausedConfig.activeRoundId);
       if (pausedRound) {
-        await updateBoardMessage(client, pausedConfig, pausedRound);
+        await publishBoardMessageForRound(client, pausedConfig, pausedRound);
       }
     }
   });
@@ -852,8 +888,7 @@ export const resumeQuips = async (
       await scheduleQuipsVoteClose(resumedRound);
     }
 
-    await updateBoardMessage(client, resumedConfig, resumedRound);
-    return resumedRound;
+    return publishBoardMessageForRound(client, resumedConfig, resumedRound);
   });
 
   if (!result) {

@@ -249,10 +249,21 @@ describe('quips install and disable flows', () => {
       };
     });
     quipsConfigFindUnique.mockImplementation(async () => ({ ...configState }));
-    quipsConfigUpsert.mockImplementation(async ({ data }: { data?: never }) => {
+    quipsConfigUpsert.mockImplementation(async ({
+      create,
+      update,
+    }: {
+      create: Partial<ConfigState>;
+      update: Partial<ConfigState>;
+    }) => {
       if (!guildConfigWasEnsured) {
         throw new Error('Missing GuildConfig row');
       }
+
+      configState = {
+        ...configState,
+        ...(configState.id ? update : create),
+      };
 
       return { ...configState };
     });
@@ -313,7 +324,20 @@ describe('quips install and disable flows', () => {
     ]);
     expect(round.channelId).toBe('channel_2');
     expect(configState.boardMessageId).toBe('board_sent_1');
-    expect(editedMessageIds).toContain('board_sent_1');
+    expect(editedMessageIds).toEqual([]);
+  });
+
+  it('normalizes legacy stored timing values during install', async () => {
+    configState.answerWindowMinutes = 720;
+    configState.voteWindowMinutes = 720;
+
+    await installQuipsChannel(client as never, {
+      guildId: 'guild_1',
+      channelId: 'channel_1',
+    });
+
+    expect(configState.answerWindowMinutes).toBe(5);
+    expect(configState.voteWindowMinutes).toBe(5);
   });
 
   it('allows installation in a non-NSFW text channel', async () => {
