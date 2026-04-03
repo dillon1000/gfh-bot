@@ -9,6 +9,11 @@ import {
   roundCurrency,
 } from '../../../lib/economy.js';
 import type { MarketAccountWithOpenPositions } from '../core/types.js';
+import {
+  getPositionCoverageRatio,
+  getPositionUninsuredCostBasis,
+  getMarketLossProtectionDelegate,
+} from '../core/shared.js';
 
 export const ensureMarketAccountTx = async (
   tx: Prisma.TransactionClient,
@@ -49,13 +54,42 @@ export const getMarketAccountSummary = async (
         updatedAt: 'desc',
       },
     });
+    const protections = await getMarketLossProtectionDelegate(tx).findMany({
+      where: {
+        market: {
+          guildId,
+          resolvedAt: null,
+          cancelledAt: null,
+        },
+        userId,
+      },
+    }) as Array<{ marketId: string; outcomeId: string; insuredCostBasis: number; premiumPaid: number }>;
+    const protectionByKey = new Map(
+      protections.map((protection) => [`${protection.marketId}:${protection.outcomeId}`, protection]),
+    );
 
     return {
       ...account,
       lockedCollateral: roundCurrency(openPositions
         .filter((position) => position.side === 'short')
         .reduce((sum, position) => sum + position.collateralLocked, 0)),
-      openPositions,
+      openPositions: openPositions.map((position) => {
+        const protection = position.side === 'long'
+          ? protectionByKey.get(`${position.marketId}:${position.outcomeId}`)
+          : undefined;
+        const insuredCostBasis = roundCurrency(protection?.insuredCostBasis ?? 0);
+        return {
+          ...position,
+          insuredCostBasis,
+          premiumPaid: roundCurrency(protection?.premiumPaid ?? 0),
+          coverageRatio: position.side === 'long'
+            ? getPositionCoverageRatio(position.costBasis, insuredCostBasis)
+            : 0,
+          uninsuredCostBasis: position.side === 'long'
+            ? getPositionUninsuredCostBasis(position.costBasis, insuredCostBasis)
+            : 0,
+        };
+      }),
     };
   });
 

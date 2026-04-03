@@ -350,6 +350,7 @@ model Market {
   outcomes               MarketOutcome[]
   trades                 MarketTrade[]
   positions              MarketPosition[]
+  lossProtections        MarketLossProtection[]
   forecastRecords        MarketForecastRecord[]
   liquidityEvents        MarketLiquidityEvent[]
 
@@ -401,6 +402,7 @@ model MarketOutcome {
   market               Market           @relation(fields: [marketId], references: [id], onDelete: Cascade)
   trades               MarketTrade[]
   positions            MarketPosition[]
+  lossProtections      MarketLossProtection[]
   wonMarkets           Market[]         @relation("MarketWinningOutcome")
 
   @@unique([marketId, sortOrder])
@@ -428,6 +430,7 @@ model MarketTrade {
   side                 MarketTradeSide
   cashDelta            Int
   shareDelta           Float
+  feeCharged           Float            @default(0)
   probabilitySnapshot  Float
   cumulativeVolume     Int
   createdAt            DateTime         @default(now())
@@ -436,6 +439,23 @@ model MarketTrade {
 
   @@index([marketId, createdAt])
   @@index([marketId, userId, createdAt])
+}
+
+model MarketLossProtection {
+  id               String        @id @default(cuid())
+  marketId         String
+  outcomeId        String
+  userId           String
+  insuredCostBasis Float         @default(0)
+  premiumPaid      Float         @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  market           Market        @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  outcome          MarketOutcome @relation(fields: [outcomeId], references: [id], onDelete: Cascade)
+
+  @@unique([marketId, outcomeId, userId])
+  @@index([marketId, userId])
+  @@index([marketId, outcomeId])
 }
 
 model MarketPosition {

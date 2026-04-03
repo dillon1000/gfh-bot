@@ -21,8 +21,11 @@ import { getMarketAccountSummary } from '../../services/account.js';
 import { getMarketById } from '../../services/records.js';
 import { scheduleMarketRefresh } from '../../services/scheduler.js';
 import { executeMarketTrade } from '../../services/trading/execution.js';
+import { purchaseLossProtection } from '../../services/trading/protection.js';
+import { buildProtectionEntryMessage, createLossProtectionQuotePreview } from './protection.js';
 import {
   buildTradeExecutionDescription,
+  parseProtectionCoverageCustomId,
   getTradeFeedback,
   parseMarketOutcomeCustomId,
   parseQuickTradeCustomId,
@@ -49,23 +52,51 @@ export const handleMarketButton = async (
       throw new Error('That quote belongs to a different user.');
     }
 
-    const result = await executeMarketTrade({
+    if (session.kind !== 'protection') {
+      const result = await executeMarketTrade({
+        marketId: session.marketId,
+        userId: session.userId,
+        outcomeId: session.outcomeId,
+        action: session.action,
+        amount: session.amount,
+        amountMode: session.amountMode,
+      });
+      await deleteMarketTradeQuoteSession(redis, confirmSessionId);
+      await scheduleMarketRefresh(session.marketId);
+      const feedback = getTradeFeedback(session.action);
+      await interaction.update({
+        embeds: [
+          buildMarketStatusEmbed(
+            feedback.title,
+            buildTradeExecutionDescription(session.action, session.outcomeLabel, result),
+            feedback.color,
+          ),
+        ],
+        components: [],
+      });
+      return;
+    }
+
+    const result = await purchaseLossProtection({
       marketId: session.marketId,
       userId: session.userId,
       outcomeId: session.outcomeId,
-      action: session.action,
-      amount: session.amount,
-      amountMode: session.amountMode,
+      targetCoverage: session.targetCoverage,
     });
     await deleteMarketTradeQuoteSession(redis, confirmSessionId);
     await scheduleMarketRefresh(session.marketId);
-    const feedback = getTradeFeedback(session.action);
     await interaction.update({
       embeds: [
         buildMarketStatusEmbed(
-          feedback.title,
-          buildTradeExecutionDescription(session.action, session.outcomeLabel, result),
-          feedback.color,
+          'Protection Purchased',
+          [
+            `Outcome: **${session.outcomeLabel}**`,
+            `Premium paid: **${result.premiumCharged.toFixed(2)} pts**`,
+            `Insured basis: **${result.insuredCostBasis.toFixed(2)} pts**`,
+            `Remaining uninsured basis: **${result.uninsuredCostBasis.toFixed(2)} pts**`,
+            `Bankroll: **${result.account.bankroll.toFixed(2)} pts**`,
+          ].join('\n'),
+          0x57f287,
         ),
       ],
       components: [],
@@ -77,7 +108,7 @@ export const handleMarketButton = async (
   if (cancelSessionId) {
     await deleteMarketTradeQuoteSession(redis, cancelSessionId);
     await interaction.update({
-      embeds: [buildMarketStatusEmbed('Trade Quote Cancelled', 'Cancelled that trade preview.', 0x60a5fa)],
+      embeds: [buildMarketStatusEmbed('Preview Cancelled', 'Cancelled that preview.', 0x60a5fa)],
       components: [],
     });
     return;
@@ -138,6 +169,39 @@ export const handleMarketButton = async (
     await interaction.reply({
       flags: MessageFlags.Ephemeral,
       ...buildPortfolioMessage(interaction.user.id, portfolio, true),
+      allowedMentions: {
+        parse: [],
+      },
+    });
+    return;
+  }
+
+  const protectMarketId = parseSimpleMarketId('market:protect', interaction.customId);
+  if (protectMarketId) {
+    const market = await getMarketById(protectMarketId);
+    if (!market) {
+      throw new Error('Market not found.');
+    }
+
+    await interaction.reply({
+      flags: MessageFlags.Ephemeral,
+      ...buildProtectionEntryMessage(market, interaction.user.id),
+      allowedMentions: {
+        parse: [],
+      },
+    });
+    return;
+  }
+
+  const protectionCoverage = parseProtectionCoverageCustomId(interaction.customId);
+  if (protectionCoverage) {
+    await interaction.update({
+      ...await createLossProtectionQuotePreview({
+        marketId: protectionCoverage.marketId,
+        userId: interaction.user.id,
+        outcomeId: protectionCoverage.outcomeId,
+        targetCoverage: protectionCoverage.targetCoverage,
+      }),
       allowedMentions: {
         parse: [],
       },

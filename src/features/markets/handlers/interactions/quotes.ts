@@ -36,6 +36,7 @@ export const createTradeQuotePreview = async (input: {
       });
   const sessionId = createMarketTradeQuoteSessionId();
   await saveMarketTradeQuoteSession(redis, sessionId, {
+    kind: 'trade',
     sessionId,
     action: quote.action,
     guildId: quote.guildId,
@@ -50,6 +51,9 @@ export const createTradeQuotePreview = async (input: {
     shares: quote.shares,
     averagePrice: quote.averagePrice,
     immediateCash: quote.immediateCash,
+    grossImmediateCash: quote.grossImmediateCash,
+    netImmediateCash: quote.netImmediateCash,
+    feeCharged: quote.feeCharged,
     collateralLocked: quote.collateralLocked,
     netBankrollChange: quote.netBankrollChange,
     settlementIfChosen: quote.settlementIfChosen,

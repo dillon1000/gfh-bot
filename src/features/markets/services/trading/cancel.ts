@@ -4,6 +4,7 @@ import { prisma } from '../../../../lib/prisma.js';
 import { ensureMarketAccountTx } from '../account.js';
 import {
   assertCanCancelMarket,
+  getMarketLossProtectionDelegate,
   getMarketForUpdate,
   marketInclude,
   roundCurrency,
@@ -26,10 +27,24 @@ export const cancelMarket = async (input: {
     assertCanCancelMarket(market, input.actorId, input.permissions);
 
     const positionsByUser = groupPositionsByUser(market.positions);
+    const protectionsByUser = new Map<string, number>();
+    for (const protection of market.lossProtections ?? []) {
+      protectionsByUser.set(
+        protection.userId,
+        roundCurrency((protectionsByUser.get(protection.userId) ?? 0) + protection.premiumPaid),
+      );
+    }
 
-    for (const [userId, positions] of positionsByUser) {
+    const affectedUserIds = new Set<string>([
+      ...positionsByUser.keys(),
+      ...protectionsByUser.keys(),
+    ]);
+
+    for (const userId of affectedUserIds) {
+      const positions = positionsByUser.get(userId) ?? [];
+      const protectionRefund = protectionsByUser.get(userId) ?? 0;
       const refundDelta = roundCurrency(positions.reduce((sum, position) =>
-        sum + (position.side === 'long' ? position.costBasis : position.collateralLocked - position.proceeds), 0));
+        sum + (position.side === 'long' ? position.costBasis : position.collateralLocked - position.proceeds), 0) + protectionRefund);
       if (Math.abs(refundDelta) <= 1e-6) {
         continue;
       }
@@ -41,11 +56,17 @@ export const cancelMarket = async (input: {
         },
         data: {
           bankroll: roundCurrency(account.bankroll + refundDelta),
+          realizedProfit: roundCurrency(account.realizedProfit + protectionRefund),
         },
       });
     }
 
     await tx.marketPosition.deleteMany({
+      where: {
+        marketId: market.id,
+      },
+    });
+    await getMarketLossProtectionDelegate(tx).deleteMany({
       where: {
         marketId: market.id,
       },

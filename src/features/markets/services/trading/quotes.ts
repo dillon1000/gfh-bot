@@ -2,6 +2,8 @@ import { getEffectiveAccountPreview } from '../account.js';
 import {
   assertMarketOpen,
   assertOutcomeTradable,
+  calculateMomentumTax,
+  getMarketProbabilities,
   getPosition,
   getPositionMap,
   getTradeLockReason,
@@ -76,13 +78,15 @@ const calculateMarketTradeQuoteUnsafe = async (input: {
   const shortPosition = getPosition(positions, outcome.id, 'short');
   const account = await getEffectiveAccountPreview(market.guildId, input.userId);
   const amountMode = input.amountMode;
+  const currentProbability = getMarketProbabilities(market)[outcomeIndex] ?? 0;
 
   if (input.action === 'buy') {
     if (shortPosition && shortPosition.shares > 1e-6) {
       throw new Error('You must cover your short position in that outcome before buying it.');
     }
 
-    if (account.bankroll < input.amount) {
+    const feeCharged = calculateMomentumTax('buy', currentProbability, input.amount);
+    if (account.bankroll < (input.amount + feeCharged) - 1e-6) {
       throw new Error('You do not have enough bankroll for that trade.');
     }
 
@@ -100,15 +104,18 @@ const calculateMarketTradeQuoteUnsafe = async (input: {
       rawAmount: input.rawAmount,
       shares: roundCurrency(sharesReceived),
       averagePrice: sharesReceived > 0 ? roundCurrency(input.amount / sharesReceived) : null,
-      immediateCash: roundCurrency(input.amount),
+      immediateCash: roundCurrency(input.amount + feeCharged),
+      grossImmediateCash: roundCurrency(input.amount),
+      netImmediateCash: roundCurrency(input.amount + feeCharged),
+      feeCharged,
       collateralLocked: 0,
-      netBankrollChange: roundCurrency(-input.amount),
+      netBankrollChange: roundCurrency(-(input.amount + feeCharged)),
       settlementIfChosen: roundCurrency(sharesReceived),
       settlementIfNotChosen: 0,
-      maxProfitIfChosen: roundCurrency(sharesReceived - input.amount),
+      maxProfitIfChosen: roundCurrency(sharesReceived - input.amount - feeCharged),
       maxProfitIfNotChosen: 0,
       maxLossIfChosen: 0,
-      maxLossIfNotChosen: roundCurrency(input.amount),
+      maxLossIfNotChosen: roundCurrency(input.amount + feeCharged),
     };
   }
 
@@ -122,8 +129,9 @@ const calculateMarketTradeQuoteUnsafe = async (input: {
   const proceedsReceived = amountMode === 'shares'
     ? roundCurrency(computeSellPayout(pricingShares, tradableIndex, sharesToShort, market.liquidityParameter))
     : roundCurrency(input.amount);
+  const feeCharged = calculateMomentumTax('short', currentProbability, proceedsReceived);
   const collateralToLock = roundCurrency(sharesToShort);
-  if ((account.bankroll + proceedsReceived - collateralToLock) < -1e-6) {
+  if ((account.bankroll + proceedsReceived - collateralToLock - feeCharged) < -1e-6) {
     throw new Error('You do not have enough bankroll to collateralize that short.');
   }
 
@@ -140,14 +148,17 @@ const calculateMarketTradeQuoteUnsafe = async (input: {
     rawAmount: input.rawAmount,
     shares: roundCurrency(sharesToShort),
     averagePrice: null,
-    immediateCash: roundCurrency(proceedsReceived),
+    immediateCash: roundCurrency(proceedsReceived - feeCharged),
+    grossImmediateCash: roundCurrency(proceedsReceived),
+    netImmediateCash: roundCurrency(proceedsReceived - feeCharged),
+    feeCharged,
     collateralLocked: collateralToLock,
-    netBankrollChange: roundCurrency(proceedsReceived - collateralToLock),
+    netBankrollChange: roundCurrency(proceedsReceived - collateralToLock - feeCharged),
     settlementIfChosen: 0,
     settlementIfNotChosen: collateralToLock,
     maxProfitIfChosen: 0,
-    maxProfitIfNotChosen: roundCurrency(proceedsReceived),
-    maxLossIfChosen: roundCurrency(collateralToLock - proceedsReceived),
+    maxProfitIfNotChosen: roundCurrency(proceedsReceived - feeCharged),
+    maxLossIfChosen: roundCurrency(collateralToLock - proceedsReceived + feeCharged),
     maxLossIfNotChosen: 0,
   };
 };

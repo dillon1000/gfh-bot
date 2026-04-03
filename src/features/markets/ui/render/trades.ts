@@ -11,6 +11,8 @@ import {
 
 import {
   marketCancelModalCustomId,
+  marketProtectionCoverageButtonCustomId,
+  marketProtectionSelectCustomId,
   marketQuickTradeButtonCustomId,
   marketResolveModalCustomId,
   marketTradeModalCustomId,
@@ -21,14 +23,17 @@ import {
 import { formatProbabilityPercent } from '../../core/math.js';
 import { getTradeLockReason } from '../../core/shared.js';
 import type {
+  MarketLossProtectionQuote,
   MarketTradeQuote,
   MarketWithRelations,
 } from '../../core/types.js';
 import { buildMarketStatusEmbed } from './market.js';
 import {
   formatMoney,
+  formatPercent,
   getMarketSummary,
   getTradeCopy,
+  truncateLabel,
 } from './shared.js';
 
 export const buildMarketTradeSelector = (
@@ -205,10 +210,15 @@ export const buildMarketTradeQuoteMessage = (
   embeds: [EmbedBuilder];
   components: [ActionRowBuilder<ButtonBuilder>];
 } => {
+  const grossImmediateCash = quote.grossImmediateCash ?? quote.immediateCash;
+  const netImmediateCash = quote.netImmediateCash ?? quote.immediateCash;
+  const feeCharged = quote.feeCharged ?? 0;
   const description = quote.action === 'buy'
     ? [
         `Outcome: **${quote.outcomeLabel}**`,
-        `Spend now: **${formatMoney(quote.immediateCash)}**`,
+        `Base spend: **${formatMoney(grossImmediateCash)}**`,
+        feeCharged > 0 ? `Momentum tax: **${formatMoney(feeCharged)}**` : null,
+        `Total charged now: **${formatMoney(netImmediateCash)}**`,
         `Shares received: **${quote.shares.toFixed(2)}**`,
         quote.averagePrice === null ? null : `Average price: **${formatMoney(quote.averagePrice)} / share**`,
         '',
@@ -219,7 +229,9 @@ export const buildMarketTradeQuoteMessage = (
       ].filter(Boolean).join('\n')
     : [
         `Outcome: **${quote.outcomeLabel}**`,
-        `Proceeds now: **${formatMoney(quote.immediateCash)}**`,
+        `Gross proceeds now: **${formatMoney(grossImmediateCash)}**`,
+        feeCharged > 0 ? `Momentum tax: **${formatMoney(feeCharged)}**` : null,
+        `Net proceeds after tax: **${formatMoney(netImmediateCash)}**`,
         `Collateral locked: **${formatMoney(quote.collateralLocked)}**`,
         `Net bankroll change now: **${formatMoney(quote.netBankrollChange)}**`,
         `Shares shorted: **${quote.shares.toFixed(2)}**`,
@@ -252,3 +264,130 @@ export const buildMarketTradeQuoteMessage = (
     ],
   };
 };
+
+export const buildLossProtectionPositionSelector = (
+  market: MarketWithRelations,
+  positions: Array<{
+    outcomeId: string;
+    outcomeLabel: string;
+    currentLongCostBasis: number;
+    insuredCostBasis: number;
+    coverageRatio: number;
+  }>,
+): {
+  embeds: [EmbedBuilder];
+  components: [ActionRowBuilder<StringSelectMenuBuilder>];
+} => ({
+  embeds: [
+    buildMarketStatusEmbed(
+      'Protect A Position',
+      `Choose which long position in **${market.title}** you want to protect.`,
+      0x60a5fa,
+    ),
+  ],
+  components: [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(marketProtectionSelectCustomId(market.id))
+        .setPlaceholder('Choose a long position to protect')
+        .setMinValues(1)
+        .setMaxValues(1)
+        .addOptions(
+          positions.slice(0, 25).map((position) => ({
+            label: truncateLabel(position.outcomeLabel, 40),
+            value: position.outcomeId,
+            description: `${formatMoney(position.currentLongCostBasis)} basis • ${formatPercent(position.coverageRatio)} insured`,
+          })),
+        ),
+    ),
+  ],
+});
+
+export const buildLossProtectionCoverageMessage = (input: {
+  marketId: string;
+  marketTitle: string;
+  outcomeId: string;
+  outcomeLabel: string;
+  currentLongCostBasis: number;
+  insuredCostBasis: number;
+  coverageRatio: number;
+}): {
+  embeds: [EmbedBuilder];
+  components: [ActionRowBuilder<ButtonBuilder>];
+} => ({
+  embeds: [
+    buildMarketStatusEmbed(
+      'Protect This Position',
+      [
+        `Market: **${input.marketTitle}**`,
+        `Outcome: **${input.outcomeLabel}**`,
+        `Current long basis: **${formatMoney(input.currentLongCostBasis)}**`,
+        `Already insured: **${formatMoney(input.insuredCostBasis)}** (${formatPercent(input.coverageRatio)})`,
+        '',
+        'Choose your total target coverage. You only pay for any additional protection needed to reach that level.',
+      ].join('\n'),
+      0x60a5fa,
+    ),
+  ],
+  components: [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(marketProtectionCoverageButtonCustomId(input.marketId, input.outcomeId, 0.25))
+        .setLabel('25%')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(marketProtectionCoverageButtonCustomId(input.marketId, input.outcomeId, 0.5))
+        .setLabel('50%')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(marketProtectionCoverageButtonCustomId(input.marketId, input.outcomeId, 0.75))
+        .setLabel('75%')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(marketProtectionCoverageButtonCustomId(input.marketId, input.outcomeId, 1))
+        .setLabel('100%')
+        .setStyle(ButtonStyle.Primary),
+    ),
+  ],
+});
+
+export const buildLossProtectionQuoteMessage = (
+  sessionId: string,
+  quote: MarketLossProtectionQuote,
+): {
+  embeds: [EmbedBuilder];
+  components: [ActionRowBuilder<ButtonBuilder>];
+} => ({
+  embeds: [
+    buildMarketStatusEmbed(
+      'Preview Loss Protection',
+      [
+        `Market: **${quote.marketTitle}**`,
+        `Outcome: **${quote.outcomeLabel}**`,
+        `Current probability: **${formatPercent(quote.currentProbability)}**`,
+        `Current long basis: **${formatMoney(quote.currentLongCostBasis)}**`,
+        `Already insured: **${formatMoney(quote.alreadyInsuredCostBasis)}**`,
+        `Target coverage: **${formatPercent(quote.targetCoverage)}**`,
+        `Target insured basis: **${formatMoney(quote.targetInsuredCostBasis)}**`,
+        `Additional insured basis: **${formatMoney(quote.incrementalInsuredCostBasis)}**`,
+        `Premium now: **${formatMoney(quote.premium)}**`,
+        `Refund if ${quote.outcomeLabel} loses: **${formatMoney(quote.targetInsuredCostBasis)}**`,
+        '',
+        'If you sell later, protected basis shrinks with the remaining position. This quote may change before you confirm.',
+      ].join('\n'),
+      0x60a5fa,
+    ),
+  ],
+  components: [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(marketTradeQuoteConfirmCustomId(sessionId))
+        .setLabel('Confirm')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(marketTradeQuoteCancelCustomId(sessionId))
+        .setLabel('Cancel')
+        .setStyle(ButtonStyle.Secondary),
+    ),
+  ],
+});

@@ -606,6 +606,7 @@ describe('market interactions', () => {
           side: 'buy' as const,
           shareDelta: 2,
           cashDelta: -10,
+          feeCharged: 0,
           probabilitySnapshot: 0.5,
           cumulativeVolume: 10,
           createdAt: new Date('2099-03-29T01:00:00.000Z'),
@@ -856,7 +857,7 @@ describe('market interactions', () => {
       components: [],
     }));
     const updatePayload = interaction.update.mock.calls[0]?.[0];
-    expect(updatePayload.embeds[0].data.description).toContain('Cash: 45 pts');
+    expect(updatePayload.embeds[0].data.description).toContain('Base spend: 45.00 pts');
     expect(updatePayload.embeds[0].data.description).toContain('If Yes is chosen: 70.00 pts');
   });
 
