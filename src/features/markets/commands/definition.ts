@@ -1,4 +1,4 @@
-import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { ChannelType, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 
 export const marketCommand = new SlashCommandBuilder()
   .setName('market')
@@ -10,11 +10,12 @@ export const marketCommand = new SlashCommandBuilder()
       .addSubcommand((subcommand) =>
         subcommand
           .setName('set')
-          .setDescription('Choose the official channel where markets are posted.')
+          .setDescription('Choose the official forum where markets are posted.')
           .addChannelOption((option) =>
             option
               .setName('channel')
-              .setDescription('Official prediction market channel')
+              .setDescription('Official prediction market forum')
+              .addChannelTypes(ChannelType.GuildForum)
               .setRequired(true),
           ),
       )

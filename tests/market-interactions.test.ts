@@ -1,3 +1,4 @@
+import { ChannelType } from 'discord.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
@@ -90,7 +91,7 @@ vi.mock('../src/features/markets/services/config.js', () => ({
   disableMarketConfig,
   describeMarketConfig: vi.fn((config: { enabled: boolean; channelId: string | null }) =>
     config.enabled && config.channelId
-      ? `Prediction markets are enabled in <#${config.channelId}>.`
+      ? `Prediction markets are enabled in forum <#${config.channelId}>.`
       : 'Prediction markets are disabled for this server.'),
 }));
 
@@ -227,7 +228,7 @@ const createInteraction = (options: {
   strings?: Record<string, string | null>;
   numbers?: Record<string, number | null>;
   users?: Record<string, { id: string; send?: ReturnType<typeof vi.fn> } | null>;
-  channels?: Record<string, { id: string; isTextBased: () => boolean } | null>;
+  channels?: Record<string, { id: string; isTextBased: () => boolean; type?: number } | null>;
   canManageGuild?: boolean;
 }) => {
   const strings = options.strings ?? {};
@@ -499,7 +500,7 @@ describe('market interactions', () => {
     env.DISCORD_ADMIN_USER_IDS = [...defaultAdminUserIds];
   });
 
-  it('stores the official market channel through config set', async () => {
+  it('stores the official market forum through config set', async () => {
     const interaction = createInteraction({
       subcommandGroup: 'config',
       subcommand: 'set',
@@ -507,6 +508,7 @@ describe('market interactions', () => {
       channels: {
         channel: {
           id: 'market_channel_1',
+          type: ChannelType.GuildForum,
           isTextBased: () => true,
         },
       },
@@ -518,6 +520,26 @@ describe('market interactions', () => {
     expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({
       flags: 64,
     }));
+  });
+
+  it('rejects non-forum market config channels', async () => {
+    const interaction = createInteraction({
+      subcommandGroup: 'config',
+      subcommand: 'set',
+      canManageGuild: true,
+      channels: {
+        channel: {
+          id: 'market_channel_1',
+          type: ChannelType.GuildText,
+          isTextBased: () => true,
+        },
+      },
+    });
+
+    await expect(handleMarketCommand({} as never, interaction as never)).rejects.toThrow(
+      'The official market channel must be a forum channel.',
+    );
+    expect(setMarketConfig).not.toHaveBeenCalled();
   });
 
   it('creates a market in the configured channel and replies publicly in the invoking channel', async () => {
@@ -556,7 +578,7 @@ describe('market interactions', () => {
       strings: {
         title: 'Will turnout exceed 40%?',
         outcomes: 'Yes, No',
-        close: 'April 6 2026 10:00pm CDT',
+        close: 'April 9 2026 10:00pm CDT',
       },
     });
 

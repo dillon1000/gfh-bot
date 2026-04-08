@@ -20,6 +20,107 @@ type ProviderAttempt = {
   modelId: string;
 };
 
+const getPromptShapeKey = (prompt: string): string => {
+  const normalized = normalizePromptText(prompt).toLowerCase();
+
+  if (normalized.includes('___')) {
+    return 'blank';
+  }
+
+  const firstWord = normalized.split(/\s+/)[0] ?? 'other';
+  if (['what', 'why', 'how', 'where', 'when', 'who'].includes(firstWord)) {
+    return `question:${firstWord}`;
+  }
+
+  if (normalized.startsWith('name ')) {
+    return 'directive:name';
+  }
+
+  if (normalized.startsWith('come up with')) {
+    return 'directive:come-up-with';
+  }
+
+  if (normalized.startsWith('invent ')) {
+    return 'directive:invent';
+  }
+
+  if (normalized.startsWith('write ')) {
+    return 'directive:write';
+  }
+
+  if (normalized.startsWith('finish ')) {
+    return 'directive:finish';
+  }
+
+  return `statement:${firstWord}`;
+};
+
+const getDialogueWeight = (prompt: string): number => {
+  const normalized = normalizePromptText(prompt).toLowerCase();
+  return /\b(?:say|hear|whisper|moan|mutter|yell|scream|shout)\b/.test(normalized) ? 0.35 : 1;
+};
+
+const selectPromptExamples = (
+  seedCorpus: readonly string[],
+  sampleSize: number,
+): string[] => {
+  const buckets = new Map<string, string[]>();
+  for (const prompt of shuffle(seedCorpus)) {
+    const key = getPromptShapeKey(prompt);
+    const existing = buckets.get(key);
+    if (existing) {
+      existing.push(prompt);
+    } else {
+      buckets.set(key, [prompt]);
+    }
+  }
+
+  const bucketOrder = shuffle([...buckets.keys()]);
+  const samples: string[] = [];
+
+  while (samples.length < sampleSize && bucketOrder.length > 0) {
+    const activeBucketKeys = bucketOrder.filter((key) => (buckets.get(key)?.length ?? 0) > 0);
+    if (activeBucketKeys.length === 0) {
+      break;
+    }
+
+    let addedThisPass = false;
+
+    for (const key of activeBucketKeys) {
+      const bucket = buckets.get(key);
+      if (!bucket?.length || samples.length >= sampleSize) {
+        continue;
+      }
+
+      const candidate = bucket.shift();
+      if (!candidate) {
+        continue;
+      }
+
+      if (Math.random() <= getDialogueWeight(candidate)) {
+        samples.push(candidate);
+        addedThisPass = true;
+      }
+    }
+
+    if (!addedThisPass) {
+      for (const key of activeBucketKeys) {
+        const bucket = buckets.get(key);
+        if (!bucket?.length || samples.length >= sampleSize) {
+          continue;
+        }
+
+        const candidate = bucket.shift();
+        if (candidate) {
+          samples.push(candidate);
+        }
+      }
+    }
+  }
+
+  return samples.slice(0, sampleSize);
+};
+
 export const buildQuipsPromptSystem = (
   seedCorpus: readonly string[],
   recentPrompts: readonly string[],
@@ -28,7 +129,7 @@ export const buildQuipsPromptSystem = (
     includeAdultFlavor: boolean;
   },
 ): string => {
-  const samples = shuffle(seedCorpus).slice(0, quipsPromptSampleSize);
+  const samples = selectPromptExamples(seedCorpus, quipsPromptSampleSize);
   const toneInstruction = options.adultMode
     ? options.includeAdultFlavor
       ? 'Adult mode is enabled, so edgy humor is allowed, go wild!'

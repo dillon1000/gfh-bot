@@ -128,7 +128,7 @@ docker compose --profile autoupdate up -d
 ## Commands
 
 - `/ping`
-- `/market config set channel:#predictions`
+- `/market config set channel:#predictions-forum`
 - `/market config view`
 - `/market config disable`
 - `/market create title:... outcomes:... close:24h description:... tags:...`
@@ -176,6 +176,11 @@ docker compose --profile autoupdate up -d
 ```bash
 pnpm test
 ```
+
+## Legal
+
+- [Privacy Policy](./docs/legal/PRIVACY_POLICY.md)
+- [Terms of Service](./docs/legal/TERMS_OF_SERVICE.md)
 
 ## Note
 

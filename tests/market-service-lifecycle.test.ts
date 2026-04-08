@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-  attachMarketMessage,
-  attachMarketThread,
+  attachMarketPublication,
   scheduleMarketClose,
   scheduleMarketLiquidity,
   getMarketById,
 } = vi.hoisted(() => ({
-  attachMarketMessage: vi.fn(),
-  attachMarketThread: vi.fn(),
+  attachMarketPublication: vi.fn(),
   scheduleMarketClose: vi.fn(),
   scheduleMarketLiquidity: vi.fn(),
   getMarketById: vi.fn(),
@@ -56,8 +54,7 @@ vi.mock('../src/features/markets/ui/render/market.js', () => ({
 }));
 
 vi.mock('../src/features/markets/services/records.js', () => ({
-  attachMarketMessage,
-  attachMarketThread,
+  attachMarketPublication,
   getMarketById,
 }));
 
@@ -122,8 +119,7 @@ const market = {
 
 describe('market service lifecycle', () => {
   beforeEach(() => {
-    attachMarketMessage.mockReset();
-    attachMarketThread.mockReset();
+    attachMarketPublication.mockReset();
     scheduleMarketClose.mockReset();
     scheduleMarketLiquidity.mockReset();
     getMarketById.mockReset();
@@ -132,14 +128,13 @@ describe('market service lifecycle', () => {
     buildMarketMessage.mockReset();
     buildMarketDetailsEmbed.mockReset();
     buildMarketDiagram.mockReset();
-    attachMarketMessage.mockResolvedValue(market);
-    attachMarketThread.mockResolvedValue({
+    attachMarketPublication.mockResolvedValue({
       ...market,
       threadId: 'thread_1',
     });
   });
 
-  it('clears prior attachments when refreshing a market message', async () => {
+  it('clears prior attachments when refreshing a market forum post', async () => {
     const embed = {
       setImage: vi.fn(),
     };
@@ -147,7 +142,10 @@ describe('market service lifecycle', () => {
       edit: vi.fn(),
     };
 
-    getMarketById.mockResolvedValue(market);
+    getMarketById.mockResolvedValue({
+      ...market,
+      threadId: 'thread_1',
+    });
     buildMarketMessage.mockReturnValue({
       embeds: [embed],
       components: [],
@@ -160,10 +158,8 @@ describe('market service lifecycle', () => {
     await refreshMarketMessage({
       channels: {
         fetch: vi.fn().mockResolvedValue({
-          isTextBased: () => true,
-          messages: {
-            fetch: vi.fn().mockResolvedValue(message),
-          },
+          isThread: () => true,
+          fetchStarterMessage: vi.fn().mockResolvedValue(message),
         }),
       },
     } as never, market.id);
@@ -174,12 +170,13 @@ describe('market service lifecycle', () => {
     }));
   });
 
-  it('deletes the sent message if hydration fails after publish', async () => {
+  it('deletes the forum post if hydration fails after publish', async () => {
     const embed = {
       setImage: vi.fn(),
     };
-    const sentMessage = {
-      url: 'https://discord.com/channels/guild_1/market_channel_1/message_market_1',
+    const forumThread = {
+      id: 'thread_1',
+      isThread: () => true,
       delete: vi.fn().mockResolvedValue(undefined),
     };
 
@@ -191,27 +188,36 @@ describe('market service lifecycle', () => {
       fileName: 'market-market_1.png',
       attachment: { name: 'market-market_1.png' },
     });
-    attachMarketMessage.mockRejectedValue(new Error('database update failed'));
+    attachMarketPublication.mockRejectedValue(new Error('database update failed'));
 
     await expect(hydrateMarketMessage({
       channels: {
-        fetch: vi.fn().mockResolvedValue({
-          isTextBased: () => true,
-          send: vi.fn().mockResolvedValue(sentMessage),
-        }),
+        fetch: vi.fn()
+          .mockResolvedValueOnce({
+            type: 15,
+            threads: {
+              create: vi.fn().mockResolvedValue({
+                id: 'thread_1',
+                url: 'https://discord.com/channels/guild_1/thread_1',
+                fetchStarterMessage: vi.fn().mockResolvedValue({
+                  id: 'message_market_1',
+                }),
+              }),
+            },
+          })
+          .mockResolvedValueOnce(forumThread),
       },
     } as never, market)).rejects.toThrow('database update failed');
 
-    expect(sentMessage.delete).toHaveBeenCalledTimes(1);
+    expect(forumThread.delete).toHaveBeenCalledTimes(1);
   });
 
-  it('creates and stores a discussion thread after publishing a market', async () => {
+  it('creates and stores a forum post after publishing a market', async () => {
     const embed = {
       setImage: vi.fn(),
     };
-    const startThread = vi.fn().mockResolvedValue({
-      id: 'thread_1',
-      url: 'https://discord.com/channels/guild_1/thread_1',
+    const fetchStarterMessage = vi.fn().mockResolvedValue({
+      id: 'message_market_1',
     });
 
     buildMarketMessage.mockReturnValue({
@@ -226,25 +232,32 @@ describe('market service lifecycle', () => {
     const result = await hydrateMarketMessage({
       channels: {
         fetch: vi.fn().mockResolvedValue({
-          isTextBased: () => true,
-          send: vi.fn().mockResolvedValue({
-            id: 'message_market_1',
-            url: 'https://discord.com/channels/guild_1/market_channel_1/message_market_1',
-            startThread,
-          }),
+          type: 15,
+          threads: {
+            create: vi.fn().mockResolvedValue({
+              id: 'thread_1',
+              url: 'https://discord.com/channels/guild_1/thread_1',
+              fetchStarterMessage,
+            }),
+          },
         }),
       },
     } as never, market);
 
-    expect(attachMarketThread).toHaveBeenCalledWith('market_1', 'thread_1');
+    expect(attachMarketPublication).toHaveBeenCalledWith('market_1', {
+      marketChannelId: 'market_channel_1',
+      messageId: 'message_market_1',
+      threadId: 'thread_1',
+    });
     expect(result).toEqual(expect.objectContaining({
       threadCreated: true,
       threadId: 'thread_1',
       threadUrl: 'https://discord.com/channels/guild_1/thread_1',
+      messageId: 'message_market_1',
     }));
   });
 
-  it('keeps the market live when discussion thread creation fails', async () => {
+  it('fails when forum post creation fails', async () => {
     const embed = {
       setImage: vi.fn(),
     };
@@ -258,25 +271,17 @@ describe('market service lifecycle', () => {
       attachment: { name: 'market-market_1.png' },
     });
 
-    const result = await hydrateMarketMessage({
+    await expect(hydrateMarketMessage({
       channels: {
         fetch: vi.fn().mockResolvedValue({
-          isTextBased: () => true,
-          send: vi.fn().mockResolvedValue({
-            id: 'message_market_1',
-            url: 'https://discord.com/channels/guild_1/market_channel_1/message_market_1',
-            startThread: vi.fn().mockRejectedValue(new Error('missing permissions')),
-          }),
+          type: 15,
+          threads: {
+            create: vi.fn().mockRejectedValue(new Error('missing permissions')),
+          },
         }),
       },
-    } as never, market);
-
-    expect(attachMarketThread).not.toHaveBeenCalled();
-    expect(result).toEqual(expect.objectContaining({
-      threadCreated: false,
-      threadId: null,
-      threadUrl: null,
-    }));
+    } as never, market)).rejects.toThrow('missing permissions');
+    expect(attachMarketPublication).not.toHaveBeenCalled();
   });
 
   it('only marks grace notifications as sent after a successful post', async () => {
@@ -290,6 +295,7 @@ describe('market service lifecycle', () => {
     await sendMarketGraceNotice({
       channels: {
         fetch: vi.fn().mockResolvedValue({
+          isThread: () => true,
           isTextBased: () => true,
           send,
         }),

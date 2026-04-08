@@ -1,4 +1,4 @@
-import { MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
+import { ChannelType, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 
 import { buildMarketStatusEmbed } from '../../ui/render/market.js';
 import {
@@ -25,8 +25,8 @@ export const handleMarketConfigCommand = async (
 
   if (subcommand === 'set') {
     const channel = interaction.options.getChannel('channel', true);
-    if (!('isTextBased' in channel) || !channel.isTextBased()) {
-      throw new Error('The official market channel must be text-based.');
+    if (channel.type !== ChannelType.GuildForum) {
+      throw new Error('The official market channel must be a forum channel.');
     }
 
     const config = await setMarketConfig(guildId, channel.id);

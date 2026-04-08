@@ -61,5 +61,5 @@ export const disableMarketConfig = async (guildId: string): Promise<GuildConfig>
 
 export const describeMarketConfig = (config: MarketConfig): string =>
   config.enabled && config.channelId
-    ? `Prediction markets are enabled in <#${config.channelId}>.`
+    ? `Prediction markets are enabled in forum <#${config.channelId}>.`
     : 'Prediction markets are disabled for this server.';

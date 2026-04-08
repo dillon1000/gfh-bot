@@ -77,6 +77,7 @@ vi.mock('../src/features/quips/services/prompt-generator.js', () => ({
 import {
   castQuipsVote,
   handleQuipsAnswerPhaseClose,
+  openQuipsAnswerPrompt,
 } from '../src/features/quips/services/lifecycle.js';
 
 type RoundState = {
@@ -155,6 +156,7 @@ describe('quips lifecycle', () => {
         messages: {
           fetch: vi.fn(async () => ({
             edit: vi.fn().mockResolvedValue(undefined),
+            delete: vi.fn().mockResolvedValue(undefined),
           })),
         },
       })),
@@ -326,5 +328,22 @@ describe('quips lifecycle', () => {
       userId: 'user_3',
       slot: 'b',
     })).rejects.toThrow('You have already voted in this round.');
+  });
+
+  it('deletes stale answer messages for skipped or closed rounds', async () => {
+    if (!roundState) {
+      throw new Error('Expected round state');
+    }
+
+    roundState.phase = 'revealed';
+    const deleteMock = vi.fn().mockResolvedValue(undefined);
+
+    await expect(openQuipsAnswerPrompt({
+      message: {
+        delete: deleteMock,
+      },
+    } as never, 'round_1')).rejects.toThrow('That prompt is no longer accepting answers.');
+
+    expect(deleteMock).toHaveBeenCalledTimes(1);
   });
 });
