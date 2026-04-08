@@ -34,7 +34,7 @@ describe('market config service', () => {
     });
   });
 
-  it('upserts market config and formats it for embeds', async () => {
+  it('upserts market config and formats it for forum embeds', async () => {
     upsert.mockResolvedValue({
       marketEnabled: true,
       marketChannelId: 'channel_market',
@@ -45,7 +45,7 @@ describe('market config service', () => {
     expect(describeMarketConfig({
       enabled: config.marketEnabled,
       channelId: config.marketChannelId,
-    })).toContain('<#channel_market>');
+    })).toBe('Prediction markets are enabled in forum <#channel_market>.');
   });
 
   it('disables the market channel config', async () => {

@@ -32,7 +32,7 @@ const buildMarketSynopsis = (market: MarketWithRelations, status: string): strin
   ];
 
   if (market.threadId) {
-    parts.push(`Discuss in <#${market.threadId}>.`);
+    parts.push(`Discuss in forum post <#${market.threadId}>.`);
   }
 
   return parts.join(' ');
@@ -75,8 +75,8 @@ const buildDetailsFields = (market: MarketWithRelations): Array<{ name: string; 
 
   const ids = [
     `Market ID: \`${market.id}\``,
-    `Message ID: ${market.messageId ? `\`${market.messageId}\`` : 'Not attached yet'}`,
-    `Thread ID: ${market.threadId ? `\`${market.threadId}\`` : 'No discussion thread'}`,
+    `Forum Post Message ID: ${market.messageId ? `\`${market.messageId}\`` : 'Not attached yet'}`,
+    `Forum Post Thread ID: ${market.threadId ? `\`${market.threadId}\`` : 'No forum post yet'}`,
     `Creator: <@${market.creatorId}>`,
     `Button Style: **${market.buttonStyle}**`,
     `Volume: **${summary.totalVolume} pts**`,
@@ -96,7 +96,7 @@ const buildDetailsFields = (market: MarketWithRelations): Array<{ name: string; 
       value: [
         `Status: **${status}**`,
         `Creator: <@${market.creatorId}>`,
-        market.threadId ? `Discussion: <#${market.threadId}>` : 'Discussion: none',
+        market.threadId ? `Forum Post: <#${market.threadId}>` : 'Forum Post: none',
       ].join('\n'),
     },
     { name: 'Timing', value: timing },

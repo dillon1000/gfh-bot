@@ -47,7 +47,7 @@ describe('quips prompt generator', () => {
     generateTextMock
       .mockRejectedValueOnce(new Error('xai failed'))
       .mockRejectedValueOnce(new Error('xai failed again'))
-      .mockResolvedValueOnce({ text: 'The worst thing to hear during a seance' });
+      .mockResolvedValueOnce({ text: 'A warning label for haunted trail mix' });
 
     const prompt = await generateQuipsPrompt(
       {
@@ -60,7 +60,7 @@ describe('quips prompt generator', () => {
     );
 
     expect(prompt.provider).toBe('google_ai_studio');
-    expect(prompt.text).toBe('The worst thing to hear during a seance');
+    expect(prompt.text).toBe('A warning label for haunted trail mix');
     expect(generateTextMock).toHaveBeenCalledTimes(3);
   });
 
@@ -71,6 +71,18 @@ describe('quips prompt generator', () => {
     );
 
     expect(result.valid).toBe(false);
+  });
+
+  it('does not hard-reject dialogue-based prompts on format alone', () => {
+    const result = validateGeneratedPrompt(
+      'The worst thing to hear your Uber driver muttering under his breath.',
+      [],
+    );
+
+    expect(result).toMatchObject({
+      valid: true,
+      cleaned: 'The worst thing to hear your Uber driver muttering under his breath.',
+    });
   });
 
   it('omits the adult instruction unless the 10 percent roll hits', async () => {
@@ -102,5 +114,20 @@ describe('quips prompt generator', () => {
     );
 
     expect(system).toContain('Adult mode is enabled, so edgy humor is allowed, go wild!');
+  });
+
+  it('keeps the prompt instructions broad instead of banning specific formats', () => {
+    const system = buildQuipsPromptSystem(
+      ['Prompt A'],
+      ['Prompt B'],
+      {
+        adultMode: false,
+        includeAdultFlavor: false,
+      },
+    );
+
+    expect(system).toContain('Use a wide variety of formats and sentence shapes.');
+    expect(system).not.toContain('Avoid dialogue-heavy prompts');
+    expect(system).not.toContain('Do not lean on "the worst thing to hear/say" style setups');
   });
 });

@@ -98,6 +98,33 @@ export const attachMarketThread = async (
   });
 };
 
+export const attachMarketPublication = async (
+  marketId: string,
+  input: {
+    marketChannelId: string;
+    messageId: string;
+    threadId: string;
+  },
+): Promise<MarketWithRelations> => {
+  await prisma.market.update({
+    where: {
+      id: marketId,
+    },
+    data: {
+      marketChannelId: input.marketChannelId,
+      messageId: input.messageId,
+      threadId: input.threadId,
+    },
+  });
+
+  return prisma.market.findUniqueOrThrow({
+    where: {
+      id: marketId,
+    },
+    include: marketInclude,
+  });
+};
+
 export const getMarketById = async (marketId: string): Promise<MarketWithRelations | null> =>
   prisma.market.findUnique({
     where: {

@@ -1,4 +1,4 @@
-import type { Client } from 'discord.js';
+import { ChannelType, type Client, type ForumChannel, type Message } from 'discord.js';
 
 import { logger } from '../../../app/logger.js';
 import { prisma } from '../../../lib/prisma.js';
@@ -10,8 +10,7 @@ import {
   buildMarketStatusEmbed,
 } from '../ui/render/market.js';
 import {
-  attachMarketMessage,
-  attachMarketThread,
+  attachMarketPublication,
   getMarketById,
 } from './records.js';
 import {
@@ -50,53 +49,87 @@ const buildMarketMessagePayload = async (
   }
 };
 
+const getMarketForumChannel = async (
+  client: Client,
+  channelId: string,
+): Promise<ForumChannel> => {
+  const channel = await client.channels.fetch(channelId).catch(() => null);
+  if (!channel || channel.type !== ChannelType.GuildForum) {
+    throw new Error('Configured market channel is not a forum channel.');
+  }
+
+  return channel;
+};
+
+export const createMarketForumPost = async (
+  client: Client,
+  market: MarketWithRelations,
+): Promise<{
+  messageId: string;
+  starterMessage: Message<true>;
+  threadId: string;
+  threadUrl: string;
+  url: string;
+}> => {
+  const forumChannel = await getMarketForumChannel(client, market.marketChannelId);
+  const thread = await forumChannel.threads.create({
+    name: resolveMarketThreadName(market.title),
+    message: {
+      ...(await buildMarketMessagePayload(market)),
+      allowedMentions: {
+        parse: [],
+      },
+    },
+  });
+  const starterMessage = await thread.fetchStarterMessage().catch(() => null);
+  if (!starterMessage) {
+    await thread.delete().catch((error) => {
+      logger.warn({ err: error, marketId: market.id, threadId: thread.id }, 'Could not delete partially published market forum post');
+    });
+    throw new Error('Could not fetch the forum post starter message.');
+  }
+
+  return {
+    messageId: starterMessage.id,
+    starterMessage,
+    threadId: thread.id,
+    threadUrl: thread.url,
+    url: thread.url,
+  };
+};
+
 export const hydrateMarketMessage = async (
   client: Client,
   market: MarketWithRelations,
 ): Promise<{ messageId: string; url: string; threadCreated: boolean; threadId: string | null; threadUrl: string | null }> => {
-  const channel = await client.channels.fetch(market.marketChannelId).catch(() => null);
-  if (!channel?.isTextBased() || !('send' in channel)) {
-    throw new Error('Configured market channel is not a text channel.');
-  }
-
-  const message = await channel.send({
-    ...(await buildMarketMessagePayload(market)),
-    allowedMentions: {
-      parse: [],
-    },
-  });
-
+  let published:
+    | Awaited<ReturnType<typeof createMarketForumPost>>
+    | null = null;
   try {
-    await attachMarketMessage(market.id, message.id);
-    let threadCreated = false;
-    let threadId: string | null = null;
-    let threadUrl: string | null = null;
-    try {
-      const thread = await message.startThread({
-        name: resolveMarketThreadName(market.title),
-        autoArchiveDuration: 1440,
-      });
-      await attachMarketThread(market.id, thread.id);
-      threadCreated = true;
-      threadId = thread.id;
-      threadUrl = thread.url;
-    } catch (error) {
-      logger.warn({ err: error, marketId: market.id, messageId: message.id }, 'Could not create market discussion thread');
-    }
-
+    published = await createMarketForumPost(client, market);
+    await attachMarketPublication(market.id, {
+      marketChannelId: market.marketChannelId,
+      messageId: published.messageId,
+      threadId: published.threadId,
+    });
     await scheduleMarketClose(market);
     await scheduleMarketLiquidity(market);
     return {
-      messageId: message.id,
-      url: message.url,
-      threadCreated,
-      threadId,
-      threadUrl,
+      messageId: published.messageId,
+      url: published.url,
+      threadCreated: true,
+      threadId: published.threadId,
+      threadUrl: published.threadUrl,
     };
   } catch (error) {
-    await message.delete().catch((deleteError) => {
-      logger.warn({ err: deleteError, marketId: market.id, messageId: message.id }, 'Could not delete partially published market message');
-    });
+    if (published) {
+      const forumThread = await client.channels.fetch(published.threadId).catch(() => null);
+      if (forumThread?.isThread()) {
+        await forumThread.delete().catch((deleteError) => {
+          logger.warn({ err: deleteError, marketId: market.id, threadId: published?.threadId }, 'Could not delete partially published market forum post');
+        });
+      }
+    }
     throw error;
   }
 };
@@ -106,18 +139,39 @@ const resolveMarketThreadName = (title: string): string => {
   return normalized.length > 100 ? normalized.slice(0, 100) : normalized;
 };
 
-export const refreshMarketMessage = async (client: Client, marketId: string): Promise<void> => {
-  const market = await getMarketById(marketId);
-  if (!market?.messageId) {
-    return;
+const getMarketStarterMessage = async (
+  client: Client,
+  market: Pick<MarketWithRelations, 'marketChannelId' | 'messageId' | 'threadId'>,
+): Promise<Message<boolean> | null> => {
+  if (market.threadId) {
+    const thread = await client.channels.fetch(market.threadId).catch(() => null);
+    if (thread?.isThread()) {
+      const starterMessage = await thread.fetchStarterMessage().catch(() => null);
+      if (starterMessage) {
+        return starterMessage;
+      }
+    }
+  }
+
+  if (!market.messageId) {
+    return null;
   }
 
   const channel = await client.channels.fetch(market.marketChannelId).catch(() => null);
   if (!channel?.isTextBased() || !('messages' in channel)) {
+    return null;
+  }
+
+  return channel.messages.fetch(market.messageId).catch(() => null);
+};
+
+export const refreshMarketMessage = async (client: Client, marketId: string): Promise<void> => {
+  const market = await getMarketById(marketId);
+  if (!market) {
     return;
   }
 
-  const message = await channel.messages.fetch(market.messageId).catch(() => null);
+  const message = await getMarketStarterMessage(client, market);
   if (!message) {
     return;
   }
@@ -302,8 +356,8 @@ export const sendMarketGraceNotice = async (client: Client, marketId: string): P
     return;
   }
 
-  const channel = await client.channels.fetch(market.marketChannelId).catch(() => null);
-  if (!channel?.isTextBased() || !('send' in channel)) {
+  const channel = await getMarketAnnouncementChannel(client, market);
+  if (!channel) {
     return;
   }
 

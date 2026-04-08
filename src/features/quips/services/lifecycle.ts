@@ -125,11 +125,32 @@ const updateBoardMessage = async (
   });
 };
 
+const deleteBoardMessage = async (
+  client: Client,
+  channelId: string,
+  messageId: string,
+): Promise<void> => {
+  const channel = await getAnnouncementChannel(client, channelId).catch(() => null);
+  if (!channel) {
+    return;
+  }
+
+  const message = await channel.messages.fetch(messageId).catch(() => null);
+  if (!message) {
+    return;
+  }
+
+  await message.delete().catch((error) => {
+    logger.warn({ err: error, channelId, messageId }, 'Could not delete stale quips board message');
+  });
+};
+
 const publishBoardMessageForRound = async (
   client: Client,
   config: QuipsConfig,
   round: QuipsRoundWithRelations,
 ): Promise<QuipsRoundWithRelations> => {
+  const previousBoardMessageId = config.boardMessageId;
   const boardMessageId = await publishNewBoardMessage(client, config.channelId, buildQuipsBoardMessage(config, round));
 
   await prisma.quipsConfig.update({
@@ -155,6 +176,10 @@ const publishBoardMessageForRound = async (
   const refreshedRound = await getRoundById(round.id);
   if (!refreshedRound) {
     throw new Error('Continuous Quips round not found after publishing board message.');
+  }
+
+  if (previousBoardMessageId && previousBoardMessageId !== boardMessageId) {
+    await deleteBoardMessage(client, config.channelId, previousBoardMessageId);
   }
 
   return refreshedRound;
@@ -378,6 +403,7 @@ export const openQuipsAnswerPrompt = async (
 ): Promise<QuipsRoundWithRelations> => {
   const round = await getRoundById(roundId);
   if (!round || round.phase !== 'answering') {
+    await interaction.message.delete().catch(() => undefined);
     throw new Error('That prompt is no longer accepting answers.');
   }
 

@@ -110,7 +110,7 @@ describe('market render', () => {
     expect(labels.some((label) => label.includes('Illinois'))).toBe(false);
   });
 
-  it('includes the discussion thread when one exists', () => {
+  it('includes the forum post when one exists', () => {
     const payload = buildMarketMessage({
       ...market,
       threadId: 'thread_1',
@@ -118,7 +118,7 @@ describe('market render', () => {
 
     const embedJson = payload.embeds[0].toJSON();
     const marketField = embedJson.fields?.find((field) => field.name === 'Market');
-    expect(marketField?.value).toContain('Discuss in <#thread_1>.');
+    expect(marketField?.value).toContain('Discuss in forum post <#thread_1>.');
   });
 
   it('omits the description when none is provided', () => {

@@ -146,11 +146,11 @@ export const handleMarketCommand = async (
           buildMarketStatusEmbed(
             'Market Created',
             [
-              `<@${interaction.user.id}> created **${market.title}** in <#${market.marketChannelId}>.`,
-              `[Open market](${published.url})`,
+              `<@${interaction.user.id}> created **${market.title}** in forum <#${market.marketChannelId}>.`,
+              `[Open forum post](${published.url})`,
               published.threadUrl
-                ? `[Open discussion thread](${published.threadUrl})`
-                : 'Discussion thread could not be created automatically.',
+                ? `[Open discussion](${published.threadUrl})`
+                : 'Forum discussion is available on the market post.',
               `Market ID: \`${market.id}\``,
             ].join('\n'),
             0x57f287,
