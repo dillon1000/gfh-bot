@@ -9,22 +9,12 @@ import { registerAuditLogEventHandlers } from '../features/audit-log/services/ev
 import { startCasinoBotWorker } from '../features/casino/multiplayer/bots/workers/bots.js';
 import { syncOpenCasinoTableJobs } from '../features/casino/multiplayer/services/scheduler.js';
 import { startCasinoTableIdleCloseWorker, startCasinoTableTimeoutWorker } from '../features/casino/multiplayer/workers/tables.js';
-import { recoverOverdueCorpseTurns } from '../features/corpse/services/lifecycle.js';
-import { syncActiveCorpseTurnTimeoutJobs, syncCorpseStartJobs } from '../features/corpse/services/scheduler.js';
-import { startCorpseStartWorker, startCorpseTurnTimeoutWorker } from '../features/corpse/workers/corpse.js';
-import { recoverOverdueDilemmaRounds } from '../features/dilemma/services/lifecycle.js';
-import { syncActiveDilemmaTimeoutJobs, syncDilemmaStartJobs } from '../features/dilemma/services/scheduler.js';
-import { startDilemmaStartWorker, startDilemmaTimeoutWorker } from '../features/dilemma/workers/dilemma.js';
 import { recoverExpiredMarketGraceNotices, recoverExpiredMarkets } from '../features/markets/services/lifecycle.js';
 import { syncOpenMarketJobs } from '../features/markets/services/scheduler.js';
-import { recoverClosedMuralResetProposals } from '../features/mural/services/mural.js';
 import { startMarketCloseWorker, startMarketGraceWorker, startMarketLiquidityWorker, startMarketRefreshWorker } from '../features/markets/workers/market.js';
 import { recoverExpiredPolls, recoverMissedPollReminders } from '../features/polls/services/lifecycle.js';
 import { syncOpenPollCloseJobs, syncOpenPollReminderJobs } from '../features/polls/services/repository.js';
 import { startPollReminderWorker, startPollWorker } from '../features/polls/workers/polls.js';
-import { recoverOverdueQuipsRounds } from '../features/quips/services/lifecycle.js';
-import { syncOpenQuipsJobs } from '../features/quips/services/scheduler.js';
-import { startQuipsAnswerCloseWorker, startQuipsVoteCloseWorker } from '../features/quips/workers/quips.js';
 import { syncReactionRolePanels } from '../features/reaction-roles/services/panels.js';
 import {
   expireStaleRemovalVoteRequests,
@@ -121,30 +111,6 @@ client.once(Events.ClientReady, async (readyClient) => {
       },
     },
     {
-      name: 'recover-closed-mural-reset-proposals',
-      run: async () => {
-        await recoverClosedMuralResetProposals(readyClient);
-      },
-    },
-    {
-      name: 'recover-overdue-quips-rounds',
-      run: async () => {
-        await recoverOverdueQuipsRounds(readyClient);
-      },
-    },
-    {
-      name: 'recover-overdue-corpse-turns',
-      run: async () => {
-        await recoverOverdueCorpseTurns(readyClient);
-      },
-    },
-    {
-      name: 'recover-overdue-dilemma-rounds',
-      run: async () => {
-        await recoverOverdueDilemmaRounds(readyClient);
-      },
-    },
-    {
       name: 'recover-expired-markets',
       run: async () => {
         await recoverExpiredMarkets(readyClient);
@@ -166,36 +132,6 @@ client.once(Events.ClientReady, async (readyClient) => {
       name: 'recover-due-removal-vote-starts',
       run: async () => {
         await recoverDueRemovalVoteStarts(readyClient);
-      },
-    },
-    {
-      name: 'sync-open-quips-jobs',
-      run: async () => {
-        await syncOpenQuipsJobs();
-      },
-    },
-    {
-      name: 'sync-corpse-start-jobs',
-      run: async () => {
-        await syncCorpseStartJobs();
-      },
-    },
-    {
-      name: 'sync-active-corpse-turn-timeout-jobs',
-      run: async () => {
-        await syncActiveCorpseTurnTimeoutJobs();
-      },
-    },
-    {
-      name: 'sync-dilemma-start-jobs',
-      run: async () => {
-        await syncDilemmaStartJobs();
-      },
-    },
-    {
-      name: 'sync-active-dilemma-timeout-jobs',
-      run: async () => {
-        await syncActiveDilemmaTimeoutJobs();
       },
     },
     {
@@ -277,12 +213,6 @@ const marketLiquidityWorker = startMarketLiquidityWorker(client);
 const casinoTableTimeoutWorker = startCasinoTableTimeoutWorker(client);
 const casinoTableIdleCloseWorker = startCasinoTableIdleCloseWorker(client);
 const casinoBotWorker = startCasinoBotWorker(client);
-const corpseStartWorker = startCorpseStartWorker(client);
-const corpseTurnTimeoutWorker = startCorpseTurnTimeoutWorker(client);
-const dilemmaStartWorker = startDilemmaStartWorker(client);
-const dilemmaTimeoutWorker = startDilemmaTimeoutWorker(client);
-const quipsAnswerCloseWorker = startQuipsAnswerCloseWorker(client);
-const quipsVoteCloseWorker = startQuipsVoteCloseWorker(client);
 
 registerShutdownHandler(async () => {
   await Promise.allSettled([
@@ -296,12 +226,6 @@ registerShutdownHandler(async () => {
     casinoTableTimeoutWorker.close(),
     casinoTableIdleCloseWorker.close(),
     casinoBotWorker.close(),
-    corpseStartWorker.close(),
-    corpseTurnTimeoutWorker.close(),
-    dilemmaStartWorker.close(),
-    dilemmaTimeoutWorker.close(),
-    quipsAnswerCloseWorker.close(),
-    quipsVoteCloseWorker.close(),
     closeAllQueues(),
     quitRedis(),
     disconnectPrisma(),

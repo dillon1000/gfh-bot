@@ -7,10 +7,6 @@ const handlers = vi.hoisted(() => ({
   handleCasinoCommand: vi.fn(),
   handleCasinoModal: vi.fn(),
   handleCasinoSelect: vi.fn(),
-  handleCorpseButton: vi.fn(),
-  handleCorpseCommand: vi.fn(),
-  handleCorpseInteractionError: vi.fn(),
-  handleCorpseModal: vi.fn(),
   handleEmojiBuilderButton: vi.fn(),
   handleEmojiBuilderCommand: vi.fn(),
   handleEmojiBuilderInteractionError: vi.fn(),
@@ -23,10 +19,6 @@ const handlers = vi.hoisted(() => ({
   handleMarketSelect: vi.fn(),
   handleMeowCommand: vi.fn(),
   handlePingCommand: vi.fn(),
-  handleQuipsButton: vi.fn(),
-  handleQuipsCommand: vi.fn(),
-  handleQuipsInteractionError: vi.fn(),
-  handleQuipsModal: vi.fn(),
   handlePollAnalyticsCommand: vi.fn(),
   handlePollBuilderButton: vi.fn(),
   handlePollBuilderCommand: vi.fn(),
@@ -97,19 +89,6 @@ vi.mock('../src/features/casino/handlers/interactions/selects.js', () => ({
   handleCasinoSelect: handlers.handleCasinoSelect,
 }));
 
-vi.mock('../src/features/corpse/handlers/commands.js', () => ({
-  handleCorpseCommand: handlers.handleCorpseCommand,
-}));
-
-vi.mock('../src/features/corpse/handlers/interaction-errors.js', () => ({
-  handleCorpseInteractionError: handlers.handleCorpseInteractionError,
-}));
-
-vi.mock('../src/features/corpse/handlers/interactions.js', () => ({
-  handleCorpseButton: handlers.handleCorpseButton,
-  handleCorpseModal: handlers.handleCorpseModal,
-}));
-
 vi.mock('../src/features/emojis/handlers/interactions.js', () => ({
   handleEmojiBuilderButton: handlers.handleEmojiBuilderButton,
   handleEmojiBuilderCommand: handlers.handleEmojiBuilderCommand,
@@ -147,19 +126,6 @@ vi.mock('../src/features/meta/commands/meow.js', () => ({
 
 vi.mock('../src/features/meta/commands/ping.js', () => ({
   handlePingCommand: handlers.handlePingCommand,
-}));
-
-vi.mock('../src/features/quips/handlers/commands.js', () => ({
-  handleQuipsCommand: handlers.handleQuipsCommand,
-}));
-
-vi.mock('../src/features/quips/handlers/interaction-errors.js', () => ({
-  handleQuipsInteractionError: handlers.handleQuipsInteractionError,
-}));
-
-vi.mock('../src/features/quips/handlers/interactions.js', () => ({
-  handleQuipsButton: handlers.handleQuipsButton,
-  handleQuipsModal: handlers.handleQuipsModal,
 }));
 
 vi.mock('../src/features/polls/handlers/analytics.js', () => ({
@@ -308,61 +274,5 @@ describe('discord router', () => {
 
     expect(handlers.handleCasinoSelect).toHaveBeenCalledWith(interaction);
     expect(handlers.handleMarketSelect).not.toHaveBeenCalled();
-  });
-
-  it('routes corpse buttons to the corpse button handler', async () => {
-    const client = {
-      on: vi.fn(),
-    };
-
-    registerInteractionRouter(client as never);
-
-    const interactionHandler = client.on.mock.calls[0]?.[1];
-    const interaction = createButtonInteraction('corpse:join:game_1');
-    await interactionHandler?.(interaction);
-
-    expect(handlers.handleCorpseButton).toHaveBeenCalledWith(client, interaction);
-  });
-
-  it('routes corpse modals to the corpse modal handler', async () => {
-    const client = {
-      on: vi.fn(),
-    };
-
-    registerInteractionRouter(client as never);
-
-    const interactionHandler = client.on.mock.calls[0]?.[1];
-    const interaction = createModalInteraction('corpse:submit-modal:game_1');
-    await interactionHandler?.(interaction);
-
-    expect(handlers.handleCorpseModal).toHaveBeenCalledWith(client, interaction);
-  });
-
-  it('routes quips buttons to the quips button handler', async () => {
-    const client = {
-      on: vi.fn(),
-    };
-
-    registerInteractionRouter(client as never);
-
-    const interactionHandler = client.on.mock.calls[0]?.[1];
-    const interaction = createButtonInteraction('quips:answer:round_1');
-    await interactionHandler?.(interaction);
-
-    expect(handlers.handleQuipsButton).toHaveBeenCalledWith(client, interaction);
-  });
-
-  it('routes quips modals to the quips modal handler', async () => {
-    const client = {
-      on: vi.fn(),
-    };
-
-    registerInteractionRouter(client as never);
-
-    const interactionHandler = client.on.mock.calls[0]?.[1];
-    const interaction = createModalInteraction('quips:answer-modal:round_1');
-    await interactionHandler?.(interaction);
-
-    expect(handlers.handleQuipsModal).toHaveBeenCalledWith(client, interaction);
   });
 });

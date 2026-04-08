@@ -28,7 +28,7 @@ The App may provide features such as:
 - Prediction markets and other simulated forecasting features
 - Search and audit-log tools for Discord servers
 - Starboard, reaction roles, moderation-adjacent utilities, and activity summaries
-- Community games, including casino-style virtual games, dilemmas, mural interactions, corpse rounds, and quips
+- Community games, including casino-style virtual games
 - Health checks, utility commands, and related community features
 
 Features may change over time, may be offered only in certain environments, and may require particular permissions, Discord intents, or optional third-party services.
@@ -100,7 +100,7 @@ Our Privacy Policy is incorporated into these Terms and explains how we process 
 
 ## 11. Third-Party Services
 
-The App may rely on third-party services, infrastructure, and models, including Discord, hosting providers, databases, caching systems, storage providers, and AI providers. We are not responsible for third-party services or their terms, downtime, data handling, or security practices.
+The App may rely on third-party services and infrastructure, including Discord, hosting providers, databases, caching systems, and storage providers. We are not responsible for third-party services or their terms, downtime, data handling, or security practices.
 
 ## 12. Availability, Beta Features, and Changes
 
