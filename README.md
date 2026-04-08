@@ -178,7 +178,7 @@ pnpm test
 ```
 
 ## Legal
-
+If you plan on hosting the bot for some reason, these docs should be enough for you to put in your Privileged Intents application, should you need it.
 - [Privacy Policy](./docs/legal/PRIVACY_POLICY.md)
 - [Terms of Service](./docs/legal/TERMS_OF_SERVICE.md)
 
