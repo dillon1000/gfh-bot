@@ -7,7 +7,6 @@ import { withRedisLock } from '../../../lib/locks.js';
 import { prisma } from '../../../lib/prisma.js';
 import { redis } from '../../../lib/redis.js';
 import { isR2Configured, uploadCsvToR2 } from '../../../lib/r2.js';
-import { finalizeMuralResetProposalForPoll } from '../../mural/services/mural.js';
 import { buildPollExportCsv } from '../core/export.js';
 import { buildLivePollMessagePayload } from '../ui/poll-responses.js';
 import { createFallbackPollSnapshot, evaluatePollForResults } from './governance.js';
@@ -264,9 +263,6 @@ export const closePollAndRefresh = async (
 
   if (didClose) {
     await sendPollCloseAnnouncement(client, await evaluatePollSnapshotForLifecycle(client, poll, 'close-announcement'), closedByUserId);
-    await finalizeMuralResetProposalForPoll(client, poll.id).catch((error) => {
-      logger.error({ err: error, pollId: poll.id }, 'Could not finalize mural reset proposal during poll close');
-    });
   }
 };
 

@@ -6,12 +6,6 @@ import { handleCasinoButton } from '../features/casino/handlers/interactions/but
 import { handleCasinoCommand } from '../features/casino/handlers/interactions/commands.js';
 import { handleCasinoModal } from '../features/casino/handlers/interactions/modals.js';
 import { handleCasinoSelect } from '../features/casino/handlers/interactions/selects.js';
-import { handleCorpseCommand } from '../features/corpse/handlers/commands.js';
-import { handleCorpseInteractionError } from '../features/corpse/handlers/interaction-errors.js';
-import { handleCorpseButton, handleCorpseModal } from '../features/corpse/handlers/interactions.js';
-import { handleDilemmaCommand } from '../features/dilemma/handlers/commands.js';
-import { handleDilemmaInteractionError } from '../features/dilemma/handlers/interaction-errors.js';
-import { handleDilemmaButton } from '../features/dilemma/handlers/interactions.js';
 import {
   handleEmojiBuilderButton,
   handleEmojiBuilderCommand,
@@ -26,11 +20,6 @@ import { handleMarketModal } from '../features/markets/handlers/interactions/mod
 import { handleMarketSelect } from '../features/markets/handlers/interactions/selects.js';
 import { handleMeowCommand } from '../features/meta/commands/meow.js';
 import { handlePingCommand } from '../features/meta/commands/ping.js';
-import { handleMuralCommand } from '../features/mural/handlers/commands.js';
-import { handleMuralInteractionError } from '../features/mural/handlers/interaction-errors.js';
-import { handleQuipsCommand } from '../features/quips/handlers/commands.js';
-import { handleQuipsInteractionError } from '../features/quips/handlers/interaction-errors.js';
-import { handleQuipsButton, handleQuipsModal } from '../features/quips/handlers/interactions.js';
 import {
   handlePollAnalyticsCommand,
 } from '../features/polls/handlers/analytics.js';
@@ -101,12 +90,6 @@ export const registerInteractionRouter = (client: Client): void => {
           case 'casino':
             await handleCasinoCommand(client, interaction);
             return;
-          case 'corpse':
-            await handleCorpseCommand(client, interaction);
-            return;
-          case 'dilemma':
-            await handleDilemmaCommand(interaction);
-            return;
           case 'emoji-builder':
             await handleEmojiBuilderCommand(interaction);
             return;
@@ -121,12 +104,6 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'ping':
             await handlePingCommand(interaction);
-            return;
-          case 'mural':
-            await handleMuralCommand(client, interaction);
-            return;
-          case 'quips':
-            await handleQuipsCommand(client, interaction);
             return;
           case 'search':
             await handleSearchCommand(client, interaction);
@@ -230,21 +207,6 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('casino:')) {
           await handleCasinoButton(interaction);
-          return;
-        }
-
-        if (interaction.customId.startsWith('corpse:')) {
-          await handleCorpseButton(client, interaction);
-          return;
-        }
-
-        if (interaction.customId.startsWith('quips:')) {
-          await handleQuipsButton(client, interaction);
-          return;
-        }
-
-        if (interaction.customId.startsWith('dilemma:')) {
-          await handleDilemmaButton(client, interaction);
           return;
         }
 
@@ -368,16 +330,6 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
-        if (interaction.customId.startsWith('quips:')) {
-          await handleQuipsModal(client, interaction);
-          return;
-        }
-
-        if (interaction.customId.startsWith('corpse:')) {
-          await handleCorpseModal(client, interaction);
-          return;
-        }
-
         if (interaction.customId.startsWith('casino:')) {
           await handleCasinoModal(client, interaction);
           return;
@@ -416,33 +368,12 @@ export const registerInteractionRouter = (client: Client): void => {
         ) {
           await handleReactionRoleInteractionError(interaction, error);
         } else if (
-          (interaction.isChatInputCommand() && interaction.commandName === 'quips')
-          || (interaction.isButton() && interaction.customId.startsWith('quips:'))
-          || (interaction.isModalSubmit() && interaction.customId.startsWith('quips:'))
-        ) {
-          await handleQuipsInteractionError(interaction, error);
-        } else if (
-          (interaction.isChatInputCommand() && interaction.commandName === 'corpse')
-          || (interaction.isButton() && interaction.customId.startsWith('corpse:'))
-          || (interaction.isModalSubmit() && interaction.customId.startsWith('corpse:'))
-        ) {
-          await handleCorpseInteractionError(interaction, error);
-        } else if (
-          (interaction.isChatInputCommand() && interaction.commandName === 'dilemma')
-          || (interaction.isButton() && interaction.customId.startsWith('dilemma:'))
-        ) {
-          await handleDilemmaInteractionError(interaction, error);
-        } else if (
           (interaction.isChatInputCommand() && interaction.commandName === 'casino')
           || (interaction.isButton() && interaction.customId.startsWith('casino:'))
           || (interaction.isStringSelectMenu() && interaction.customId.startsWith('casino:'))
           || (interaction.isModalSubmit() && interaction.customId.startsWith('casino:'))
         ) {
           await handleCasinoInteractionError(interaction, error);
-        } else if (
-          interaction.isChatInputCommand() && interaction.commandName === 'mural'
-        ) {
-          await handleMuralInteractionError(interaction, error);
         } else if (
           (interaction.isChatInputCommand() && interaction.commandName === 'market')
           || (interaction.isButton() && interaction.customId.startsWith('market:'))
