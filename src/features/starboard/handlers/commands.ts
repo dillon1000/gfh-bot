@@ -42,8 +42,9 @@ export const handleStarboardCommand = async (
 
   switch (subcommand) {
     case 'setup': {
+      const mode = interaction.options.getString('mode', true);
       const channel = interaction.options.getChannel('channel', true);
-      const emojis = interaction.options.getString('emoji', true);
+      const emojis = interaction.options.getString('emoji');
       const threshold = interaction.options.getInteger('threshold', true);
       const blacklistedChannels = parseChannelIdBlacklist(
         interaction.options.getString('blacklist_channels'),
@@ -53,10 +54,15 @@ export const handleStarboardCommand = async (
         throw new Error('Starboard channel must be text-based.');
       }
 
+      if (mode === 'specific' && !emojis?.trim()) {
+        throw new Error('Provide at least one emoji when starboard mode is set to specific emojis.');
+      }
+
       const config = await setStarboardConfig({
         guildId: interaction.guildId,
         channelId: channel.id,
-        emojis,
+        emojis: emojis ?? '',
+        allowAnyEmoji: mode === 'any',
         threshold,
         blacklistedChannelIds: blacklistedChannels,
       });
@@ -76,6 +82,7 @@ export const handleStarboardCommand = async (
         payload: {
           actorId: interaction.user.id,
           channelId: config.starboardChannelId,
+          allowAnyEmoji: config.starboardAllowAnyEmoji,
           threshold: config.starboardThreshold,
           emojis: config.starboardEmojis,
           blacklistedChannelIds: config.starboardBlacklistedChannelIds,
@@ -100,6 +107,7 @@ export const handleStarboardCommand = async (
           payload: {
             actorId: interaction.user.id,
             previousChannelId: previousConfig.starboardChannelId,
+            previousAllowAnyEmoji: previousConfig.starboardAllowAnyEmoji,
             previousThreshold: previousConfig.starboardThreshold,
             previousEmojis: previousConfig.starboardEmojis,
             previousBlacklistedChannelIds: previousConfig.starboardBlacklistedChannelIds,

@@ -162,7 +162,8 @@ docker compose --profile autoupdate up -d
 - `/poll-export query:<message link|message id|poll id>`
 - `/poll-analytics channel:#general days:30 limit:5`
 - Message context menu: `Create Poll From Message`
-- `/starboard setup channel:#starboard emoji:"⭐,💎,<:gold_star:123>" threshold:3`
+- `/starboard setup mode:specific channel:#starboard emoji:"⭐,💎,<:gold_star:123>" threshold:3`
+- `/starboard setup mode:any channel:#starboard threshold:5`
 - `/starboard disable`
 - `/starboard status`
 

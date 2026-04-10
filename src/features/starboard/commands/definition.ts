@@ -8,16 +8,20 @@ export const starboardCommand = new SlashCommandBuilder()
     subcommand
       .setName('setup')
       .setDescription('Configure the starboard')
+      .addStringOption((option) =>
+        option
+          .setName('mode')
+          .setDescription('Whether to track specific emojis or any emoji')
+          .setRequired(true)
+          .addChoices(
+            { name: 'Specific Emojis', value: 'specific' },
+            { name: 'Any Emoji', value: 'any' },
+          ),
+      )
       .addChannelOption((option) =>
         option
           .setName('channel')
           .setDescription('Channel where starred posts should be sent')
-          .setRequired(true),
-      )
-      .addStringOption((option) =>
-        option
-          .setName('emoji')
-          .setDescription('One to five unicode/custom emojis, comma separated')
           .setRequired(true),
       )
       .addIntegerOption((option) =>
@@ -27,6 +31,12 @@ export const starboardCommand = new SlashCommandBuilder()
           .setRequired(true)
           .setMinValue(1)
           .setMaxValue(50),
+      )
+      .addStringOption((option) =>
+        option
+          .setName('emoji')
+          .setDescription('One to five unicode/custom emojis, comma separated; used in specific mode')
+          .setRequired(false),
       )
       .addStringOption((option) =>
         option

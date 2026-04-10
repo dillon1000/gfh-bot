@@ -33,6 +33,8 @@ type ReactionBreakdownEntry = {
   count: number;
 };
 
+const isAnyEmojiStarboardMode = (config: GuildConfig): boolean => config.starboardAllowAnyEmoji;
+
 const getConfiguredStarboardEmojis = (config: GuildConfig): string[] => {
   if (config.starboardEmojis.length > 0) {
     return config.starboardEmojis;
@@ -49,17 +51,18 @@ const isActiveGuildConfig = (config: GuildConfig | null): config is ActiveGuildC
   Boolean(
     config?.starboardEnabled &&
       config.starboardChannelId &&
-      getConfiguredStarboardEmojis(config).length > 0,
+      (isAnyEmojiStarboardMode(config) || getConfiguredStarboardEmojis(config).length > 0),
   );
 
 export const setStarboardConfig = async (input: {
   guildId: string;
   channelId: string;
   emojis: string;
+  allowAnyEmoji: boolean;
   threshold: number;
   blacklistedChannelIds: string[];
 }): Promise<GuildConfig> => {
-  const normalizedEmojis = normalizeEmojiListInput(input.emojis);
+  const normalizedEmojis = input.allowAnyEmoji ? [] : normalizeEmojiListInput(input.emojis);
   const storedEmojis = normalizedEmojis.map(serializeNormalizedEmoji);
   const primaryEmoji = normalizedEmojis[0];
 
@@ -72,6 +75,7 @@ export const setStarboardConfig = async (input: {
       starboardEnabled: true,
       starboardChannelId: input.channelId,
       starboardThreshold: input.threshold,
+      starboardAllowAnyEmoji: input.allowAnyEmoji,
       starboardEmojis: storedEmojis,
       starboardBlacklistedChannelIds: input.blacklistedChannelIds,
       starboardEmojiId: primaryEmoji?.id ?? null,
@@ -81,6 +85,7 @@ export const setStarboardConfig = async (input: {
       starboardEnabled: true,
       starboardChannelId: input.channelId,
       starboardThreshold: input.threshold,
+      starboardAllowAnyEmoji: input.allowAnyEmoji,
       starboardEmojis: storedEmojis,
       starboardBlacklistedChannelIds: input.blacklistedChannelIds,
       starboardEmojiId: primaryEmoji?.id ?? null,
@@ -145,39 +150,43 @@ const buildStarboardEmbed = (input: {
 
 const countTrackedReactions = async (
   message: Message,
-  configuredEmojis: string[],
+  configuredEmojis: string[] | null,
 ): Promise<{ totalCount: number; breakdown: ReactionBreakdownEntry[] }> => {
-  const configuredEmojiMap = new Map(
-    configuredEmojis.map((value) => {
-      const emoji = deserializeStoredEmoji(value);
-      return [serializeNormalizedEmoji(emoji), emoji];
-    }),
-  );
-  const counts = new Map<string, number>();
+  const configuredEmojiMap = configuredEmojis
+    ? new Map(
+      configuredEmojis.map((value) => {
+        const emoji = deserializeStoredEmoji(value);
+        return [serializeNormalizedEmoji(emoji), emoji];
+      }),
+    )
+    : null;
+  const breakdown: ReactionBreakdownEntry[] = [];
 
   for (const reaction of message.reactions.cache.values()) {
-    const matchedEmoji = [...configuredEmojiMap.values()].find((emoji) =>
-      reactionMatchesAnyEmoji(reaction.emoji, [{ id: emoji.id, name: emoji.name }]),
-    );
-    if (!matchedEmoji) {
-      continue;
+    let display = reaction.emoji.toString();
+
+    if (configuredEmojiMap) {
+      const matchedEmoji = [...configuredEmojiMap.values()].find((emoji) =>
+        reactionMatchesAnyEmoji(reaction.emoji, [{ id: emoji.id, name: emoji.name }]),
+      );
+      if (!matchedEmoji) {
+        continue;
+      }
+
+      display = matchedEmoji.display;
     }
 
     const users = await reaction.users.fetch();
     const nonBotCount = [...users.values()].filter((matchedUser) => !matchedUser.bot).length;
-    const key = serializeNormalizedEmoji(matchedEmoji);
-    counts.set(key, nonBotCount);
-  }
+    if (nonBotCount <= 0) {
+      continue;
+    }
 
-  const breakdown = configuredEmojis
-    .map((value) => {
-      const emoji = configuredEmojiMap.get(value) ?? deserializeStoredEmoji(value);
-      return {
-        display: emoji.display,
-        count: counts.get(value) ?? 0,
-      };
-    })
-    .filter((entry) => entry.count > 0);
+    breakdown.push({
+      display,
+      count: nonBotCount,
+    });
+  }
 
   return {
     totalCount: breakdown.reduce((sum, entry) => sum + entry.count, 0),
@@ -350,16 +359,16 @@ export const syncStarboardForReaction = async (
     return;
   }
 
-  const configuredEmojis = getConfiguredStarboardEmojis(config);
-  const parsedConfiguredEmojis = configuredEmojis.map((value) => {
+  const configuredEmojis = isAnyEmojiStarboardMode(config) ? null : getConfiguredStarboardEmojis(config);
+  const parsedConfiguredEmojis = configuredEmojis?.map((value) => {
     const emoji = deserializeStoredEmoji(value);
     return {
       id: emoji.id,
       name: emoji.name,
     };
-  });
+  }) ?? [];
 
-  if (!reactionMatchesAnyEmoji(
+  if (!isAnyEmojiStarboardMode(config) && !reactionMatchesAnyEmoji(
     resolvedReaction.emoji,
     parsedConfiguredEmojis,
   )) {
@@ -382,14 +391,15 @@ export const syncStarboardForReaction = async (
 };
 
 export const describeStarboardStatus = (config: GuildConfig | null): string => {
-  if (!config?.starboardEnabled || !config.starboardChannelId || getConfiguredStarboardEmojis(config).length === 0) {
+  if (!config?.starboardEnabled || !config.starboardChannelId || (!isAnyEmojiStarboardMode(config) && getConfiguredStarboardEmojis(config).length === 0)) {
     return 'Starboard is disabled.';
   }
 
   return [
     'Starboard is enabled.',
     `Channel: <#${config.starboardChannelId}>`,
-    `Emojis: ${formatStoredEmojiList(getConfiguredStarboardEmojis(config))}`,
+    `Mode: ${isAnyEmojiStarboardMode(config) ? 'Any emoji' : 'Specific emojis'}`,
+    `Emojis: ${isAnyEmojiStarboardMode(config) ? 'Any emoji counts toward the threshold.' : formatStoredEmojiList(getConfiguredStarboardEmojis(config))}`,
     `Threshold: ${config.starboardThreshold}`,
     `Blacklist: ${config.starboardBlacklistedChannelIds.length > 0 ? config.starboardBlacklistedChannelIds.map((channelId) => `<#${channelId}>`).join(', ') : 'None'}`,
   ].join('\n');
