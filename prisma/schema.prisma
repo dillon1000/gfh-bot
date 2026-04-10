@@ -121,6 +121,7 @@ model GuildConfig {
   starboardEnabled   Boolean          @default(false)
   starboardChannelId String?
   starboardThreshold Int              @default(3)
+  starboardAllowAnyEmoji Boolean      @default(false)
   starboardEmojis    String[]         @default([])
   starboardBlacklistedChannelIds String[] @default([])
   searchIgnoredChannelIds String[]    @default([])
