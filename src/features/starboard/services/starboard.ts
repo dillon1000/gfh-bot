@@ -160,11 +160,10 @@ const countTrackedReactions = async (
       }),
     )
     : null;
-  const breakdown: ReactionBreakdownEntry[] = [];
+  const configuredCounts = new Map<string, number>();
+  const anyEmojiBreakdown: ReactionBreakdownEntry[] = [];
 
   for (const reaction of message.reactions.cache.values()) {
-    let display = reaction.emoji.toString();
-
     if (configuredEmojiMap) {
       const matchedEmoji = [...configuredEmojiMap.values()].find((emoji) =>
         reactionMatchesAnyEmoji(reaction.emoji, [{ id: emoji.id, name: emoji.name }]),
@@ -173,7 +172,14 @@ const countTrackedReactions = async (
         continue;
       }
 
-      display = matchedEmoji.display;
+      const users = await reaction.users.fetch();
+      const nonBotCount = [...users.values()].filter((matchedUser) => !matchedUser.bot).length;
+      if (nonBotCount <= 0) {
+        continue;
+      }
+
+      configuredCounts.set(serializeNormalizedEmoji(matchedEmoji), nonBotCount);
+      continue;
     }
 
     const users = await reaction.users.fetch();
@@ -182,11 +188,23 @@ const countTrackedReactions = async (
       continue;
     }
 
-    breakdown.push({
-      display,
+    anyEmojiBreakdown.push({
+      display: reaction.emoji.toString(),
       count: nonBotCount,
     });
   }
+
+  const breakdown = configuredEmojis
+    ? configuredEmojis
+      .map((value) => {
+        const emoji = configuredEmojiMap?.get(value) ?? deserializeStoredEmoji(value);
+        return {
+          display: emoji.display,
+          count: configuredCounts.get(value) ?? 0,
+        };
+      })
+      .filter((entry) => entry.count > 0)
+    : anyEmojiBreakdown;
 
   return {
     totalCount: breakdown.reduce((sum, entry) => sum + entry.count, 0),
