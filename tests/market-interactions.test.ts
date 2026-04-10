@@ -497,6 +497,7 @@ describe('market interactions', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     env.DISCORD_ADMIN_USER_IDS = [...defaultAdminUserIds];
   });
 
@@ -573,12 +574,15 @@ describe('market interactions', () => {
   });
 
   it('accepts an absolute close time during market creation', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-30T12:00:00.000Z'));
+
     const interaction = createInteraction({
       subcommand: 'create',
       strings: {
         title: 'Will turnout exceed 40%?',
         outcomes: 'Yes, No',
-        close: 'April 9 2026 10:00pm CDT',
+        close: 'April 6 2026 10:00pm CDT',
       },
     });
 
