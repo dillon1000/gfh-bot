@@ -36,7 +36,6 @@ const muted = '#a3adba';
 const quiet = '#66707d';
 const grid = '#2f3640';
 const gridStrong = '#404856';
-const panel = '#1c2128';
 const volumeColor = '#6f8fc0';
 const fontFamily = 'Public Sans';
 const fontStack = `'${fontFamily}', 'DejaVu Sans', 'Noto Sans', 'Liberation Sans', sans-serif`;
@@ -137,7 +136,7 @@ export type MarketChartModel = {
   }>;
 };
 
-const imageCache = new Map<string, Promise<LoadedImage>>();
+const imageCache = new Map<string, Promise<LoadedImage | null>>();
 
 const axisDateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
@@ -268,7 +267,7 @@ const formatFooterTimestamp = (value: Date): string => footerDateTimeFormatter.f
 const resolvePublicSansPath = (
   weight: 400 | 500 | 700,
   moduleUrl: string = import.meta.url,
-): string => {
+): string | null => {
   const relativePath = `files/public-sans-latin-${weight}-normal.woff2`;
   const candidates = [
     resolve(process.cwd(), 'node_modules', '@fontsource', 'public-sans', relativePath),
@@ -281,7 +280,7 @@ const resolvePublicSansPath = (
     }
   }
 
-  return candidates[0]!;
+  return null;
 };
 
 const ensurePublicSansLoaded = (): void => {
@@ -289,16 +288,20 @@ const ensurePublicSansLoaded = (): void => {
     return;
   }
 
-  GlobalFonts.registerFromPath(resolvePublicSansPath(400), fontFamily);
-  GlobalFonts.registerFromPath(resolvePublicSansPath(500), fontFamily);
-  GlobalFonts.registerFromPath(resolvePublicSansPath(700), fontFamily);
+  for (const weight of [400, 500, 700] as const) {
+    const path = resolvePublicSansPath(weight);
+    if (path) {
+      GlobalFonts.registerFromPath(path, fontFamily);
+    }
+  }
+
   publicSansRegistered = true;
 };
 
 const resolveTablerIconPath = (
   iconName: string,
   moduleUrl: string = import.meta.url,
-): string => {
+): string | null => {
   const relativePath = `icons/outline/${iconName}.svg`;
   const candidates = [
     resolve(process.cwd(), 'node_modules', '@tabler', 'icons', relativePath),
@@ -311,26 +314,19 @@ const resolveTablerIconPath = (
     }
   }
 
-  return candidates[0]!;
-};
-
-const loadCachedImage = (file: string): Promise<LoadedImage> => {
-  const cached = imageCache.get(file);
-  if (cached) {
-    return cached;
-  }
-
-  const pending = readFile(file).then((buffer) => loadImage(buffer));
-  imageCache.set(file, pending);
-  return pending;
+  return null;
 };
 
 const loadTablerIcon = async (
   iconName: keyof typeof tablerIconNames,
   size: number,
   tint: string,
-): Promise<LoadedImage> => {
+) : Promise<LoadedImage | null> => {
   const file = resolveTablerIconPath(tablerIconNames[iconName]);
+  if (!file) {
+    return null;
+  }
+
   const cacheKey = `${file}:${size}:${tint}`;
   const cached = imageCache.get(cacheKey);
   if (cached) {
@@ -360,11 +356,15 @@ export const resolveMarketDiagramEndTime = (market: MarketWithRelations, now = n
     return market.tradingClosedAt;
   }
 
-  const latestHistoryTime = Math.max(
-    market.createdAt.getTime(),
-    ...market.trades.map((trade) => trade.createdAt.getTime()),
-    ...market.liquidityEvents.map((event) => event.createdAt.getTime()),
-  );
+  let latestHistoryTime = market.createdAt.getTime();
+
+  for (const trade of market.trades) {
+    latestHistoryTime = Math.max(latestHistoryTime, trade.createdAt.getTime());
+  }
+
+  for (const event of market.liquidityEvents) {
+    latestHistoryTime = Math.max(latestHistoryTime, event.createdAt.getTime());
+  }
 
   return new Date(Math.max(now.getTime(), latestHistoryTime));
 };
@@ -467,8 +467,11 @@ export const bucketTradeVolumes = (
   const thresholds = Array.from({ length: bucketCount + 1 }, (_, index) => (
     index === bucketCount ? safeEndTime : startTime + (bucketSpan * index)
   ));
+  const sortedTrades = [...market.trades].sort((left, right) => (
+    left.createdAt.getTime() - right.createdAt.getTime()
+  ));
   let previousCumulativeVolume = 0;
-  const tradeDeltas = market.trades.map((trade) => {
+  const tradeDeltas = sortedTrades.map((trade) => {
     const delta = Math.max(0, trade.cumulativeVolume - previousCumulativeVolume);
     previousCumulativeVolume = trade.cumulativeVolume;
     return {
@@ -592,28 +595,6 @@ const fillCircle = (
   context.arc(x, y, radius, 0, Math.PI * 2);
   context.fillStyle = fillStyle;
   context.fill();
-};
-
-const drawRoundedRect = (
-  context: SKRSContext2D,
-  x: number,
-  y: number,
-  rectWidth: number,
-  rectHeight: number,
-  radius: number,
-): void => {
-  const clamped = Math.min(radius, rectWidth / 2, rectHeight / 2);
-  context.beginPath();
-  context.moveTo(x + clamped, y);
-  context.lineTo(x + rectWidth - clamped, y);
-  context.arcTo(x + rectWidth, y, x + rectWidth, y + clamped, clamped);
-  context.lineTo(x + rectWidth, y + rectHeight - clamped);
-  context.arcTo(x + rectWidth, y + rectHeight, x + rectWidth - clamped, y + rectHeight, clamped);
-  context.lineTo(x + clamped, y + rectHeight);
-  context.arcTo(x, y + rectHeight, x, y + rectHeight - clamped, clamped);
-  context.lineTo(x, y + clamped);
-  context.arcTo(x, y, x + clamped, y, clamped);
-  context.closePath();
 };
 
 const getProbabilityDomain = (series: ProbabilitySeries[]): [number, number] => {
@@ -863,13 +844,16 @@ const drawMetadataItem = async (
   y: number,
 ): Promise<void> => {
   const icon = await loadTablerIcon(item.icon, 20, item.accent);
-  context.drawImage(icon, x, y + 4, 20, 20);
+  const textX = icon ? x + 30 : x;
+  if (icon) {
+    context.drawImage(icon, x, y + 4, 20, 20);
+  }
 
-  drawLabel(context, item.value, x + 30, y + 15, {
+  drawLabel(context, item.value, textX, y + 15, {
     font: `700 20px ${fontStack}`,
     color: item.accent,
   });
-  drawLabel(context, item.label, x + 30, y + 38, {
+  drawLabel(context, item.label, textX, y + 38, {
     font: `14px ${fontStack}`,
     color: muted,
   });

@@ -106,6 +106,28 @@ describe('market visualize', () => {
     expect(buckets.map((bucket) => bucket.tradeCount)).toEqual([1, 1, 0, 1]);
   });
 
+  it('sorts trades by createdAt before computing bucket deltas', () => {
+    const market = {
+      ...baseMarket,
+      totalVolume: 20,
+      trades: [
+        createTrade('trade_2', 'outcome_no', 13, '2099-03-29T11:00:00.000Z'),
+        createTrade('trade_1', 'outcome_yes', 5, '2099-03-29T01:00:00.000Z'),
+        createTrade('trade_3', 'outcome_yes', 20, '2099-03-29T23:00:00.000Z'),
+      ],
+    } satisfies MarketWithRelations;
+
+    const buckets = bucketTradeVolumes(
+      market,
+      new Date('2099-03-29T00:00:00.000Z').getTime(),
+      new Date('2099-03-30T00:00:00.000Z').getTime(),
+      4,
+    );
+
+    expect(buckets.map((bucket) => bucket.volume)).toEqual([5, 8, 0, 7]);
+    expect(buckets.map((bucket) => bucket.tradeCount)).toEqual([1, 1, 0, 1]);
+  });
+
   it('does not create a fake trailing volume spike from the terminal probability snapshot', () => {
     const market = {
       ...baseMarket,
