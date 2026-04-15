@@ -921,7 +921,7 @@ export const buildLossProtectionQuoteMessage = (
 				`Target insured basis: **${formatMoney(quote.targetInsuredCostBasis)}**`,
 				`Additional insured basis: **${formatMoney(quote.incrementalInsuredCostBasis)}**`,
 				`Premium now: **${formatMoney(quote.premium)}**`,
-				`Max refund if ${quote.outcomeLabel} settles to 0%: **${formatMoney(quote.targetInsuredCostBasis)}**`,
+				`Max refund if ${quote.outcomeLabel} settles to 0%: **${formatMoney(quote.payoutIfLoses)}**`,
 				"",
 				"If you sell later, protected basis shrinks with the remaining position. This quote may change before you confirm.",
 			].join("\n"),

@@ -336,7 +336,6 @@ export const computeMarketSummary = (
 	totalVolume: number;
 } => {
 	const probabilities = getMarketProbabilities(market);
-	const isIndependentMode = isIndependentMarketMode(market);
 	const resolutionVector = market.resolvedAt
 		? getMarketResolutionVector(market)
 		: null;
