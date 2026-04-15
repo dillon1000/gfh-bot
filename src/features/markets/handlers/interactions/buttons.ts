@@ -3,7 +3,6 @@ import { MessageFlags, type ButtonInteraction } from "discord.js";
 import { redis } from "../../../../lib/redis.js";
 import {
 	buildMarketCancelModal,
-	buildMarketOutcomeTradePrompt,
 	buildMarketSessionAmountModal,
 	buildMarketTradeModal,
 	buildMarketTradeSelector,
@@ -57,25 +56,30 @@ const updateInteractionFromSessionPreview = async (
 	sessionId: string,
 	session: Awaited<ReturnType<typeof getRootMarketInteractionSession>>,
 ): Promise<void> => {
-	if (session.preview.kind === "trade") {
+	const preview = session.preview;
+	if (!preview) {
+		throw new Error("Preview that action before confirming it.");
+	}
+
+	if (preview.kind === "trade") {
 		const result = await executeMarketTrade({
-			marketId: session.preview.quote.marketId,
+			marketId: preview.quote.marketId,
 			userId: session.userId,
-			outcomeId: session.preview.quote.outcomeId,
-			action: session.preview.quote.action,
-			amount: session.preview.quote.amount,
-			amountMode: session.preview.quote.amountMode,
+			outcomeId: preview.quote.outcomeId,
+			action: preview.quote.action,
+			amount: preview.quote.amount,
+			amountMode: preview.quote.amountMode,
 		});
 		await deleteRootMarketInteractionSession(sessionId);
 		await scheduleMarketRefresh(session.marketId);
-		const feedback = getTradeFeedback(session.preview.quote.action);
+		const feedback = getTradeFeedback(preview.quote.action);
 		await interaction.update({
 			embeds: [
 				buildMarketStatusEmbed(
 					feedback.title,
 					buildTradeExecutionDescription(
-						session.preview.quote.action,
-						session.preview.quote.outcomeLabel,
+						preview.quote.action,
+						preview.quote.outcomeLabel,
 						result,
 					),
 					feedback.color,
@@ -87,10 +91,10 @@ const updateInteractionFromSessionPreview = async (
 	}
 
 	const result = await purchaseLossProtection({
-		marketId: session.preview.quote.marketId,
+		marketId: preview.quote.marketId,
 		userId: session.userId,
-		outcomeId: session.preview.quote.outcomeId,
-		targetCoverage: session.preview.quote.targetCoverage,
+		outcomeId: preview.quote.outcomeId,
+		targetCoverage: preview.quote.targetCoverage,
 	});
 	await deleteRootMarketInteractionSession(sessionId);
 	await scheduleMarketRefresh(session.marketId);
@@ -99,7 +103,7 @@ const updateInteractionFromSessionPreview = async (
 			buildMarketStatusEmbed(
 				"Protection Purchased",
 				[
-					`Outcome: **${session.preview.quote.outcomeLabel}**`,
+					`Outcome: **${preview.quote.outcomeLabel}**`,
 					`Premium paid: **${result.premiumCharged.toFixed(2)} pts**`,
 					`Insured basis: **${result.insuredCostBasis.toFixed(2)} pts**`,
 					`Remaining uninsured basis: **${result.uninsuredCostBasis.toFixed(2)} pts**`,
