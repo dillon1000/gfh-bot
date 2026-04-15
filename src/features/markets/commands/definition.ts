@@ -245,7 +245,7 @@ export const marketCommand = new SlashCommandBuilder()
 				option
 					.setName("amount")
 					.setDescription(
-						"Trade amount: buy 50 or 50 pts; sell/cover 50%, all, 10 pts, or 2.5 shares; short 10 pts or 2.5 shares",
+						"Amount: buy 50 pts; sell/cover all, 50%, 10 pts, or 2.5 shares; short 10 pts or 2.5 shares",
 					)
 					.setRequired(true),
 			),
