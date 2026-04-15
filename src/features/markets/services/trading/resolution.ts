@@ -15,6 +15,7 @@ import {
 	getMarketForUpdate,
 	marketInclude,
 	roundCurrency,
+	roundProbability,
 } from "../../core/shared.js";
 import type {
 	MarketOutcomeResolutionResult,
@@ -27,7 +28,7 @@ const validateSettlementValue = (value: number): number => {
 		throw new Error("Settlement value must be a number between 0 and 1.");
 	}
 
-	return roundCurrency(value);
+	return roundProbability(value);
 };
 
 export const resolveMarketOutcome = async (input: {

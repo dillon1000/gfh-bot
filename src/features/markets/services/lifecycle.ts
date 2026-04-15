@@ -370,7 +370,7 @@ export const notifyMarketCancelled = async (
 						buildMarketStatusEmbed(
 							"Market Cancelled",
 							[
-								`**${market.title}** was cancelled and your open position${refund.positionCount === 1 ? "" : "s"} were refunded.`,
+								`**${market.title}** was cancelled and your open position${refund.positionCount === 1 ? "" : "s"} ${refund.positionCount === 1 ? "was" : "were"} refunded.`,
 								`Refund amount: **${refund.refundAmount.toFixed(2)} pts**`,
 								refund.protectionRefund > 0
 									? `Includes protection premium refund: **${refund.protectionRefund.toFixed(2)} pts**`
