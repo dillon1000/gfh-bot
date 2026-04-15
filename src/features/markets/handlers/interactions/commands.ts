@@ -1,13 +1,15 @@
+import type { InteractionReplyOptions } from 'discord.js';
 import { MessageFlags, type ChatInputCommandInteraction, type Client } from 'discord.js';
 
 import { logger } from '../../../../app/logger.js';
 import {
   buildLeaderboardEmbed,
   buildMarketForecastLeaderboardEmbed,
-  buildMarketForecastProfileEmbed,
+  buildMarketForecastProfileEmbeds,
   buildMarketListEmbed,
   buildMarketTradersEmbeds,
 } from '../../ui/render/analytics.js';
+import { buildMarketForecastProfileDiagram } from '../../ui/profile-visualize.js';
 import { buildMarketStatusEmbed } from '../../ui/render/market.js';
 import { buildPortfolioMessage } from '../../ui/render/portfolio.js';
 import { getMarketConfig } from '../../services/config.js';
@@ -26,7 +28,7 @@ import {
 } from '../../services/account.js';
 import {
   getMarketForecastLeaderboard,
-  getMarketForecastProfile,
+  getMarketForecastProfileDetails,
 } from '../../services/forecast/queries.js';
 import {
   appendMarketOutcomes,
@@ -449,13 +451,34 @@ export const handleMarketCommand = async (
     }
     case 'profile': {
       const user = interaction.options.getUser('user') ?? interaction.user;
-      const profile = await getMarketForecastProfile(interaction.guildId, user.id);
-      await interaction.reply({
-        flags: MessageFlags.Ephemeral,
-        embeds: [buildMarketForecastProfileEmbed(profile)],
+      const profile = await getMarketForecastProfileDetails(interaction.guildId, user.id);
+      const embeds = buildMarketForecastProfileEmbeds(profile);
+      const response: InteractionReplyOptions = {
+        embeds,
         allowedMentions: {
           parse: [],
         },
+      };
+
+      if (profile.allTimeSampleCount > 0) {
+        try {
+          const chart = await buildMarketForecastProfileDiagram(profile, {
+            displayName: user.displayName ?? user.globalName ?? user.username,
+            avatarUrl: user.displayAvatarURL({
+              extension: 'png',
+              forceStatic: true,
+              size: 256,
+            }),
+          });
+          embeds[0]?.setImage(`attachment://${chart.fileName}`);
+          response.files = [chart.attachment];
+        } catch (error) {
+          logger.warn({ err: error, userId: user.id, guildId: interaction.guildId }, 'Could not build market forecast profile diagram');
+        }
+      }
+
+      await interaction.reply({
+        ...response,
       });
       return;
     }
