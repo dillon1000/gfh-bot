@@ -1,3 +1,5 @@
+import type { MarketTradeQuoteAction } from "../core/types.js";
+
 export const marketBuyButtonCustomId = (marketId: string): string =>
 	`market:buy:${marketId}`;
 export const marketSellButtonCustomId = (marketId: string): string =>
@@ -38,11 +40,11 @@ export const marketProtectionCoverageButtonCustomId = (
 export const marketRefreshButtonCustomId = (marketId: string): string =>
 	`market:refresh:${marketId}`;
 export const marketTradeSelectCustomId = (
-	action: "buy" | "sell" | "short" | "cover",
+	action: MarketTradeQuoteAction,
 	marketId: string,
 ): string => `market:trade-select:${action}:${marketId}`;
 export const marketTradeModalCustomId = (
-	action: "buy" | "sell" | "short" | "cover",
+	action: MarketTradeQuoteAction,
 	marketId: string,
 	outcomeId: string,
 ): string => `market:trade-modal:${action}:${marketId}:${outcomeId}`;

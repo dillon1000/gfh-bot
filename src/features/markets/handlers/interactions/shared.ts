@@ -10,7 +10,9 @@ import {
 	parseTradeAmount,
 } from "../../parsing/market.js";
 
-export type TradeAction = "buy" | "sell" | "short" | "cover";
+import type { MarketTradeQuoteAction } from "../../core/types.js";
+
+export type TradeAction = MarketTradeQuoteAction;
 
 const isMarketAdmin = (userId: string): boolean =>
 	env.DISCORD_ADMIN_USER_IDS.includes(userId);

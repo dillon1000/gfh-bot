@@ -91,8 +91,7 @@ export const compareMarketHistoryEvents = <
 		return delta;
 	}
 
-	// Liquidity rebases pricing shares. When a rebase and trade share a timestamp,
-	// replay the liquidity event first so later consumers reconstruct the same state.
+	// Process liquidity events before trades at identical timestamps to keep replay deterministic.
 	return left.kind === right.kind ? 0 : left.kind === "liquidity" ? -1 : 1;
 };
 
@@ -521,6 +520,28 @@ export const replaceOutcomeState = async (
 			updatedAt: new Date(),
 		},
 	});
+};
+
+export const clearMarketExposureTx = async (
+	tx: Prisma.TransactionClient,
+	input: {
+		marketId: string;
+		outcomeId?: string;
+	},
+): Promise<void> => {
+	const where = {
+		marketId: input.marketId,
+		...(input.outcomeId ? { outcomeId: input.outcomeId } : {}),
+	};
+
+	await Promise.all([
+		tx.marketPosition.deleteMany({
+			where,
+		}),
+		tx.marketLossProtection.deleteMany({
+			where,
+		}),
+	]);
 };
 
 export const upsertPosition = async (

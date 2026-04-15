@@ -4,6 +4,7 @@ import { prisma } from "../../../../lib/prisma.js";
 import { ensureMarketAccountTx } from "../account.js";
 import {
 	assertCanCancelMarket,
+	clearMarketExposureTx,
 	getMarketForUpdate,
 	marketInclude,
 	roundCurrency,
@@ -87,16 +88,7 @@ export const cancelMarket = async (input: {
 			});
 		}
 
-		await tx.marketPosition.deleteMany({
-			where: {
-				marketId: market.id,
-			},
-		});
-		await tx.marketLossProtection.deleteMany({
-			where: {
-				marketId: market.id,
-			},
-		});
+		await clearMarketExposureTx(tx, { marketId: market.id });
 
 		await Promise.all(
 			market.outcomes.map((outcome) =>

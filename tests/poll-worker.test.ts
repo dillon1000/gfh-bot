@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { findFirstReminder, warn } = vi.hoisted(() => ({
-  findFirstReminder: vi.fn(),
+const { warn } = vi.hoisted(() => ({
   warn: vi.fn(),
 }));
 
@@ -9,14 +8,6 @@ vi.mock('../src/app/logger.js', () => ({
   logger: {
     error: vi.fn(),
     warn,
-  },
-}));
-
-vi.mock('../src/lib/prisma.js', () => ({
-  prisma: {
-    pollReminder: {
-      findFirst: findFirstReminder,
-    },
   },
 }));
 
@@ -38,36 +29,16 @@ import { resolveReminderJobReminderId } from '../src/features/polls/workers/poll
 
 describe('resolveReminderJobReminderId', () => {
   beforeEach(() => {
-    findFirstReminder.mockReset();
     warn.mockReset();
   });
 
-  it('returns the reminder id from modern jobs without querying prisma', async () => {
+  it('returns the reminder id from modern jobs', async () => {
     await expect(resolveReminderJobReminderId({ reminderId: 'reminder_1' })).resolves.toBe('reminder_1');
-    expect(findFirstReminder).not.toHaveBeenCalled();
   });
 
-  it('maps legacy pollId jobs to the migrated 1h reminder row', async () => {
-    findFirstReminder.mockResolvedValue({ id: 'reminder_legacy' });
-
-    await expect(resolveReminderJobReminderId({ pollId: 'poll_1' })).resolves.toBe('reminder_legacy');
-    expect(findFirstReminder).toHaveBeenCalledWith({
-      where: {
-        pollId: 'poll_1',
-        offsetMinutes: 60,
-      },
-      select: {
-        id: true,
-      },
-    });
-  });
-
-  it('skips malformed or unmigrated jobs without failing the worker', async () => {
-    findFirstReminder.mockResolvedValue(null);
-
-    await expect(resolveReminderJobReminderId({ pollId: 'poll_missing' })).resolves.toBeNull();
+  it('skips malformed jobs without failing the worker', async () => {
     await expect(resolveReminderJobReminderId({})).resolves.toBeNull();
 
-    expect(warn).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 });

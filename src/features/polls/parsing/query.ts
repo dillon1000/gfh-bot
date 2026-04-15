@@ -1,20 +1,9 @@
-import { parseDiscordMessageLink } from '../../../lib/discord-message-links.js';
+import {
+  parseDiscordMessageLink,
+  type DiscordEntityLookup,
+} from '../../../lib/discord-message-links.js';
 
-export type PollLookup =
-  | {
-      kind: 'poll-id';
-      value: string;
-    }
-  | {
-      kind: 'message-id';
-      value: string;
-    }
-  | {
-      kind: 'message-link';
-      guildId: string;
-      channelId: string;
-      messageId: string;
-    };
+export type PollLookup = DiscordEntityLookup<'poll-id'>;
 
 export const parsePollLookup = (value: string): PollLookup => {
   const trimmed = value.trim();

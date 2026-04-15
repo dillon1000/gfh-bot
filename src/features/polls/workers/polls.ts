@@ -3,16 +3,12 @@ import type { Client } from 'discord.js';
 
 import { logger } from '../../../app/logger.js';
 import { pollCloseQueueName, pollReminderQueueName } from '../../../lib/queue.js';
-import { prisma } from '../../../lib/prisma.js';
 import { getBullConnectionOptions } from '../../../lib/redis.js';
 import { closePollAndRefresh, sendPollReminder } from '../services/lifecycle.js';
 
 type PollReminderJobData = {
   reminderId?: string;
-  pollId?: string;
 };
-
-const legacyReminderOffsetMinutes = 60;
 
 export const startPollWorker = (client: Client): Worker<{ pollId: string }, void, 'close'> => {
   const worker = new Worker<{ pollId: string }, void, 'close'>(
@@ -37,25 +33,6 @@ export const resolveReminderJobReminderId = async (
 ): Promise<string | null> => {
   if (jobData.reminderId) {
     return jobData.reminderId;
-  }
-
-  if (jobData.pollId) {
-    const reminder = await prisma.pollReminder.findFirst({
-      where: {
-        pollId: jobData.pollId,
-        offsetMinutes: legacyReminderOffsetMinutes,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!reminder) {
-      logger.warn({ pollId: jobData.pollId }, 'Skipping legacy poll reminder job without a migrated reminder row');
-      return null;
-    }
-
-    return reminder.id;
   }
 
   logger.warn({ jobData }, 'Skipping poll reminder job with no reminder identifier');
