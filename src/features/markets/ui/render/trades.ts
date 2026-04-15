@@ -37,6 +37,7 @@ import type {
 	MarketInteractionSession,
 	MarketLossProtectionQuote,
 	MarketTradeQuote,
+	MarketTradeQuoteAction,
 	MarketWithRelations,
 } from "../../core/types.js";
 import { buildMarketStatusEmbed } from "./market.js";
@@ -50,7 +51,7 @@ import {
 
 export const buildMarketTradeSelector = (
 	market: MarketWithRelations,
-	action: "buy" | "sell" | "short" | "cover",
+	action: MarketTradeQuoteAction,
 ): {
 	embeds: [EmbedBuilder];
 	components: ActionRowBuilder<StringSelectMenuBuilder>[];
@@ -164,7 +165,7 @@ export const buildMarketOutcomeTradePrompt = (
 };
 
 export const buildMarketTradeModal = (
-	action: "buy" | "sell" | "short" | "cover",
+	action: MarketTradeQuoteAction,
 	marketId: string,
 	outcomeId: string,
 ): ModalBuilder => {
@@ -189,7 +190,7 @@ export const buildMarketTradeModal = (
 
 export const buildMarketSessionAmountModal = (
 	sessionId: string,
-	action: "buy" | "sell" | "short" | "cover",
+	action: MarketTradeQuoteAction,
 	value?: string | null,
 ): ModalBuilder => {
 	const copy = getTradeCopy(action);

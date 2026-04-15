@@ -7,12 +7,13 @@ import {
 import { calculateMarketTradeQuote } from "../../services/trading/quotes.js";
 import { getMarketById } from "../../services/records.js";
 import { parseTradeInputAmount } from "./shared.js";
+import type { MarketTradeQuoteAction } from "../../core/types.js";
 
 export const createTradeQuotePreview = async (input: {
 	marketId: string;
 	userId: string;
 	outcomeId: string;
-	action: "buy" | "sell" | "short" | "cover";
+	action: MarketTradeQuoteAction;
 	rawAmount: string;
 }): Promise<ReturnType<typeof buildMarketTradeQuoteMessage>> => {
 	const market =

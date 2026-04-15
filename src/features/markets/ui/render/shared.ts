@@ -1,7 +1,10 @@
 import { ButtonStyle } from "discord.js";
 
 import { computeMarketSummary, getMarketStatus } from "../../core/shared.js";
-import type { MarketWithRelations } from "../../core/types.js";
+import type {
+	MarketTradeQuoteAction,
+	MarketWithRelations,
+} from "../../core/types.js";
 
 export const formatMoney = (value: number): string => `${value.toFixed(2)} pts`;
 export const formatPercent = (value: number): string =>
@@ -26,7 +29,7 @@ export const truncateLabel = (value: string, max = 16): string => {
 };
 
 export const getTradeCopy = (
-	action: "buy" | "sell" | "short" | "cover",
+	action: MarketTradeQuoteAction,
 ): {
 	title: string;
 	description: string;

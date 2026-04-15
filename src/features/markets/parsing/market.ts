@@ -1,4 +1,7 @@
-import { parseDiscordMessageLink } from '../../../lib/discord-message-links.js';
+import {
+  parseDiscordMessageLink,
+  type DiscordEntityLookup,
+} from '../../../lib/discord-message-links.js';
 
 const maxOutcomes = 5;
 const minOutcomes = 2;
@@ -11,21 +14,7 @@ const minTradeAmount = 10;
 const sellSharesPattern = /^(?<amount>\d+(?:\.\d+)?)\s*(?<unit>share|shares|sh)$/i;
 const sellPointsPattern = /^(?<amount>\d+)\s*(?<unit>pt|pts|point|points)?$/i;
 
-export type MarketLookup =
-  | {
-      kind: 'market-id';
-      value: string;
-    }
-  | {
-      kind: 'message-id';
-      value: string;
-    }
-  | {
-      kind: 'message-link';
-      guildId: string;
-      channelId: string;
-      messageId: string;
-    };
+export type MarketLookup = DiscordEntityLookup<'market-id'>;
 
 export const sanitizeMarketTitle = (value: string): string => {
   const trimmed = value.trim();

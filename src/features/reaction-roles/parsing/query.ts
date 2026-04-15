@@ -1,20 +1,9 @@
-import { parseDiscordMessageLink } from '../../../lib/discord-message-links.js';
+import {
+  parseDiscordMessageLink,
+  type DiscordEntityLookup,
+} from '../../../lib/discord-message-links.js';
 
-export type ReactionRoleLookup =
-  | {
-      kind: 'panel-id';
-      value: string;
-    }
-  | {
-      kind: 'message-id';
-      value: string;
-    }
-  | {
-      kind: 'message-link';
-      guildId: string;
-      channelId: string;
-      messageId: string;
-    };
+export type ReactionRoleLookup = DiscordEntityLookup<'panel-id'>;
 
 export const parseReactionRoleLookup = (value: string): ReactionRoleLookup => {
   const trimmed = value.trim();

@@ -7,6 +7,7 @@ import { persistForecastRecordsTx } from "../forecast/records.js";
 import {
 	assertCanResolveMarket,
 	assertCanResolveOutcome,
+	clearMarketExposureTx,
 	computeSupplementaryBonusDistribution,
 	getMarketResolutionVector,
 	isIndependentMarketMode,
@@ -126,17 +127,9 @@ export const resolveMarketOutcome = async (input: {
 			});
 		}
 
-		await tx.marketPosition.deleteMany({
-			where: {
-				marketId: market.id,
-				outcomeId: outcome.id,
-			},
-		});
-		await tx.marketLossProtection.deleteMany({
-			where: {
-				marketId: market.id,
-				outcomeId: outcome.id,
-			},
+		await clearMarketExposureTx(tx, {
+			marketId: market.id,
+			outcomeId: outcome.id,
 		});
 
 		await tx.marketOutcome.update({
@@ -349,16 +342,7 @@ export const resolveMarket = async (input: {
 			});
 		}
 
-		await tx.marketPosition.deleteMany({
-			where: {
-				marketId: market.id,
-			},
-		});
-		await tx.marketLossProtection.deleteMany({
-			where: {
-				marketId: market.id,
-			},
-		});
+		await clearMarketExposureTx(tx, { marketId: market.id });
 
 		await Promise.all(
 			market.outcomes.map((outcome) =>
