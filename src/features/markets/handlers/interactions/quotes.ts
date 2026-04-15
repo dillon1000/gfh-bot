@@ -60,6 +60,7 @@ export const createTradeQuotePreview = async (input: {
 		kind: "trade",
 		sessionId,
 		action: quote.action,
+		...(quote.contractMode ? { contractMode: quote.contractMode } : {}),
 		guildId: quote.guildId,
 		marketId: quote.marketId,
 		marketTitle: quote.marketTitle,

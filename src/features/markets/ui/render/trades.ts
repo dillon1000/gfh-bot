@@ -55,6 +55,11 @@ export const buildMarketTradeSelector = (
 	components: ActionRowBuilder<StringSelectMenuBuilder>[];
 } => {
 	const copy = getTradeCopy(action);
+	const isIndependentMarket = market.contractMode === "independent_binary_set";
+	const description =
+		isIndependentMarket && (action === "buy" || action === "short")
+			? `${copy.description} In independent mode, outcomes settle independently on a 0%-100% scale.`
+			: copy.description;
 	const tradableEntries = getMarketSummary(market).probabilities.filter(
 		(entry) =>
 			!entry.isResolved && !getTradeLockReason(market, entry.outcomeId, action),
@@ -74,7 +79,7 @@ export const buildMarketTradeSelector = (
 	}
 
 	return {
-		embeds: [buildMarketStatusEmbed(copy.title, copy.description, copy.color)],
+		embeds: [buildMarketStatusEmbed(copy.title, description, copy.color)],
 		components: [
 			new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
 				new StringSelectMenuBuilder()
@@ -119,6 +124,7 @@ export const buildMarketOutcomeTradePrompt = (
 
 	const buyLocked = Boolean(getTradeLockReason(market, outcomeId, "buy"));
 	const shortLocked = Boolean(getTradeLockReason(market, outcomeId, "short"));
+	const isIndependentMarket = market.contractMode === "independent_binary_set";
 
 	return {
 		embeds: [
@@ -128,7 +134,9 @@ export const buildMarketOutcomeTradePrompt = (
 					`Current probability: **${formatProbabilityPercent(entry.probability)}**`,
 					`Net shares: **${entry.shares.toFixed(2)}**`,
 					"",
-					"Choose whether you want to buy this outcome or short it.",
+					isIndependentMarket
+						? "Choose whether to buy YES exposure or short YES exposure (take the NO side)."
+						: "Choose whether you want to buy this outcome or short it.",
 				].join("\n"),
 				0x60a5fa,
 			),
@@ -290,8 +298,10 @@ const getPositionAfterCopy = (quote: MarketTradeQuote): string => {
 };
 
 const buildTradeQuoteDescription = (quote: MarketTradeQuote): string => {
+	const isIndependentMarket = quote.contractMode === "independent_binary_set";
 	const lines = [
 		`Outcome: **${quote.outcomeLabel}**`,
+		`Contract mode: **${isIndependentMarket ? "Independent Set" : "Single Winner"}**`,
 		`Board: **${formatPercent(quote.currentProbability)}** -> **${formatPercent(quote.nextProbability)}**`,
 	];
 
@@ -341,8 +351,17 @@ const buildTradeQuoteDescription = (quote: MarketTradeQuote): string => {
 
 	lines.push(
 		"",
-		`If ${quote.outcomeLabel} is chosen: payout **${formatMoney(quote.settlementIfChosen)}**, max loss **${formatMoney(quote.maxLossIfChosen)}**, max profit **${formatMoney(quote.maxProfitIfChosen)}**`,
-		`If ${quote.outcomeLabel} is not chosen: payout **${formatMoney(quote.settlementIfNotChosen)}**, max loss **${formatMoney(quote.maxLossIfNotChosen)}**, max profit **${formatMoney(quote.maxProfitIfNotChosen)}**`,
+		isIndependentMarket
+			? `If ${quote.outcomeLabel} settles to 100%: payout **${formatMoney(quote.settlementIfChosen)}**, max loss **${formatMoney(quote.maxLossIfChosen)}**, max profit **${formatMoney(quote.maxProfitIfChosen)}**`
+			: `If ${quote.outcomeLabel} is chosen: payout **${formatMoney(quote.settlementIfChosen)}**, max loss **${formatMoney(quote.maxLossIfChosen)}**, max profit **${formatMoney(quote.maxProfitIfChosen)}**`,
+		isIndependentMarket
+			? `If ${quote.outcomeLabel} settles to 0%: payout **${formatMoney(quote.settlementIfNotChosen)}**, max loss **${formatMoney(quote.maxLossIfNotChosen)}**, max profit **${formatMoney(quote.maxProfitIfNotChosen)}**`
+			: `If ${quote.outcomeLabel} is not chosen: payout **${formatMoney(quote.settlementIfNotChosen)}**, max loss **${formatMoney(quote.maxLossIfNotChosen)}**, max profit **${formatMoney(quote.maxProfitIfNotChosen)}**`,
+		...(isIndependentMarket
+			? [
+					`For intermediate settlement values (e.g. ${formatPercent(0.35)}), payout scales linearly between those bounds.`,
+				]
+			: []),
 		"",
 		"This quote is based on the current board and may change before you confirm.",
 	);
@@ -392,7 +411,7 @@ const buildProtectionQuoteDescription = (
 		`Target insured basis: **${formatMoney(quote.targetInsuredCostBasis)}**`,
 		`Additional insured basis: **${formatMoney(quote.incrementalInsuredCostBasis)}**`,
 		`Premium now: **${formatMoney(quote.premium)}**`,
-		`Refund if ${quote.outcomeLabel} loses: **${formatMoney(quote.payoutIfLoses)}**`,
+		`Max refund if ${quote.outcomeLabel} settles to 0%: **${formatMoney(quote.payoutIfLoses)}**`,
 		"",
 		"If you sell later, protected basis shrinks with the remaining position. This quote may change before you confirm.",
 	].join("\n");
@@ -417,6 +436,10 @@ export const buildMarketInteractionSessionMessage = (input: {
 	components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[];
 } => {
 	const { market, session, positions } = input;
+	const isIndependentMarket = market.contractMode === "independent_binary_set";
+	const contractModeLabel = isIndependentMarket
+		? "Independent Set"
+		: "Single Winner";
 	const rows: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
 
 	if (session.mode === "trade") {
@@ -429,6 +452,7 @@ export const buildMarketInteractionSessionMessage = (input: {
 		);
 		const header = [
 			`Market: **${market.title}**`,
+			`Contract mode: **${contractModeLabel}**`,
 			`Action: **${selectedAction === "buy" ? "Buy" : "Short"}**`,
 			`Outcome: **${selectedOutcome?.label ?? "Choose an outcome"}**`,
 			`Amount: **${session.amountInput ?? "Choose a quick amount or open the modal"}**`,
@@ -553,6 +577,7 @@ export const buildMarketInteractionSessionMessage = (input: {
 			: `${selectedAction.charAt(0).toUpperCase()}${selectedAction.slice(1)}`;
 	const description = [
 		`Market: **${market.title}**`,
+		`Contract mode: **${contractModeLabel}**`,
 		selectedPosition
 			? `Position: **${selectedPosition.side === "long" ? "LONG" : "SHORT"} ${selectedPosition.outcomeLabel} ${selectedPosition.shares.toFixed(2)}**`
 			: "Position: **Choose a position**",
@@ -858,7 +883,7 @@ export const buildLossProtectionQuoteMessage = (
 				`Target insured basis: **${formatMoney(quote.targetInsuredCostBasis)}**`,
 				`Additional insured basis: **${formatMoney(quote.incrementalInsuredCostBasis)}**`,
 				`Premium now: **${formatMoney(quote.premium)}**`,
-				`Refund if ${quote.outcomeLabel} loses: **${formatMoney(quote.targetInsuredCostBasis)}**`,
+				`Max refund if ${quote.outcomeLabel} settles to 0%: **${formatMoney(quote.targetInsuredCostBasis)}**`,
 				"",
 				"If you sell later, protected basis shrinks with the remaining position. This quote may change before you confirm.",
 			].join("\n"),

@@ -66,6 +66,11 @@ enum MarketButtonStyle {
   danger
 }
 
+enum MarketContractMode {
+  categorical_single_winner
+  independent_binary_set
+}
+
 enum CasinoGameKind {
   slots
   blackjack
@@ -325,6 +330,7 @@ model Market {
   title                  String
   description            String?
   buttonStyle            MarketButtonStyle @default(primary)
+  contractMode           MarketContractMode @default(categorical_single_winner)
   tags                   String[]         @default([])
   baseLiquidityParameter Int              @default(150)
   liquidityParameter     Int              @default(150)
@@ -367,6 +373,7 @@ model MarketForecastRecord {
   resolvedAt               DateTime
   marketTagSnapshot        String[] @default([])
   forecastVector           Json
+  resolutionVector         Json?
   winningOutcomeId         String
   winningOutcomeProbability Float
   predictedOutcomeId       String

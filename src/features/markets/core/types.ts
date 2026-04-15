@@ -2,6 +2,7 @@ import type {
 	Market,
 	MarketAccount,
 	MarketButtonStyle,
+	MarketContractMode,
 	MarketForecastRecord,
 	MarketLossProtection,
 	MarketLiquidityEvent,
@@ -11,7 +12,8 @@ import type {
 	MarketTrade,
 } from "@prisma/client";
 
-export type MarketWithRelations = Market & {
+export type MarketWithRelations = Omit<Market, "contractMode"> & {
+	contractMode?: MarketContractMode;
 	outcomes: MarketOutcome[];
 	trades: MarketTrade[];
 	positions: MarketPosition[];
@@ -21,7 +23,7 @@ export type MarketWithRelations = Market & {
 };
 
 export type MarketPositionWithProtection = MarketPosition & {
-	market: Market;
+	market: Omit<Market, "contractMode"> & { contractMode?: MarketContractMode };
 	outcome: MarketOutcome;
 	insuredCostBasis?: number;
 	premiumPaid?: number;
@@ -44,6 +46,7 @@ export type MarketCreationInput = {
 	title: string;
 	description: string | null;
 	buttonStyle: MarketButtonStyle;
+	contractMode?: MarketContractMode;
 	outcomes: string[];
 	tags: string[];
 	closeAt: Date;
@@ -66,6 +69,7 @@ export type MarketTradeQuoteAction = "buy" | "sell" | "short" | "cover";
 
 export type MarketTradeQuote = {
 	action: MarketTradeQuoteAction;
+	contractMode?: MarketContractMode;
 	marketId: string;
 	marketTitle: string;
 	outcomeId: string;
@@ -105,6 +109,7 @@ export type MarketTradeQuoteSession = {
 	kind: "trade";
 	sessionId: string;
 	action: MarketTradeQuoteAction;
+	contractMode?: MarketContractMode;
 	guildId: string;
 	marketId: string;
 	marketTitle: string;
@@ -242,6 +247,7 @@ export type MarketForecastProfileRecentRecord = {
 	realizedProfit: number;
 	wasCorrect: boolean;
 	predictedOutcomeId: string;
+	resolutionVector?: number[];
 	winningOutcomeId: string;
 	winningOutcomeProbability: number;
 	tradeCount: number;
