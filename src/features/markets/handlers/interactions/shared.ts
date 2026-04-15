@@ -1,223 +1,339 @@
-import { PermissionFlagsBits, type ChatInputCommandInteraction } from 'discord.js';
-
-import { env } from '../../../../app/config.js';
-import { executeMarketTrade } from '../../services/trading/execution.js';
 import {
-  parseFlexibleTradeAmount,
-  parseTradeAmount,
-} from '../../parsing/market.js';
+	PermissionFlagsBits,
+	type ChatInputCommandInteraction,
+} from "discord.js";
 
-export type TradeAction = 'buy' | 'sell' | 'short' | 'cover';
+import { env } from "../../../../app/config.js";
+import { executeMarketTrade } from "../../services/trading/execution.js";
+import {
+	parseFlexibleTradeAmount,
+	parseTradeAmount,
+} from "../../parsing/market.js";
+
+export type TradeAction = "buy" | "sell" | "short" | "cover";
 
 const isMarketAdmin = (userId: string): boolean =>
-  env.DISCORD_ADMIN_USER_IDS.includes(userId);
+	env.DISCORD_ADMIN_USER_IDS.includes(userId);
 
 export const assertCanGrantMarketFunds = (userId: string): void => {
-  if (env.DISCORD_ADMIN_USER_IDS.length === 0) {
-    throw new Error('Market grants are disabled until DISCORD_ADMIN_USER_IDS is configured.');
-  }
+	if (env.DISCORD_ADMIN_USER_IDS.length === 0) {
+		throw new Error(
+			"Market grants are disabled until DISCORD_ADMIN_USER_IDS is configured.",
+		);
+	}
 
-  if (!isMarketAdmin(userId)) {
-    throw new Error('Only configured admin user IDs can grant market currency.');
-  }
+	if (!isMarketAdmin(userId)) {
+		throw new Error(
+			"Only configured admin user IDs can grant market currency.",
+		);
+	}
 };
 
-export const assertManageGuild = (interaction: ChatInputCommandInteraction): void => {
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-    throw new Error('You need Manage Server to configure prediction markets.');
-  }
+export const assertManageGuild = (
+	interaction: ChatInputCommandInteraction,
+): void => {
+	if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+		throw new Error("You need Manage Server to configure prediction markets.");
+	}
 };
 
 export const parseTradeCustomId = (
-  customId: string,
+	customId: string,
 ): { action: TradeAction; marketId: string } | null => {
-  const match = /^market:(buy|sell|short|cover):(.+)$/.exec(customId);
-  if (!match?.[1] || !match[2]) {
-    return null;
-  }
+	const match = /^market:(buy|sell|short|cover):(.+)$/.exec(customId);
+	if (!match?.[1] || !match[2]) {
+		return null;
+	}
 
-  return {
-    action: match[1] as TradeAction,
-    marketId: match[2],
-  };
+	return {
+		action: match[1] as TradeAction,
+		marketId: match[2],
+	};
 };
 
 export const parseQuickTradeCustomId = (
-  customId: string,
-): { action: 'buy' | 'short'; marketId: string; outcomeId: string } | null => {
-  const match = /^market:quick:(buy|short):([^:]+):([^:]+)$/.exec(customId);
-  if (!match?.[1] || !match[2] || !match[3]) {
-    return null;
-  }
+	customId: string,
+): { action: "buy" | "short"; marketId: string; outcomeId: string } | null => {
+	const match = /^market:quick:(buy|short):([^:]+):([^:]+)$/.exec(customId);
+	if (!match?.[1] || !match[2] || !match[3]) {
+		return null;
+	}
 
-  return {
-    action: match[1] as 'buy' | 'short',
-    marketId: match[2],
-    outcomeId: match[3],
-  };
+	return {
+		action: match[1] as "buy" | "short",
+		marketId: match[2],
+		outcomeId: match[3],
+	};
 };
 
 export const parseMarketOutcomeCustomId = (
-  customId: string,
+	customId: string,
 ): { marketId: string; outcomeId: string } | null => {
-  const match = /^market:outcome:([^:]+):([^:]+)$/.exec(customId);
-  if (!match?.[1] || !match[2]) {
-    return null;
-  }
+	const match = /^market:outcome:([^:]+):([^:]+)$/.exec(customId);
+	if (!match?.[1] || !match[2]) {
+		return null;
+	}
 
-  return {
-    marketId: match[1],
-    outcomeId: match[2],
-  };
+	return {
+		marketId: match[1],
+		outcomeId: match[2],
+	};
 };
 
 export const parseProtectionCoverageCustomId = (
-  customId: string,
+	customId: string,
 ): { marketId: string; outcomeId: string; targetCoverage: number } | null => {
-  const match = /^market:protection-coverage:([^:]+):([^:]+):([^:]+)$/.exec(customId);
-  if (!match?.[1] || !match[2] || !match[3]) {
-    return null;
-  }
+	const match = /^market:protection-coverage:([^:]+):([^:]+):([^:]+)$/.exec(
+		customId,
+	);
+	if (!match?.[1] || !match[2] || !match[3]) {
+		return null;
+	}
 
-  return {
-    marketId: match[1],
-    outcomeId: match[2],
-    targetCoverage: Number(match[3]),
-  };
+	return {
+		marketId: match[1],
+		outcomeId: match[2],
+		targetCoverage: Number(match[3]),
+	};
 };
 
 export const parseTradeSelectCustomId = (
-  customId: string,
+	customId: string,
 ): { action: TradeAction; marketId: string } | null => {
-  const match = /^market:trade-select:(buy|sell|short|cover):(.+)$/.exec(customId);
-  if (!match?.[1] || !match[2]) {
-    return null;
-  }
+	const match = /^market:trade-select:(buy|sell|short|cover):(.+)$/.exec(
+		customId,
+	);
+	if (!match?.[1] || !match[2]) {
+		return null;
+	}
 
-  return {
-    action: match[1] as TradeAction,
-    marketId: match[2],
-  };
+	return {
+		action: match[1] as TradeAction,
+		marketId: match[2],
+	};
 };
 
 export const parseTradeModalCustomId = (
-  customId: string,
+	customId: string,
 ): { action: TradeAction; marketId: string; outcomeId: string } | null => {
-  const match = /^market:trade-modal:(buy|sell|short|cover):([^:]+):([^:]+)$/.exec(customId);
-  if (!match?.[1] || !match[2] || !match[3]) {
-    return null;
-  }
+	const match =
+		/^market:trade-modal:(buy|sell|short|cover):([^:]+):([^:]+)$/.exec(
+			customId,
+		);
+	if (!match?.[1] || !match[2] || !match[3]) {
+		return null;
+	}
 
-  return {
-    action: match[1] as TradeAction,
-    marketId: match[2],
-    outcomeId: match[3],
-  };
+	return {
+		action: match[1] as TradeAction,
+		marketId: match[2],
+		outcomeId: match[3],
+	};
 };
 
-export const parseSimpleMarketId = (prefix: string, customId: string): string | null => {
-  const match = new RegExp(`^${prefix}:(.+)$`).exec(customId);
-  return match?.[1] ?? null;
+export const parseSimpleMarketId = (
+	prefix: string,
+	customId: string,
+): string | null => {
+	const match = new RegExp(`^${prefix}:(.+)$`).exec(customId);
+	return match?.[1] ?? null;
 };
 
 export const parseQuoteSessionId = (
-  prefix: 'market:quote-confirm' | 'market:quote-cancel',
-  customId: string,
+	prefix: "market:quote-confirm" | "market:quote-cancel",
+	customId: string,
 ): string | null => {
-  const match = new RegExp(`^${prefix}:(.+)$`).exec(customId);
-  return match?.[1] ?? null;
+	const match = new RegExp(`^${prefix}:(.+)$`).exec(customId);
+	return match?.[1] ?? null;
+};
+
+export const parseMarketSessionId = (
+	prefix:
+		| "market:session-outcome"
+		| "market:session-position"
+		| "market:session-amount"
+		| "market:session-confirm"
+		| "market:session-cancel"
+		| "market:session-amount-modal",
+	customId: string,
+): string | null => {
+	const match = new RegExp(`^${prefix}:(.+)$`).exec(customId);
+	return match?.[1] ?? null;
+};
+
+export const parseMarketSessionSideCustomId = (
+	customId: string,
+): { sessionId: string; action: "buy" | "short" } | null => {
+	const match = /^market:session-side:([^:]+):(buy|short)$/.exec(customId);
+	if (!match?.[1] || !match[2]) {
+		return null;
+	}
+
+	return {
+		sessionId: match[1],
+		action: match[2] as "buy" | "short",
+	};
+};
+
+export const parseMarketSessionActionCustomId = (
+	customId: string,
+): { sessionId: string; action: "sell" | "cover" | "protect" } | null => {
+	const match = /^market:session-action:([^:]+):(sell|cover|protect)$/.exec(
+		customId,
+	);
+	if (!match?.[1] || !match[2]) {
+		return null;
+	}
+
+	return {
+		sessionId: match[1],
+		action: match[2] as "sell" | "cover" | "protect",
+	};
+};
+
+export const parseMarketSessionQuickAmountCustomId = (
+	customId: string,
+): { sessionId: string; amount: number } | null => {
+	const match = /^market:session-quick-amount:([^:]+):([^:]+)$/.exec(customId);
+	if (!match?.[1] || !match[2]) {
+		return null;
+	}
+
+	const amount = Number(match[2]);
+	if (!Number.isFinite(amount) || amount <= 0) {
+		return null;
+	}
+
+	return {
+		sessionId: match[1],
+		amount,
+	};
+};
+
+export const parseMarketSessionCoverageCustomId = (
+	customId: string,
+): { sessionId: string; targetCoverage: number } | null => {
+	const match = /^market:session-coverage:([^:]+):([^:]+)$/.exec(customId);
+	if (!match?.[1] || !match[2]) {
+		return null;
+	}
+
+	const targetCoverage = Number(match[2]) / 100;
+	if (
+		!Number.isFinite(targetCoverage) ||
+		targetCoverage <= 0 ||
+		targetCoverage > 1
+	) {
+		return null;
+	}
+
+	return {
+		sessionId: match[1],
+		targetCoverage,
+	};
 };
 
 export const parsePortfolioSelectionValue = (
-  value: string,
-): { action: 'sell' | 'cover' | 'protect'; marketId: string; outcomeId: string } | null => {
-  const match = /^(sell|cover|protect):([^:]+):([^:]+)$/.exec(value);
-  if (!match?.[1] || !match[2] || !match[3]) {
-    return null;
-  }
+	value: string,
+): {
+	action: "sell" | "cover" | "protect";
+	marketId: string;
+	outcomeId: string;
+} | null => {
+	const match = /^(sell|cover|protect):([^:]+):([^:]+)$/.exec(value);
+	if (!match?.[1] || !match[2] || !match[3]) {
+		return null;
+	}
 
-  return {
-    action: match[1] as 'sell' | 'cover' | 'protect',
-    marketId: match[2],
-    outcomeId: match[3],
-  };
+	return {
+		action: match[1] as "sell" | "cover" | "protect",
+		marketId: match[2],
+		outcomeId: match[3],
+	};
 };
 
-export const validateEvidenceUrl = (value: string | null | undefined): string | null => {
-  const trimmed = value?.trim();
-  if (!trimmed) {
-    return null;
-  }
+export const validateEvidenceUrl = (
+	value: string | null | undefined,
+): string | null => {
+	const trimmed = value?.trim();
+	if (!trimmed) {
+		return null;
+	}
 
-  try {
-    const url = new URL(trimmed);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-      throw new Error('Evidence URL must use http or https.');
-    }
+	try {
+		const url = new URL(trimmed);
+		if (url.protocol !== "http:" && url.protocol !== "https:") {
+			throw new Error("Evidence URL must use http or https.");
+		}
 
-    return url.toString();
-  } catch {
-    throw new Error('Evidence URL must be a valid http or https URL.');
-  }
+		return url.toString();
+	} catch {
+		throw new Error("Evidence URL must be a valid http or https URL.");
+	}
 };
 
-export const getTradeFeedback = (action: TradeAction): { title: string; color: number } => {
-  switch (action) {
-    case 'buy':
-      return { title: 'Position Bought', color: 0x57f287 };
-    case 'sell':
-      return { title: 'Position Sold', color: 0x60a5fa };
-    case 'short':
-      return { title: 'Position Shorted', color: 0xf59e0b };
-    case 'cover':
-      return { title: 'Position Covered', color: 0xeb459e };
-  }
+export const getTradeFeedback = (
+	action: TradeAction,
+): { title: string; color: number } => {
+	switch (action) {
+		case "buy":
+			return { title: "Position Bought", color: 0x57f287 };
+		case "sell":
+			return { title: "Position Sold", color: 0x60a5fa };
+		case "short":
+			return { title: "Position Shorted", color: 0xf59e0b };
+		case "cover":
+			return { title: "Position Covered", color: 0xeb459e };
+	}
 };
 
 export const buildTradeExecutionDescription = (
-  action: TradeAction,
-  outcomeLabel: string,
-  result: Awaited<ReturnType<typeof executeMarketTrade>>,
+	action: TradeAction,
+	outcomeLabel: string,
+	result: Awaited<ReturnType<typeof executeMarketTrade>>,
 ): string => {
-  const netCashAmount = result.netCashAmount ?? result.cashAmount;
-  const settledShares = Math.abs(result.shareDelta);
-  const payoutSummary = action === 'buy'
-    ? { ifChosen: settledShares, ifNotChosen: 0 }
-    : action === 'short'
-      ? { ifChosen: 0, ifNotChosen: settledShares }
-      : null;
+	const netCashAmount = result.netCashAmount ?? result.cashAmount;
+	const settledShares = Math.abs(result.shareDelta);
+	const payoutSummary =
+		action === "buy"
+			? { ifChosen: settledShares, ifNotChosen: 0 }
+			: action === "short"
+				? { ifChosen: 0, ifNotChosen: settledShares }
+				: null;
 
-  return [
-    `Outcome: **${outcomeLabel}**`,
-    action === 'buy'
-      ? `Spend: ${netCashAmount.toFixed(2)} pts`
-      : action === 'short'
-        ? `Proceeds: ${netCashAmount.toFixed(2)} pts`
-        : `Cash: ${result.cashAmount.toFixed(2)} pts`,
-    `Shares: ${Math.abs(result.shareDelta).toFixed(2)}`,
-    `Bankroll: ${result.account.bankroll.toFixed(2)} pts`,
-    ...(payoutSummary
-      ? [
-          `If ${outcomeLabel} is chosen: ${payoutSummary.ifChosen.toFixed(2)} pts`,
-          `If ${outcomeLabel} is not chosen: ${payoutSummary.ifNotChosen.toFixed(2)} pts`,
-        ]
-      : []),
-  ].filter(Boolean).join('\n');
+	return [
+		`Outcome: **${outcomeLabel}**`,
+		action === "buy"
+			? `Spend: ${netCashAmount.toFixed(2)} pts`
+			: action === "short"
+				? `Proceeds: ${netCashAmount.toFixed(2)} pts`
+				: `Cash: ${result.cashAmount.toFixed(2)} pts`,
+		`Shares: ${Math.abs(result.shareDelta).toFixed(2)}`,
+		`Bankroll: ${result.account.bankroll.toFixed(2)} pts`,
+		...(payoutSummary
+			? [
+					`If ${outcomeLabel} is chosen: ${payoutSummary.ifChosen.toFixed(2)} pts`,
+					`If ${outcomeLabel} is not chosen: ${payoutSummary.ifNotChosen.toFixed(2)} pts`,
+				]
+			: []),
+	]
+		.filter(Boolean)
+		.join("\n");
 };
 
 export const parseTradeInputAmount = (
-  action: TradeAction,
-  rawAmount: string,
-): { amount: number; amountMode: 'points' | 'shares' } =>
-  action === 'buy'
-    ? {
-        amount: parseTradeAmount(rawAmount),
-        amountMode: 'points',
-      }
-    : (() => {
-        const parsed = parseFlexibleTradeAmount(rawAmount);
-        return {
-          amount: parsed.amount,
-          amountMode: parsed.mode,
-        };
-      })();
+	action: TradeAction,
+	rawAmount: string,
+): { amount: number; amountMode: "points" | "shares" } =>
+	action === "buy"
+		? {
+				amount: parseTradeAmount(rawAmount),
+				amountMode: "points",
+			}
+		: (() => {
+				const parsed = parseFlexibleTradeAmount(rawAmount);
+				return {
+					amount: parsed.amount,
+					amountMode: parsed.mode,
+				};
+			})();

@@ -1,8 +1,12 @@
 import type {
   MarketForecastLeaderboardEntry,
+  MarketForecastProfileDetails,
   MarketForecastProfile,
+  MarketForecastProfileRecentRecord,
+  MarketForecastProfileTrendPoint,
 } from '../../core/types.js';
 import { roundProbability } from '../../core/shared.js';
+import { prisma } from '../../../../lib/prisma.js';
 import {
   buildCalibrationBucketLabel,
   computeBestStreak,
@@ -47,11 +51,13 @@ const getMeanBrier = (records: HydratedForecastRecord[]): number | null => {
   return roundProbability(records.reduce((sum, record) => sum + record.brierScore, 0) / records.length);
 };
 
-export const getMarketForecastProfile = async (
-  guildId: string,
+const buildMarketForecastProfile = (
+  allGuildRecords: HydratedForecastRecord[],
   userId: string,
-): Promise<MarketForecastProfile> => {
-  const allGuildRecords = await getForecastRecordsForGuild(guildId);
+): {
+  profile: MarketForecastProfile;
+  userRecords: HydratedForecastRecord[];
+} => {
   const userRecords = filterForecastRecords(allGuildRecords, { userId });
   const thirtyDayRecords = filterForecastRecords(allGuildRecords, { userId, window: '30d' });
   const recordsByUser = allGuildRecords.reduce<Map<string, HydratedForecastRecord[]>>((map, record) => {
@@ -120,20 +126,98 @@ export const getMarketForecastProfile = async (
     .map(({ latestResolvedAt: _latestResolvedAt, ...entry }) => entry);
 
   return {
-    userId,
-    allTimeMeanBrier: getMeanBrier(userRecords),
-    thirtyDayMeanBrier: getMeanBrier(thirtyDayRecords),
-    allTimeSampleCount: userRecords.length,
-    thirtyDaySampleCount: thirtyDayRecords.length,
-    percentileRank,
-    rank,
-    rankedUserCount,
-    currentCorrectPickStreak: computeCurrentStreak(userRecords, (record) => record.wasCorrect),
-    bestCorrectPickStreak: computeBestStreak(userRecords, (record) => record.wasCorrect),
-    currentProfitableMarketStreak: computeCurrentStreak(userRecords, (record) => record.realizedProfit > 0),
-    bestProfitableMarketStreak: computeBestStreak(userRecords, (record) => record.realizedProfit > 0),
-    calibrationBuckets,
-    topTags,
+    profile: {
+      userId,
+      allTimeMeanBrier: getMeanBrier(userRecords),
+      thirtyDayMeanBrier: getMeanBrier(thirtyDayRecords),
+      allTimeSampleCount: userRecords.length,
+      thirtyDaySampleCount: thirtyDayRecords.length,
+      percentileRank,
+      rank,
+      rankedUserCount,
+      currentCorrectPickStreak: computeCurrentStreak(userRecords, (record) => record.wasCorrect),
+      bestCorrectPickStreak: computeBestStreak(userRecords, (record) => record.wasCorrect),
+      currentProfitableMarketStreak: computeCurrentStreak(userRecords, (record) => record.realizedProfit > 0),
+      bestProfitableMarketStreak: computeBestStreak(userRecords, (record) => record.realizedProfit > 0),
+      calibrationBuckets,
+      topTags,
+    },
+    userRecords,
+  };
+};
+
+const buildProfileTrend = (
+  records: HydratedForecastRecord[],
+): MarketForecastProfileTrendPoint[] => {
+  let cumulativeProfit = 0;
+  return records.map((record) => {
+    cumulativeProfit += record.realizedProfit;
+    return {
+      time: record.resolvedAt.getTime(),
+      brierScore: record.brierScore,
+      realizedProfit: record.realizedProfit,
+      cumulativeProfit: roundProbability(cumulativeProfit),
+    };
+  });
+};
+
+const buildRecentRecords = (
+  records: HydratedForecastRecord[],
+  titleByMarketId: Map<string, string>,
+): MarketForecastProfileRecentRecord[] =>
+  [...records]
+    .sort((left, right) => right.resolvedAt.getTime() - left.resolvedAt.getTime())
+    .slice(0, 6)
+    .map((record) => ({
+      marketId: record.marketId,
+      marketTitle: titleByMarketId.get(record.marketId) ?? record.marketId,
+      resolvedAt: record.resolvedAt,
+      brierScore: record.brierScore,
+      realizedProfit: record.realizedProfit,
+      wasCorrect: record.wasCorrect,
+      predictedOutcomeId: record.predictedOutcomeId,
+      winningOutcomeId: record.winningOutcomeId,
+      winningOutcomeProbability: record.winningOutcomeProbability,
+      tradeCount: record.tradeCount,
+      stakeWeight: record.stakeWeight,
+      tags: [...record.marketTagSnapshot],
+    }));
+
+export const getMarketForecastProfile = async (
+  guildId: string,
+  userId: string,
+): Promise<MarketForecastProfile> => {
+  const { profile } = buildMarketForecastProfile(await getForecastRecordsForGuild(guildId), userId);
+  return profile;
+};
+
+export const getMarketForecastProfileDetails = async (
+  guildId: string,
+  userId: string,
+): Promise<MarketForecastProfileDetails> => {
+  const { profile, userRecords } = buildMarketForecastProfile(await getForecastRecordsForGuild(guildId), userId);
+  const userMarketIds = [...new Set(userRecords.map((record) => record.marketId))];
+  const markets = userMarketIds.length === 0
+    ? []
+    : await prisma.market.findMany({
+        where: {
+          guildId,
+          id: {
+            in: userMarketIds,
+          },
+        },
+        select: {
+          id: true,
+          title: true,
+        },
+      });
+  const titleByMarketId = new Map(markets.map((market) => [market.id, market.title]));
+
+  return {
+    ...profile,
+    recentRecords: buildRecentRecords(userRecords, titleByMarketId),
+    brierTrend: buildProfileTrend(userRecords),
+    profitTrend: buildProfileTrend(userRecords),
   };
 };
 

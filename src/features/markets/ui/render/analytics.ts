@@ -2,6 +2,7 @@ import { EmbedBuilder } from 'discord.js';
 
 import type {
   MarketForecastLeaderboardEntry,
+  MarketForecastProfileDetails,
   MarketForecastProfile,
   MarketTraderSummary,
   MarketWithRelations,
@@ -118,6 +119,46 @@ export const buildMarketForecastProfileEmbed = (
         : `Calibration: ${profile.calibrationBuckets.map((bucket) =>
           `${bucket.label} ${formatPercent(bucket.averageConfidence)} -> ${formatPercent(bucket.actualRate)} (${bucket.sampleCount})`).join(' | ')}`,
     ].join('\n'));
+
+export const buildMarketForecastProfileEmbeds = (
+  profile: MarketForecastProfileDetails,
+): EmbedBuilder[] => {
+  const summary = buildMarketForecastProfileEmbed(profile)
+    .setDescription([
+      `User: <@${profile.userId}>`,
+      `All-Time Brier: **${formatBrier(profile.allTimeMeanBrier)}** across **${profile.allTimeSampleCount}** markets`,
+      `30-Day Brier: **${formatBrier(profile.thirtyDayMeanBrier)}** across **${profile.thirtyDaySampleCount}** markets`,
+      profile.rank === null
+        ? 'Percentile Rank: Need at least 5 scored markets to rank'
+        : `Percentile Rank: **${profile.percentileRank}%** (#${profile.rank} of ${profile.rankedUserCount})`,
+      `Correct-Pick Streak: **${profile.currentCorrectPickStreak}** current, **${profile.bestCorrectPickStreak}** best`,
+      `Profitable-Market Streak: **${profile.currentProfitableMarketStreak}** current, **${profile.bestProfitableMarketStreak}** best`,
+    ].join('\n'));
+
+  const detail = new EmbedBuilder()
+    .setTitle('Forecast Profile Details')
+    .setColor(0x60a5fa)
+    .setDescription([
+      profile.topTags.length === 0
+        ? 'Top Tags: Need at least 5 scored markets in a tag'
+        : `Top Tags: ${profile.topTags.map((tag) =>
+          `\`${tag.tag}\` (${formatBrier(tag.meanBrier)} over ${tag.sampleCount})`).join(' • ')}`,
+      profile.calibrationBuckets.length === 0
+        ? 'Calibration: No forecast record buckets yet'
+        : `Calibration: ${profile.calibrationBuckets.map((bucket) =>
+          `${bucket.label} ${formatPercent(bucket.averageConfidence)} -> ${formatPercent(bucket.actualRate)} (${bucket.sampleCount})`).join(' | ')}`,
+      '',
+      profile.recentRecords.length === 0
+        ? 'Recent Markets: No scored forecast records yet'
+        : [
+            'Recent Markets:',
+            ...profile.recentRecords.map((record) =>
+              `• **${record.marketTitle}** — Brier ${formatBrier(record.brierScore)} • ${record.realizedProfit >= 0 ? '+' : ''}${formatMoney(record.realizedProfit)} • ${record.wasCorrect ? 'correct' : 'missed'}`),
+          ].join('\n'),
+    ].join('\n'));
+
+  return [summary, detail];
+};
 
 export const buildMarketForecastLeaderboardEmbed = (
   entries: MarketForecastLeaderboardEntry[],
