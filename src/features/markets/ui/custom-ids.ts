@@ -69,6 +69,10 @@ export const marketSessionQuickAmountButtonCustomId = (
 	sessionId: string,
 	amount: number,
 ): string => `market:session-quick-amount:${sessionId}:${amount}`;
+export const marketSessionQuickSellButtonCustomId = (
+	sessionId: string,
+	value: "all" | 25 | 50 | 75,
+): string => `market:session-quick-sell:${sessionId}:${value}`;
 export const marketSessionCoverageButtonCustomId = (
 	sessionId: string,
 	coveragePercent: number,

@@ -5,6 +5,7 @@ import {
 	saveMarketTradeQuoteSession,
 } from "../../state/quote-session-store.js";
 import { calculateMarketTradeQuote } from "../../services/trading/quotes.js";
+import { getMarketById } from "../../services/records.js";
 import { parseTradeInputAmount } from "./shared.js";
 
 export const createTradeQuotePreview = async (input: {
@@ -14,7 +15,24 @@ export const createTradeQuotePreview = async (input: {
 	action: "buy" | "sell" | "short" | "cover";
 	rawAmount: string;
 }): Promise<ReturnType<typeof buildMarketTradeQuoteMessage>> => {
-	const parsedAmount = parseTradeInputAmount(input.action, input.rawAmount);
+	const market =
+		input.action === "sell" || input.action === "cover"
+			? await getMarketById(input.marketId)
+			: null;
+	const positionShares =
+		input.action === "sell" || input.action === "cover"
+			? market?.positions.find(
+					(entry) =>
+						entry.userId === input.userId &&
+						entry.outcomeId === input.outcomeId &&
+						entry.side === (input.action === "sell" ? "long" : "short"),
+				)?.shares
+			: undefined;
+	const parsedAmount = parseTradeInputAmount(
+		input.action,
+		input.rawAmount,
+		positionShares === undefined ? undefined : { positionShares },
+	);
 	const quote =
 		input.action === "buy"
 			? await calculateMarketTradeQuote({

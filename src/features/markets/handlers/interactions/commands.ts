@@ -1,6 +1,7 @@
 import type { InteractionReplyOptions } from "discord.js";
 import {
 	MessageFlags,
+	PermissionFlagsBits,
 	type ChatInputCommandInteraction,
 	type Client,
 } from "discord.js";
@@ -22,6 +23,7 @@ import {
 	buildMarketViewResponse,
 	clearMarketLifecycle,
 	hydrateMarketMessage,
+	notifyMarketCancelled,
 	notifyMarketResolved,
 	refreshMarketMessage,
 } from "../../services/lifecycle.js";
@@ -46,10 +48,12 @@ import {
 import {
 	clearMarketJobs,
 	scheduleMarketClose,
+	scheduleMarketGrace,
 	scheduleMarketLiquidity,
 	scheduleMarketRefresh,
 } from "../../services/scheduler.js";
 import { cancelMarket } from "../../services/trading/cancel.js";
+import { closeMarketTrading } from "../../services/trading/close.js";
 import { executeMarketTrade } from "../../services/trading/execution.js";
 import {
 	resolveMarket,
@@ -117,6 +121,26 @@ const describeMarketEditChanges = (
 	}
 
 	return changes;
+};
+
+const resolvePositionSharesForAction = (input: {
+	market: MarketWithRelations;
+	userId: string;
+	outcomeId: string;
+	action: TradeAction;
+}): number | undefined => {
+	if (input.action !== "sell" && input.action !== "cover") {
+		return undefined;
+	}
+
+	const side = input.action === "sell" ? "long" : "short";
+	const position = input.market.positions.find(
+		(entry) =>
+			entry.userId === input.userId &&
+			entry.outcomeId === input.outcomeId &&
+			entry.side === side,
+	);
+	return position?.shares;
 };
 
 export const handleMarketCommand = async (
@@ -400,7 +424,17 @@ export const handleMarketCommand = async (
 				return;
 			}
 
-			const parsedAmount = parseTradeInputAmount(action, rawAmount);
+			const positionShares = resolvePositionSharesForAction({
+				market,
+				userId: interaction.user.id,
+				outcomeId: outcome.id,
+				action,
+			});
+			const parsedAmount = parseTradeInputAmount(
+				action,
+				rawAmount,
+				positionShares === undefined ? undefined : { positionShares },
+			);
 			const result = await executeMarketTrade({
 				marketId: market.id,
 				userId: interaction.user.id,
@@ -508,6 +542,57 @@ export const handleMarketCommand = async (
 			});
 			return;
 		}
+		case "pause-trading": {
+			await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+			const market = await getMarketByQuery(
+				interaction.options.getString("query", true),
+				interaction.guildId,
+			);
+			if (!market) {
+				throw new Error("Market not found.");
+			}
+
+			if (
+				market.creatorId !== interaction.user.id &&
+				!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)
+			) {
+				throw new Error(
+					"Only the market creator or a moderator can pause trading.",
+				);
+			}
+
+			const { market: closed, didClose } = await closeMarketTrading(market.id);
+			if (!closed) {
+				throw new Error("Market not found.");
+			}
+
+			await clearMarketJobs(closed.id);
+			await scheduleMarketGrace(closed);
+			await refreshMarketMessage(client, closed.id);
+			if (didClose) {
+				await announceMarketUpdate(
+					client,
+					closed,
+					"Trading Paused",
+					`Trading on **${closed.title}** was paused by <@${interaction.user.id}>.`,
+					0xf59e0b,
+				);
+			}
+
+			await interaction.editReply({
+				embeds: [
+					buildMarketStatusEmbed(
+						didClose ? "Trading Paused" : "Trading Already Closed",
+						didClose
+							? `Paused trading on **${closed.title}**.`
+							: `Trading is already closed on **${closed.title}**.`,
+						didClose ? 0xf59e0b : 0x60a5fa,
+					),
+				],
+			});
+			return;
+		}
+
 		case "cancel": {
 			await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 			const market = await getMarketByQuery(
@@ -524,14 +609,15 @@ export const handleMarketCommand = async (
 				reason: interaction.options.getString("reason"),
 				permissions: interaction.memberPermissions,
 			});
-			await clearMarketLifecycle(cancelled.id);
-			await refreshMarketMessage(client, cancelled.id);
+			await clearMarketLifecycle(cancelled.market.id);
+			await refreshMarketMessage(client, cancelled.market.id);
+			await notifyMarketCancelled(client, cancelled.market, cancelled.refunds);
 			await announceMarketUpdate(
 				client,
-				cancelled,
+				cancelled.market,
 				"Market Cancelled",
 				[
-					`**${cancelled.title}** was cancelled by <@${interaction.user.id}>.`,
+					`**${cancelled.market.title}** was cancelled by <@${interaction.user.id}>.`,
 					interaction.options.getString("reason")
 						? `Reason: ${interaction.options.getString("reason", true)}`
 						: null,
@@ -544,7 +630,7 @@ export const handleMarketCommand = async (
 				embeds: [
 					buildMarketStatusEmbed(
 						"Market Cancelled",
-						`Cancelled **${cancelled.title}** and refunded open positions.`,
+						`Cancelled **${cancelled.market.title}** and refunded open positions.`,
 						0xf59e0b,
 					),
 				],

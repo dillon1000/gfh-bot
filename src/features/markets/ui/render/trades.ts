@@ -20,6 +20,7 @@ import {
 	marketSessionOutcomeSelectCustomId,
 	marketSessionPositionSelectCustomId,
 	marketSessionQuickAmountButtonCustomId,
+	marketSessionQuickSellButtonCustomId,
 	marketSessionSideButtonCustomId,
 	marketProtectionCoverageButtonCustomId,
 	marketProtectionSelectCustomId,
@@ -703,7 +704,44 @@ export const buildMarketInteractionSessionMessage = (input: {
 						.setDisabled(selectedPosition.coverageRatio >= 1),
 				),
 			);
-		} else if (selectedAction === "sell" || selectedAction === "cover") {
+		} else if (selectedAction === "sell") {
+			rows.push(
+				new ActionRowBuilder<ButtonBuilder>().addComponents(
+					new ButtonBuilder()
+						.setCustomId(
+							marketSessionQuickSellButtonCustomId(session.sessionId, "all"),
+						)
+						.setLabel("Sell All")
+						.setStyle(ButtonStyle.Secondary),
+					new ButtonBuilder()
+						.setCustomId(
+							marketSessionQuickSellButtonCustomId(session.sessionId, 25),
+						)
+						.setLabel("25%")
+						.setStyle(ButtonStyle.Secondary),
+					new ButtonBuilder()
+						.setCustomId(
+							marketSessionQuickSellButtonCustomId(session.sessionId, 50),
+						)
+						.setLabel("50%")
+						.setStyle(ButtonStyle.Secondary),
+					new ButtonBuilder()
+						.setCustomId(
+							marketSessionQuickSellButtonCustomId(session.sessionId, 75),
+						)
+						.setLabel("75%")
+						.setStyle(ButtonStyle.Secondary),
+				),
+			);
+			rows.push(
+				new ActionRowBuilder<ButtonBuilder>().addComponents(
+					new ButtonBuilder()
+						.setCustomId(marketSessionAmountButtonCustomId(session.sessionId))
+						.setLabel(session.amountInput ? "Edit Amount" : "Custom Amount")
+						.setStyle(ButtonStyle.Primary),
+				),
+			);
+		} else if (selectedAction === "cover") {
 			rows.push(
 				new ActionRowBuilder<ButtonBuilder>().addComponents(
 					new ButtonBuilder()

@@ -39,6 +39,7 @@ import {
 	buildTradeExecutionDescription,
 	parseMarketSessionActionCustomId,
 	parseMarketSessionCoverageCustomId,
+	parseMarketSessionQuickSellCustomId,
 	parseMarketSessionId,
 	parseMarketSessionQuickAmountCustomId,
 	parseMarketSessionSideCustomId,
@@ -254,6 +255,31 @@ export const handleMarketButton = async (
 		const nextSession = await refreshRootMarketInteractionSessionPreview({
 			...session,
 			amountInput: `${sessionQuickAmount.amount}`,
+			targetCoverage: null,
+		});
+		await interaction.update(
+			await buildRootMarketInteractionSessionResponse(nextSession),
+		);
+		return;
+	}
+
+	const sessionQuickSell = parseMarketSessionQuickSellCustomId(
+		interaction.customId,
+	);
+	if (sessionQuickSell) {
+		const session = await getRootMarketInteractionSession(
+			sessionQuickSell.sessionId,
+			interaction.user.id,
+		).catch(() => null);
+		if (!session) {
+			await interaction.update(buildExpiredMarketInteractionResponse());
+			return;
+		}
+
+		const nextSession = await refreshRootMarketInteractionSessionPreview({
+			...session,
+			amountInput:
+				sessionQuickSell.value === "all" ? "all" : `${sessionQuickSell.value}%`,
 			targetCoverage: null,
 		});
 		await interaction.update(
