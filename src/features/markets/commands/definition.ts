@@ -245,7 +245,7 @@ export const marketCommand = new SlashCommandBuilder()
 				option
 					.setName("amount")
 					.setDescription(
-						"Trade amount: buy 50 or 50 pts; sell/short/cover 10 pts or 2.5 shares",
+						"Trade amount: buy 50 or 50 pts; sell/cover 50%, all, 10 pts, or 2.5 shares; short 10 pts or 2.5 shares",
 					)
 					.setRequired(true),
 			),
@@ -318,6 +318,17 @@ export const marketCommand = new SlashCommandBuilder()
 					.setName("evidence_url")
 					.setDescription("Optional evidence URL")
 					.setRequired(false),
+			),
+	)
+	.addSubcommand((subcommand) =>
+		subcommand
+			.setName("pause-trading")
+			.setDescription("Pause trading on a market immediately.")
+			.addStringOption((option) =>
+				option
+					.setName("query")
+					.setDescription("Market ID, message ID, or message link")
+					.setRequired(true),
 			),
 	)
 	.addSubcommand((subcommand) =>

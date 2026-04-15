@@ -56,11 +56,29 @@ const appendButtonToRows = (
 	lastRow.addComponents(button);
 };
 
+const sortOutcomeEntries = <
+	T extends { probability: number; label: string; isResolved: boolean },
+>(
+	entries: T[],
+): T[] =>
+	[...entries].sort((left, right) => {
+		if (left.isResolved !== right.isResolved) {
+			return left.isResolved ? 1 : -1;
+		}
+
+		if (right.probability !== left.probability) {
+			return right.probability - left.probability;
+		}
+
+		return left.label.localeCompare(right.label);
+	});
+
 const buildDetailsFields = (
 	market: MarketWithRelations,
 ): Array<{ name: string; value: string }> => {
 	const summary = getMarketSummary(market);
 	const status = summary.status;
+	const sortedProbabilities = sortOutcomeEntries(summary.probabilities);
 	const isIndependentMarket = market.contractMode === "independent_binary_set";
 	const formatOutcomeStatus = (entry: {
 		isResolved: boolean;
@@ -156,7 +174,7 @@ const buildDetailsFields = (
 		{ name: "Liquidity & Incentives", value: liquidity },
 		{
 			name: "Current Probabilities",
-			value: summary.probabilities
+			value: sortedProbabilities
 				.map(
 					(entry, index) =>
 						`${index + 1}. **${entry.label}** — ${formatOutcomeStatus(entry)} (${entry.shares.toFixed(2)} net shares)`,
@@ -177,6 +195,7 @@ export const buildMarketStatusEmbed = (
 export const buildMarketEmbed = (market: MarketWithRelations): EmbedBuilder => {
 	const summary = getMarketSummary(market);
 	const status = summary.status;
+	const sortedProbabilities = sortOutcomeEntries(summary.probabilities);
 	const isIndependentMarket = market.contractMode === "independent_binary_set";
 	const formatOutcomeStatus = (entry: {
 		isResolved: boolean;
@@ -206,7 +225,7 @@ export const buildMarketEmbed = (market: MarketWithRelations): EmbedBuilder => {
 			},
 			{
 				name: "Current Probabilities",
-				value: summary.probabilities
+				value: sortedProbabilities
 					.map(
 						(entry, index) =>
 							`${index + 1}. **${entry.label}** — ${formatOutcomeStatus(entry)} (${entry.shares.toFixed(2)} net shares)`,

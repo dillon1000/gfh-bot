@@ -210,6 +210,29 @@ export const parseMarketSessionQuickAmountCustomId = (
 	};
 };
 
+export const parseMarketSessionQuickSellCustomId = (
+	customId: string,
+): { sessionId: string; value: "all" | 25 | 50 | 75 } | null => {
+	const match = /^market:session-quick-sell:([^:]+):(all|25|50|75)$/.exec(
+		customId,
+	);
+	if (!match?.[1] || !match[2]) {
+		return null;
+	}
+
+	if (match[2] === "all") {
+		return {
+			sessionId: match[1],
+			value: "all",
+		};
+	}
+
+	return {
+		sessionId: match[1],
+		value: Number(match[2]) as 25 | 50 | 75,
+	};
+};
+
 export const parseMarketSessionCoverageCustomId = (
 	customId: string,
 ): { sessionId: string; targetCoverage: number } | null => {
@@ -324,6 +347,7 @@ export const buildTradeExecutionDescription = (
 export const parseTradeInputAmount = (
 	action: TradeAction,
 	rawAmount: string,
+	options?: { positionShares?: number },
 ): { amount: number; amountMode: "points" | "shares" } =>
 	action === "buy"
 		? {
@@ -331,6 +355,50 @@ export const parseTradeInputAmount = (
 				amountMode: "points",
 			}
 		: (() => {
+				const trimmed = rawAmount.trim();
+				if (action === "sell" || action === "cover") {
+					if (/^all$/i.test(trimmed)) {
+						const positionShares = options?.positionShares ?? 0;
+						if (!Number.isFinite(positionShares) || positionShares <= 1e-6) {
+							throw new Error(
+								`You do not have an open ${action === "sell" ? "long" : "short"} position to ${action}.`,
+							);
+						}
+
+						return {
+							amount: positionShares,
+							amountMode: "shares",
+						};
+					}
+
+					const percentMatch = /^(?<value>\d+(?:\.\d+)?)\s*%$/.exec(trimmed);
+					if (percentMatch?.groups?.value) {
+						const percent = Number(percentMatch.groups.value);
+						if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
+							throw new Error(
+								"Percentage amount must be greater than 0% and at most 100%.",
+							);
+						}
+
+						const positionShares = options?.positionShares ?? 0;
+						if (!Number.isFinite(positionShares) || positionShares <= 1e-6) {
+							throw new Error(
+								`You do not have an open ${action === "sell" ? "long" : "short"} position to ${action}.`,
+							);
+						}
+
+						const shares = (positionShares * percent) / 100;
+						if (shares <= 1e-6) {
+							throw new Error("That percentage resolves to zero shares.");
+						}
+
+						return {
+							amount: shares,
+							amountMode: "shares",
+						};
+					}
+				}
+
 				const parsed = parseFlexibleTradeAmount(rawAmount);
 				return {
 					amount: parsed.amount,

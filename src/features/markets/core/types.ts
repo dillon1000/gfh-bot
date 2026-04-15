@@ -314,6 +314,13 @@ export type MarketResolutionResult = {
 	}>;
 };
 
+export type MarketCancellationRefund = {
+	userId: string;
+	refundAmount: number;
+	positionCount: number;
+	protectionRefund: number;
+};
+
 export type MarketOutcomeResolutionResult = {
 	market: MarketWithRelations;
 	outcome: MarketOutcome;

@@ -200,9 +200,21 @@ export const refreshRootMarketInteractionSessionPreview = async (
 		return saveRootMarketInteractionSession(nextSession);
 	}
 
+	const positionShares =
+		nextSession.selectedAction === "sell" ||
+		nextSession.selectedAction === "cover"
+			? (await getMarketById(nextSession.marketId))?.positions.find(
+					(position) =>
+						position.userId === nextSession.userId &&
+						position.outcomeId === nextSession.selectedOutcomeId &&
+						position.side ===
+							(nextSession.selectedAction === "sell" ? "long" : "short"),
+				)?.shares
+			: undefined;
 	const parsedAmount = parseTradeInputAmount(
 		nextSession.selectedAction,
 		nextSession.amountInput,
+		positionShares === undefined ? undefined : { positionShares },
 	);
 	const quote =
 		nextSession.selectedAction === "buy"

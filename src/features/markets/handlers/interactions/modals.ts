@@ -8,6 +8,7 @@ import { buildMarketStatusEmbed } from "../../ui/render/market.js";
 import {
 	announceMarketUpdate,
 	clearMarketLifecycle,
+	notifyMarketCancelled,
 	notifyMarketResolved,
 	refreshMarketMessage,
 } from "../../services/lifecycle.js";
@@ -149,12 +150,13 @@ export const handleMarketModal = async (
 		});
 		await clearMarketLifecycle(market.id);
 		await refreshMarketMessage(client, market.id);
+		await notifyMarketCancelled(client, cancelled.market, cancelled.refunds);
 		await announceMarketUpdate(
 			client,
-			cancelled,
+			cancelled.market,
 			"Market Cancelled",
 			[
-				`**${cancelled.title}** was cancelled by <@${interaction.user.id}>.`,
+				`**${cancelled.market.title}** was cancelled by <@${interaction.user.id}>.`,
 				reason ? `Reason: ${reason}` : null,
 			]
 				.filter(Boolean)
