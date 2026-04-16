@@ -417,7 +417,7 @@ export const buildSnapshots = (
 	const computeSnapshotProbabilities = (at: Date): number[] =>
 		getMarketProbabilities({
 			contractMode: market.contractMode ?? null,
-			winnerCount: market.winnerCount,
+			winnerCount: market.winnerCount ?? null,
 			liquidityParameter,
 			resolvedAt: null,
 			winningOutcomeId: market.winningOutcomeId,
