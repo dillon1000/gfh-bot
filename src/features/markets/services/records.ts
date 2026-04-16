@@ -1,10 +1,13 @@
 import { prisma } from "../../../lib/prisma.js";
 import { parseMarketLookup } from "../parsing/market.js";
+import { computeCombinationCount } from "../core/math.js";
 import {
 	assertMarketCanAddOutcomes,
 	assertMarketEditable,
 	getMarketForUpdate,
+	isCompetitiveMultiWinnerMarketMode,
 	liquidityParameter,
+	maxCompetitiveWinnerSubsets,
 	maxLiquidityParameter,
 	marketInclude,
 } from "../core/shared.js";
@@ -15,9 +18,65 @@ import type {
 	MarketWithRelations,
 } from "../core/types.js";
 
+const validateCompetitiveWinnerCount = (input: {
+	winnerCount: number;
+	outcomeCount: number;
+}): void => {
+	if (!Number.isInteger(input.winnerCount) || input.winnerCount < 1) {
+		throw new Error(
+			"Winner count must be an integer greater than or equal to 1.",
+		);
+	}
+
+	if (input.winnerCount >= input.outcomeCount) {
+		throw new Error("Winner count must be less than the number of outcomes.");
+	}
+
+	const subsetCount = computeCombinationCount(
+		input.outcomeCount,
+		input.winnerCount,
+	);
+	if (subsetCount > maxCompetitiveWinnerSubsets) {
+		throw new Error(
+			`Too many winner combinations for competitive multi-winner pricing (${subsetCount} > ${maxCompetitiveWinnerSubsets}). Reduce outcomes or winner count.`,
+		);
+	}
+};
+
+const resolveValidatedWinnerCount = (input: {
+	contractMode: MarketWithRelations["contractMode"] | null | undefined;
+	winnerCount: number | null | undefined;
+	outcomeCount: number;
+}): number => {
+	const contractMode = input.contractMode ?? null;
+	if (isCompetitiveMultiWinnerMarketMode({ contractMode })) {
+		const winnerCount = input.winnerCount ?? 1;
+		validateCompetitiveWinnerCount({
+			winnerCount,
+			outcomeCount: input.outcomeCount,
+		});
+		return winnerCount;
+	}
+
+	if (input.winnerCount !== undefined && input.winnerCount !== null) {
+		throw new Error(
+			"Winner count is only supported for competitive multi-winner markets.",
+		);
+	}
+
+	return 1;
+};
+
 export const createMarketRecord = async (
 	input: MarketCreationInput,
 ): Promise<MarketWithRelations> => {
+	const contractMode = input.contractMode ?? "categorical_single_winner";
+	const winnerCount = resolveValidatedWinnerCount({
+		contractMode,
+		winnerCount: input.winnerCount,
+		outcomeCount: input.outcomes.length,
+	});
+
 	const market = await prisma.market.create({
 		data: {
 			guildId: input.guildId,
@@ -27,7 +86,8 @@ export const createMarketRecord = async (
 			title: input.title,
 			description: input.description,
 			buttonStyle: input.buttonStyle,
-			contractMode: input.contractMode ?? "categorical_single_winner",
+			contractMode,
+			winnerCount,
 			tags: input.tags,
 			baseLiquidityParameter: liquidityParameter,
 			liquidityParameter,
@@ -174,6 +234,8 @@ export const editMarketRecord = async (
 		title?: string;
 		description?: string | null;
 		buttonStyle?: MarketWithRelations["buttonStyle"];
+		contractMode?: MarketWithRelations["contractMode"];
+		winnerCount?: number;
 		tags?: string[];
 		closeAt?: Date;
 		outcomes?: string[];
@@ -191,6 +253,8 @@ export const editMarketRecord = async (
 		const editsRequireNoTrades =
 			input.title !== undefined ||
 			input.description !== undefined ||
+			input.contractMode !== undefined ||
+			input.winnerCount !== undefined ||
 			input.tags !== undefined ||
 			input.outcomes !== undefined;
 		if (hasTrades && editsRequireNoTrades) {
@@ -198,6 +262,21 @@ export const editMarketRecord = async (
 				"After the first trade, only close time and button style can be edited.",
 			);
 		}
+
+		const nextContractMode =
+			input.contractMode ?? market.contractMode ?? "categorical_single_winner";
+		const nextOutcomeCount = input.outcomes?.length ?? market.outcomes.length;
+		const nextWinnerCount = resolveValidatedWinnerCount({
+			contractMode: nextContractMode,
+			winnerCount:
+				input.winnerCount ??
+				(isCompetitiveMultiWinnerMarketMode({
+					contractMode: nextContractMode,
+				})
+					? market.winnerCount
+					: undefined),
+			outcomeCount: nextOutcomeCount,
+		});
 
 		await tx.market.update({
 			where: {
@@ -210,6 +289,13 @@ export const editMarketRecord = async (
 					: {}),
 				...(input.buttonStyle !== undefined
 					? { buttonStyle: input.buttonStyle }
+					: {}),
+				...(input.contractMode !== undefined
+					? { contractMode: input.contractMode }
+					: {}),
+				...(input.winnerCount !== undefined ||
+				market.winnerCount !== nextWinnerCount
+					? { winnerCount: nextWinnerCount }
 					: {}),
 				...(input.tags !== undefined ? { tags: input.tags } : {}),
 				...(input.closeAt !== undefined ? { closeAt: input.closeAt } : {}),
@@ -278,6 +364,13 @@ export const appendMarketOutcomes = async (
 
 		if (market.outcomes.length + nextOutcomes.length > 5) {
 			throw new Error("Markets can have at most 5 outcomes.");
+		}
+
+		if (isCompetitiveMultiWinnerMarketMode(market)) {
+			validateCompetitiveWinnerCount({
+				winnerCount: market.winnerCount ?? 1,
+				outcomeCount: market.outcomes.length + nextOutcomes.length,
+			});
 		}
 
 		await tx.market.update({

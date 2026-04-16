@@ -80,6 +80,9 @@ export const createTradeQuotePreview = async (input: {
 		sessionId,
 		action: quote.action,
 		...(quote.contractMode ? { contractMode: quote.contractMode } : {}),
+		...(quote.winnerCount !== undefined
+			? { winnerCount: quote.winnerCount }
+			: {}),
 		guildId: quote.guildId,
 		marketId: quote.marketId,
 		marketTitle: quote.marketTitle,

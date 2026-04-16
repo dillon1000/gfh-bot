@@ -6,11 +6,12 @@ import {
 	assertMarketOpen,
 	assertOutcomeTradable,
 	getMarketForUpdate,
-	getMarketProbabilities,
+	isCompetitiveMultiWinnerMarketMode,
 	getLossProtection,
 	getLossProtectionMap,
 	getPosition,
 	getPositionMap,
+	resolveMarketWinnerCount,
 	getTradeLockReason,
 	getTradableOutcomeIndexes,
 	marketInclude,
@@ -25,11 +26,15 @@ import {
 	computeBuyCost,
 	computeLmsrProbabilities,
 	computeSellPayout,
+	computeTopKMarginals,
+	computeTopKSellPayout,
 	solveBinaryBuySharesForAmount,
 	solveBinarySellSharesForAmount,
 	solveBinaryShortSharesForAmount,
 	solveBuySharesForAmount,
 	solveSellSharesForAmount,
+	solveTopKBuySharesForAmount,
+	solveTopKSellSharesForAmount,
 	solveShortSharesForAmount,
 } from "../../core/math.js";
 import type { MarketTradeResult } from "../../core/types.js";
@@ -394,6 +399,229 @@ export const executeMarketTrade = async (input: {
 							shareDelta: roundCurrency(shareDelta),
 							feeCharged,
 							probabilitySnapshot,
+							cumulativeVolume: market.totalVolume + cashAmount,
+						},
+					},
+				},
+				include: marketInclude,
+			});
+
+			return {
+				market: updatedMarket,
+				outcome,
+				account: updatedAccount,
+				positionSide,
+				shareDelta: roundCurrency(shareDelta),
+				cashAmount: roundCurrency(cashAmount),
+				grossCashAmount: roundCurrency(grossCashAmount),
+				netCashAmount: roundCurrency(netCashAmount),
+				feeCharged: roundCurrency(feeCharged),
+				realizedProfitDelta,
+			};
+		}
+
+		if (isCompetitiveMultiWinnerMarketMode(market)) {
+			if (input.action === "short" || input.action === "cover") {
+				throw new Error(
+					"Shorting is not yet supported for competitive multi-winner markets.",
+				);
+			}
+
+			const settledWinnerCount = market.outcomes.reduce(
+				(sum, marketOutcome) =>
+					marketOutcome.settlementValue === null
+						? sum
+						: sum + Math.min(1, Math.max(0, marketOutcome.settlementValue)),
+				0,
+			);
+			const remainingWinnerCount = Math.max(
+				0,
+				Math.min(
+					tradableOutcomeIndexes.length,
+					Math.round(resolveMarketWinnerCount(market) - settledWinnerCount),
+				),
+			);
+
+			switch (input.action) {
+				case "buy": {
+					if (shortPosition && shortPosition.shares > 1e-6) {
+						throw new Error(
+							"Shorting is not yet supported for competitive multi-winner markets.",
+						);
+					}
+
+					if (account.bankroll < input.amount - 1e-6) {
+						throw new Error("You do not have enough bankroll for that trade.");
+					}
+
+					shareDelta = solveTopKBuySharesForAmount(
+						pricingShares,
+						tradableIndex,
+						input.amount,
+						market.liquidityParameter,
+						remainingWinnerCount,
+					);
+					nextPricingShares[tradableIndex] =
+						(nextPricingShares[tradableIndex] ?? 0) + shareDelta;
+					nextOutstandingShares[tradableIndex] =
+						(nextOutstandingShares[tradableIndex] ?? 0) + shareDelta;
+					nextLongShares += shareDelta;
+					nextLongCostBasis += input.amount;
+					nextBankroll -= input.amount;
+					grossCashAmount = roundCurrency(input.amount);
+					netCashAmount = roundCurrency(input.amount);
+					positionSide = "long";
+					break;
+				}
+				case "sell": {
+					const ownedShares = longPosition?.shares ?? 0;
+					if (ownedShares <= 1e-6) {
+						throw new Error(
+							"You do not own a long position in that outcome yet.",
+						);
+					}
+
+					const requestedSharesToSell =
+						input.amountMode === "shares"
+							? input.amount
+							: solveTopKSellSharesForAmount(
+									pricingShares,
+									tradableIndex,
+									input.amount,
+									ownedShares,
+									market.liquidityParameter,
+									remainingWinnerCount,
+								);
+					if (requestedSharesToSell > ownedShares + 1e-6) {
+						throw new Error(
+							"You do not have enough shares in that outcome to sell that much.",
+						);
+					}
+
+					shareDelta = -requestedSharesToSell;
+					nextPricingShares[tradableIndex] =
+						(nextPricingShares[tradableIndex] ?? 0) + shareDelta;
+					nextOutstandingShares[tradableIndex] =
+						(nextOutstandingShares[tradableIndex] ?? 0) + shareDelta;
+					const sharesSold = Math.abs(shareDelta);
+					const averageCostBasis = (longPosition?.costBasis ?? 0) / ownedShares;
+					const releasedCostBasis = averageCostBasis * sharesSold;
+					nextLongShares -= sharesSold;
+					nextLongCostBasis -= releasedCostBasis;
+					cashAmount =
+						input.amountMode === "shares"
+							? roundCurrency(
+									computeTopKSellPayout(
+										pricingShares,
+										tradableIndex,
+										sharesSold,
+										market.liquidityParameter,
+										remainingWinnerCount,
+									),
+								)
+							: input.amount;
+					nextBankroll += cashAmount;
+					realizedProfitDelta = roundCurrency(cashAmount - releasedCostBasis);
+					grossCashAmount = roundCurrency(cashAmount);
+					netCashAmount = roundCurrency(cashAmount);
+					positionSide = "long";
+					break;
+				}
+				default:
+					throw new Error("Unsupported market trade action.");
+			}
+
+			const computedProbabilities =
+				tradableOutcomeIndexes.length === 0
+					? []
+					: computeTopKMarginals(
+							nextPricingShares,
+							market.liquidityParameter,
+							remainingWinnerCount,
+						);
+			const tradableIndexMap = new Map<number, number>(
+				tradableOutcomeIndexes.map((marketOutcomeIndex, activeIndex) => [
+					marketOutcomeIndex,
+					activeIndex,
+				]),
+			);
+			await replaceOutcomeState(
+				tx,
+				market.id,
+				market.outcomes.map((marketOutcome, index) => {
+					const activeIndex = tradableIndexMap.get(index);
+					return {
+						id: marketOutcome.id,
+						outstandingShares:
+							activeIndex === undefined
+								? marketOutcome.outstandingShares
+								: (nextOutstandingShares[activeIndex] ??
+									marketOutcome.outstandingShares),
+						pricingShares:
+							activeIndex === undefined
+								? marketOutcome.pricingShares
+								: (nextPricingShares[activeIndex] ??
+									marketOutcome.pricingShares),
+					};
+				}),
+			);
+
+			await upsertPosition(tx, {
+				marketId: market.id,
+				outcomeId: outcome.id,
+				userId: input.userId,
+				side: "long",
+				shares: nextLongShares,
+				costBasis: nextLongCostBasis,
+				proceeds: 0,
+				collateralLocked: 0,
+			});
+			if (input.action === "sell") {
+				await syncLossProtectionForSellTx(tx, {
+					...(protection ? { existingProtection: protection } : {}),
+					previousLongCostBasis: longPosition?.costBasis ?? 0,
+					nextLongCostBasis,
+				});
+			}
+
+			await upsertPosition(tx, {
+				marketId: market.id,
+				outcomeId: outcome.id,
+				userId: input.userId,
+				side: "short",
+				shares: nextShortShares,
+				costBasis: 0,
+				proceeds: nextShortProceeds,
+				collateralLocked: nextShortCollateral,
+			});
+
+			const updatedAccount = await tx.marketAccount.update({
+				where: {
+					id: account.id,
+				},
+				data: {
+					bankroll: roundCurrency(nextBankroll),
+					realizedProfit: roundCurrency(
+						account.realizedProfit + realizedProfitDelta,
+					),
+				},
+			});
+
+			const updatedMarket = await tx.market.update({
+				where: {
+					id: market.id,
+				},
+				data: {
+					totalVolume: market.totalVolume + cashAmount,
+					trades: {
+						create: {
+							userId: input.userId,
+							outcomeId: outcome.id,
+							side: input.action,
+							cashDelta: input.action === "buy" ? -cashAmount : cashAmount,
+							shareDelta: roundCurrency(shareDelta),
+							feeCharged,
+							probabilitySnapshot: computedProbabilities[tradableIndex] ?? 0,
 							cumulativeVolume: market.totalVolume + cashAmount,
 						},
 					},

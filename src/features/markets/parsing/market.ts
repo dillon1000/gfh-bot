@@ -1,7 +1,7 @@
 import {
-  parseDiscordMessageLink,
-  type DiscordEntityLookup,
-} from '../../../lib/discord-message-links.js';
+	parseDiscordMessageLink,
+	type DiscordEntityLookup,
+} from "../../../lib/discord-message-links.js";
 
 const maxOutcomes = 5;
 const minOutcomes = 2;
@@ -11,213 +11,264 @@ const maxOutcomeLength = 80;
 const maxTags = 10;
 const maxTagLength = 24;
 const minTradeAmount = 10;
-const sellSharesPattern = /^(?<amount>\d+(?:\.\d+)?)\s*(?<unit>share|shares|sh)$/i;
+const sellSharesPattern =
+	/^(?<amount>\d+(?:\.\d+)?)\s*(?<unit>share|shares|sh)$/i;
 const sellPointsPattern = /^(?<amount>\d+)\s*(?<unit>pt|pts|point|points)?$/i;
 
-export type MarketLookup = DiscordEntityLookup<'market-id'>;
+export type MarketLookup = DiscordEntityLookup<"market-id">;
 
 export const sanitizeMarketTitle = (value: string): string => {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    throw new Error('Market title cannot be empty.');
-  }
+	const trimmed = value.trim();
+	if (!trimmed) {
+		throw new Error("Market title cannot be empty.");
+	}
 
-  if (trimmed.length > maxTitleLength) {
-    throw new Error(`Market title cannot exceed ${maxTitleLength} characters.`);
-  }
+	if (trimmed.length > maxTitleLength) {
+		throw new Error(`Market title cannot exceed ${maxTitleLength} characters.`);
+	}
 
-  return trimmed;
+	return trimmed;
 };
 
-export const sanitizeMarketDescription = (value: string | null | undefined): string | null => {
-  const trimmed = value?.trim() ?? '';
-  if (!trimmed) {
-    return null;
-  }
+export const sanitizeMarketDescription = (
+	value: string | null | undefined,
+): string | null => {
+	const trimmed = value?.trim() ?? "";
+	if (!trimmed) {
+		return null;
+	}
 
-  if (trimmed.length > maxDescriptionLength) {
-    throw new Error(`Market description cannot exceed ${maxDescriptionLength} characters.`);
-  }
+	if (trimmed.length > maxDescriptionLength) {
+		throw new Error(
+			`Market description cannot exceed ${maxDescriptionLength} characters.`,
+		);
+	}
 
-  return trimmed;
+	return trimmed;
 };
 
 export const parseMarketOutcomes = (value: string): string[] => {
-  const outcomes = parseOutcomeList(value);
-  if (outcomes.length < minOutcomes) {
-    throw new Error(`Markets need at least ${minOutcomes} outcomes.`);
-  }
+	const outcomes = parseOutcomeList(value);
+	if (outcomes.length < minOutcomes) {
+		throw new Error(`Markets need at least ${minOutcomes} outcomes.`);
+	}
 
-  return outcomes;
+	return outcomes;
 };
 
 export const parseAdditionalMarketOutcomes = (value: string): string[] => {
-  const outcomes = parseOutcomeList(value);
-  if (outcomes.length === 0) {
-    throw new Error('Add at least one outcome.');
-  }
+	const outcomes = parseOutcomeList(value);
+	if (outcomes.length === 0) {
+		throw new Error("Add at least one outcome.");
+	}
 
-  return outcomes;
+	return outcomes;
 };
 
 export const parseMarketTags = (value: string | null | undefined): string[] => {
-  if (!value?.trim()) {
-    return [];
-  }
+	if (!value?.trim()) {
+		return [];
+	}
 
-  const tags = [...new Set(
-    value
-      .split(',')
-      .map((part) => part.trim().toLowerCase())
-      .filter(Boolean),
-  )];
+	const tags = [
+		...new Set(
+			value
+				.split(",")
+				.map((part) => part.trim().toLowerCase())
+				.filter(Boolean),
+		),
+	];
 
-  if (tags.length > maxTags) {
-    throw new Error(`Markets can have at most ${maxTags} tags.`);
-  }
+	if (tags.length > maxTags) {
+		throw new Error(`Markets can have at most ${maxTags} tags.`);
+	}
 
-  for (const tag of tags) {
-    if (!/^[a-z0-9][a-z0-9-_]*$/.test(tag)) {
-      throw new Error('Tags must use letters, numbers, hyphens, or underscores.');
-    }
+	for (const tag of tags) {
+		if (!/^[a-z0-9][a-z0-9-_]*$/.test(tag)) {
+			throw new Error(
+				"Tags must use letters, numbers, hyphens, or underscores.",
+			);
+		}
 
-    if (tag.length > maxTagLength) {
-      throw new Error(`Tags must be ${maxTagLength} characters or fewer.`);
-    }
-  }
+		if (tag.length > maxTagLength) {
+			throw new Error(`Tags must be ${maxTagLength} characters or fewer.`);
+		}
+	}
 
-  return tags;
+	return tags;
 };
 
-
 export const parseMarketLookup = (value: string): MarketLookup => {
-  const trimmed = value.trim();
+	const trimmed = value.trim();
 
-  if (!trimmed) {
-    throw new Error('Market lookup value cannot be empty.');
-  }
+	if (!trimmed) {
+		throw new Error("Market lookup value cannot be empty.");
+	}
 
-  const linkMatch = parseDiscordMessageLink(trimmed);
-  if (linkMatch) {
-    return {
-      kind: 'message-link',
-      guildId: linkMatch.guildId,
-      channelId: linkMatch.channelId,
-      messageId: linkMatch.messageId,
-    };
-  }
+	const linkMatch = parseDiscordMessageLink(trimmed);
+	if (linkMatch) {
+		return {
+			kind: "message-link",
+			guildId: linkMatch.guildId,
+			channelId: linkMatch.channelId,
+			messageId: linkMatch.messageId,
+		};
+	}
 
-  if (/^\d{16,25}$/.test(trimmed)) {
-    return {
-      kind: 'message-id',
-      value: trimmed,
-    };
-  }
+	if (/^\d{16,25}$/.test(trimmed)) {
+		return {
+			kind: "message-id",
+			value: trimmed,
+		};
+	}
 
-  return {
-    kind: 'market-id',
-    value: trimmed,
-  };
+	return {
+		kind: "market-id",
+		value: trimmed,
+	};
 };
 
 export const parseTradeAmount = (value: string | number): number => {
-  const normalized = typeof value === 'number'
-    ? value
-    : (() => {
-        const trimmed = value.trim();
-        const match = sellPointsPattern.exec(trimmed);
-        return match?.groups?.amount ? Number(match.groups.amount) : Number.NaN;
-      })();
-  if (!Number.isInteger(normalized) || normalized < minTradeAmount) {
-    throw new Error(`Trade amount must be a whole number of at least ${minTradeAmount} points.`);
-  }
+	const normalized =
+		typeof value === "number"
+			? value
+			: (() => {
+					const trimmed = value.trim();
+					const match = sellPointsPattern.exec(trimmed);
+					return match?.groups?.amount
+						? Number(match.groups.amount)
+						: Number.NaN;
+				})();
+	if (!Number.isInteger(normalized) || normalized < minTradeAmount) {
+		throw new Error(
+			`Trade amount must be a whole number of at least ${minTradeAmount} points.`,
+		);
+	}
 
-  return normalized;
+	return normalized;
 };
 
 export type ParsedTradeAmount =
-  | {
-      mode: 'points';
-      amount: number;
-    }
-  | {
-      mode: 'shares';
-      amount: number;
-    };
+	| {
+			mode: "points";
+			amount: number;
+	  }
+	| {
+			mode: "shares";
+			amount: number;
+	  };
 
 export const parseFlexibleTradeAmount = (value: string): ParsedTradeAmount => {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    throw new Error('Trade amount cannot be empty. Use formats like 10 pts or 2.5 shares.');
-  }
+	const trimmed = value.trim();
+	if (!trimmed) {
+		throw new Error(
+			"Trade amount cannot be empty. Use formats like 10 pts or 2.5 shares.",
+		);
+	}
 
-  const pointsMatch = sellPointsPattern.exec(trimmed);
-  if (pointsMatch?.groups?.amount) {
-    return {
-      mode: 'points',
-      amount: parseTradeAmount(Number(pointsMatch.groups.amount)),
-    };
-  }
+	const pointsMatch = sellPointsPattern.exec(trimmed);
+	if (pointsMatch?.groups?.amount) {
+		return {
+			mode: "points",
+			amount: parseTradeAmount(Number(pointsMatch.groups.amount)),
+		};
+	}
 
-  const sharesMatch = sellSharesPattern.exec(trimmed);
-  if (sharesMatch?.groups?.amount) {
-    const amount = Number(sharesMatch.groups.amount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw new Error('Sell share amount must be greater than 0.');
-    }
+	const sharesMatch = sellSharesPattern.exec(trimmed);
+	if (sharesMatch?.groups?.amount) {
+		const amount = Number(sharesMatch.groups.amount);
+		if (!Number.isFinite(amount) || amount <= 0) {
+			throw new Error("Sell share amount must be greater than 0.");
+		}
 
-    return {
-      mode: 'shares',
-      amount,
-    };
-  }
+		return {
+			mode: "shares",
+			amount,
+		};
+	}
 
-  throw new Error('Trade amount must look like 10 pts or 2.5 shares.');
+	throw new Error("Trade amount must look like 10 pts or 2.5 shares.");
 };
 
 export const parseOutcomeSelection = (
-  value: string,
-  outcomes: Array<{ id: string; label: string }>,
+	value: string,
+	outcomes: Array<{ id: string; label: string }>,
 ): { id: string; label: string } => {
-  const trimmed = value.trim();
-  const byId = outcomes.find((outcome) => outcome.id === trimmed);
-  if (byId) {
-    return byId;
-  }
+	const trimmed = value.trim();
+	const byId = outcomes.find((outcome) => outcome.id === trimmed);
+	if (byId) {
+		return byId;
+	}
 
-  if (/^\d+$/.test(trimmed)) {
-    const index = Number(trimmed) - 1;
-    const byIndex = outcomes[index];
-    if (byIndex) {
-      return byIndex;
-    }
-  }
+	if (/^\d+$/.test(trimmed)) {
+		const index = Number(trimmed) - 1;
+		const byIndex = outcomes[index];
+		if (byIndex) {
+			return byIndex;
+		}
+	}
 
-  const byLabel = outcomes.find((outcome) => outcome.label.toLowerCase() === trimmed.toLowerCase());
-  if (byLabel) {
-    return byLabel;
-  }
+	const byLabel = outcomes.find(
+		(outcome) => outcome.label.toLowerCase() === trimmed.toLowerCase(),
+	);
+	if (byLabel) {
+		return byLabel;
+	}
 
-  throw new Error('Choose a valid market outcome by number, outcome ID, or exact label.');
+	throw new Error(
+		"Choose a valid market outcome by number, outcome ID, or exact label.",
+	);
+};
+
+export const parseOutcomeSelections = (
+	value: string,
+	outcomes: Array<{ id: string; label: string }>,
+): Array<{ id: string; label: string }> => {
+	const tokens = value
+		.split(",")
+		.map((part) => part.trim())
+		.filter(Boolean);
+
+	if (tokens.length === 0) {
+		throw new Error("Choose at least one winning outcome.");
+	}
+
+	const selected = tokens.map((token) =>
+		parseOutcomeSelection(token, outcomes),
+	);
+	const seen = new Set<string>();
+	for (const outcome of selected) {
+		if (seen.has(outcome.id)) {
+			throw new Error("Winning outcomes cannot include duplicates.");
+		}
+
+		seen.add(outcome.id);
+	}
+
+	return selected;
 };
 
 const parseOutcomeList = (value: string): string[] => {
-  const outcomes = [...new Set(
-    value
-      .split(',')
-      .map((part) => part.trim())
-      .filter(Boolean),
-  )];
+	const outcomes = [
+		...new Set(
+			value
+				.split(",")
+				.map((part) => part.trim())
+				.filter(Boolean),
+		),
+	];
 
-  if (outcomes.length > maxOutcomes) {
-    throw new Error(`Markets can have at most ${maxOutcomes} outcomes.`);
-  }
+	if (outcomes.length > maxOutcomes) {
+		throw new Error(`Markets can have at most ${maxOutcomes} outcomes.`);
+	}
 
-  for (const outcome of outcomes) {
-    if (outcome.length > maxOutcomeLength) {
-      throw new Error(`Each outcome must be ${maxOutcomeLength} characters or fewer.`);
-    }
-  }
+	for (const outcome of outcomes) {
+		if (outcome.length > maxOutcomeLength) {
+			throw new Error(
+				`Each outcome must be ${maxOutcomeLength} characters or fewer.`,
+			);
+		}
+	}
 
-  return outcomes;
+	return outcomes;
 };

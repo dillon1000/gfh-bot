@@ -46,8 +46,25 @@ import {
 	formatPercent,
 	getMarketSummary,
 	getTradeCopy,
+	resolveMarketWinnerCount,
 	truncateLabel,
 } from "./shared.js";
+
+const getContractModeLabel = (input: {
+	contractMode?: MarketWithRelations["contractMode"];
+	winnerCount?: number | undefined;
+}): string => {
+	if (input.contractMode === "independent_binary_set") {
+		return "Independent Set";
+	}
+
+	if (input.contractMode === "competitive_multi_winner") {
+		const winnerCount = Math.max(1, Math.floor(input.winnerCount ?? 1));
+		return `Competitive Top-${winnerCount}`;
+	}
+
+	return "Single Winner";
+};
 
 export const buildMarketTradeSelector = (
 	market: MarketWithRelations,
@@ -127,18 +144,26 @@ export const buildMarketOutcomeTradePrompt = (
 	const buyLocked = Boolean(getTradeLockReason(market, outcomeId, "buy"));
 	const shortLocked = Boolean(getTradeLockReason(market, outcomeId, "short"));
 	const isIndependentMarket = market.contractMode === "independent_binary_set";
+	const isCompetitiveMultiWinner =
+		market.contractMode === "competitive_multi_winner";
 
 	return {
 		embeds: [
 			buildMarketStatusEmbed(
 				`Trade ${entry.label}`,
 				[
-					`Current probability: **${formatProbabilityPercent(entry.probability)}**`,
+					`${
+						isCompetitiveMultiWinner
+							? "Current chance to be among winners"
+							: "Current probability"
+					}: **${formatProbabilityPercent(entry.probability)}**`,
 					`Net shares: **${entry.shares.toFixed(2)}**`,
 					"",
 					isIndependentMarket
 						? "Choose whether to buy YES exposure or short YES exposure (take the NO side)."
-						: "Choose whether you want to buy this outcome or short it.",
+						: isCompetitiveMultiWinner
+							? `Choose whether you want to buy this outcome's chance to finish in the top ${resolveMarketWinnerCount(market)}.`
+							: "Choose whether you want to buy this outcome or short it.",
 				].join("\n"),
 				0x60a5fa,
 			),
@@ -156,7 +181,11 @@ export const buildMarketOutcomeTradePrompt = (
 					.setCustomId(
 						marketQuickTradeButtonCustomId("short", market.id, outcomeId),
 					)
-					.setLabel(`Short ${formatProbabilityPercent(1 - entry.probability)}`)
+					.setLabel(
+						isCompetitiveMultiWinner
+							? "Short (unavailable)"
+							: `Short ${formatProbabilityPercent(1 - entry.probability)}`,
+					)
 					.setDisabled(shortLocked)
 					.setStyle(ButtonStyle.Danger),
 			),
@@ -223,10 +252,10 @@ export const buildMarketResolveModal = (marketId: string): ModalBuilder =>
 			new ActionRowBuilder<TextInputBuilder>().addComponents(
 				new TextInputBuilder()
 					.setCustomId("winning_outcome")
-					.setLabel("Winning outcome")
+					.setLabel("Winning outcome(s)")
 					.setStyle(TextInputStyle.Short)
 					.setRequired(true)
-					.setPlaceholder("1 or exact label"),
+					.setPlaceholder("1 or exact label; comma-separated for multi-winner"),
 			),
 			new ActionRowBuilder<TextInputBuilder>().addComponents(
 				new TextInputBuilder()
@@ -301,9 +330,15 @@ const getPositionAfterCopy = (quote: MarketTradeQuote): string => {
 
 const buildTradeQuoteDescription = (quote: MarketTradeQuote): string => {
 	const isIndependentMarket = quote.contractMode === "independent_binary_set";
+	const isCompetitiveMultiWinner =
+		quote.contractMode === "competitive_multi_winner";
+	const contractModeLabel = getContractModeLabel({
+		contractMode: quote.contractMode,
+		winnerCount: quote.winnerCount,
+	});
 	const lines = [
 		`Outcome: **${quote.outcomeLabel}**`,
-		`Contract mode: **${isIndependentMarket ? "Independent Set" : "Single Winner"}**`,
+		`Contract mode: **${contractModeLabel}**`,
 		`Board: **${formatPercent(quote.currentProbability)}** -> **${formatPercent(quote.nextProbability)}**`,
 	];
 
@@ -355,10 +390,14 @@ const buildTradeQuoteDescription = (quote: MarketTradeQuote): string => {
 		"",
 		isIndependentMarket
 			? `If ${quote.outcomeLabel} settles to 100%: payout **${formatMoney(quote.settlementIfChosen)}**, max loss **${formatMoney(quote.maxLossIfChosen)}**, max profit **${formatMoney(quote.maxProfitIfChosen)}**`
-			: `If ${quote.outcomeLabel} is chosen: payout **${formatMoney(quote.settlementIfChosen)}**, max loss **${formatMoney(quote.maxLossIfChosen)}**, max profit **${formatMoney(quote.maxProfitIfChosen)}**`,
+			: isCompetitiveMultiWinner
+				? `If ${quote.outcomeLabel} is among the winners: payout **${formatMoney(quote.settlementIfChosen)}**, max loss **${formatMoney(quote.maxLossIfChosen)}**, max profit **${formatMoney(quote.maxProfitIfChosen)}**`
+				: `If ${quote.outcomeLabel} is chosen: payout **${formatMoney(quote.settlementIfChosen)}**, max loss **${formatMoney(quote.maxLossIfChosen)}**, max profit **${formatMoney(quote.maxProfitIfChosen)}**`,
 		isIndependentMarket
 			? `If ${quote.outcomeLabel} settles to 0%: payout **${formatMoney(quote.settlementIfNotChosen)}**, max loss **${formatMoney(quote.maxLossIfNotChosen)}**, max profit **${formatMoney(quote.maxProfitIfNotChosen)}**`
-			: `If ${quote.outcomeLabel} is not chosen: payout **${formatMoney(quote.settlementIfNotChosen)}**, max loss **${formatMoney(quote.maxLossIfNotChosen)}**, max profit **${formatMoney(quote.maxProfitIfNotChosen)}**`,
+			: isCompetitiveMultiWinner
+				? `If ${quote.outcomeLabel} misses the winner set: payout **${formatMoney(quote.settlementIfNotChosen)}**, max loss **${formatMoney(quote.maxLossIfNotChosen)}**, max profit **${formatMoney(quote.maxProfitIfNotChosen)}**`
+				: `If ${quote.outcomeLabel} is not chosen: payout **${formatMoney(quote.settlementIfNotChosen)}**, max loss **${formatMoney(quote.maxLossIfNotChosen)}**, max profit **${formatMoney(quote.maxProfitIfNotChosen)}**`,
 		...(isIndependentMarket
 			? [
 					`For intermediate settlement values (e.g. ${formatPercent(0.35)}), payout scales linearly between those bounds.`,
@@ -439,12 +478,15 @@ export const buildMarketInteractionSessionMessage = (input: {
 } => {
 	const { market, session, positions } = input;
 	const isIndependentMarket = market.contractMode === "independent_binary_set";
-	const contractModeLabel = isIndependentMarket
-		? "Independent Set"
-		: "Single Winner";
+	const contractModeLabel = getContractModeLabel({
+		contractMode: market.contractMode,
+		winnerCount: market.winnerCount,
+	});
 	const rows: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
 
 	if (session.mode === "trade") {
+		const isCompetitiveMultiWinner =
+			market.contractMode === "competitive_multi_winner";
 		const tradableEntries = getMarketSummary(market).probabilities.filter(
 			(entry) => !entry.isResolved,
 		);
@@ -463,7 +505,9 @@ export const buildMarketInteractionSessionMessage = (input: {
 				? "No tradable outcomes are available right now."
 				: session.preview?.kind === "trade"
 					? buildTradeQuoteDescription(session.preview.quote)
-					: "Select an outcome, then use a quick amount or enter a custom amount to preview the trade.",
+					: isCompetitiveMultiWinner
+						? "Select an outcome, then use a quick amount or enter a custom amount to preview the trade. Shorting is not yet supported for competitive multi-winner markets."
+						: "Select an outcome, then use a quick amount or enter a custom amount to preview the trade.",
 		].join("\n");
 
 		rows.push(
@@ -483,6 +527,7 @@ export const buildMarketInteractionSessionMessage = (input: {
 						marketSessionSideButtonCustomId(session.sessionId, "short"),
 					)
 					.setLabel("Short")
+					.setDisabled(isCompetitiveMultiWinner)
 					.setStyle(
 						selectedAction === "short"
 							? ButtonStyle.Danger

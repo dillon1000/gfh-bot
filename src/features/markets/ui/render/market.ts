@@ -18,9 +18,22 @@ import { formatProbabilityPercent } from "../../core/math.js";
 import type { MarketWithRelations } from "../../core/types.js";
 import {
 	getMarketSummary,
+	resolveMarketWinnerCount,
 	getOutcomeButtonStyle,
 	getStatusColor,
 } from "./shared.js";
+
+const getContractModeLabel = (market: MarketWithRelations): string => {
+	if (market.contractMode === "independent_binary_set") {
+		return "Independent Set";
+	}
+
+	if (market.contractMode === "competitive_multi_winner") {
+		return `Competitive Top-${resolveMarketWinnerCount(market)}`;
+	}
+
+	return "Single Winner";
+};
 
 const buildMarketSynopsis = (
 	market: MarketWithRelations,
@@ -33,6 +46,10 @@ const buildMarketSynopsis = (
 	if (market.contractMode === "independent_binary_set") {
 		parts.push(
 			"Outcomes are independent and total displayed probability can exceed 100%.",
+		);
+	} else if (market.contractMode === "competitive_multi_winner") {
+		parts.push(
+			`Exactly ${resolveMarketWinnerCount(market)} outcome${resolveMarketWinnerCount(market) === 1 ? "" : "s"} win. Displayed marginals sum to ${resolveMarketWinnerCount(market) * 100}%.`,
 		);
 	}
 
@@ -80,6 +97,9 @@ const buildDetailsFields = (
 	const status = summary.status;
 	const sortedProbabilities = sortOutcomeEntries(summary.probabilities);
 	const isIndependentMarket = market.contractMode === "independent_binary_set";
+	const isCompetitiveMultiWinner =
+		market.contractMode === "competitive_multi_winner";
+	const winnerCount = resolveMarketWinnerCount(market);
 	const formatOutcomeStatus = (entry: {
 		isResolved: boolean;
 		settlementValue: number | null;
@@ -136,16 +156,27 @@ const buildDetailsFields = (
 		`Forum Post Thread ID: ${market.threadId ? `\`${market.threadId}\`` : "No forum post yet"}`,
 		`Creator: <@${market.creatorId}>`,
 		`Button Style: **${market.buttonStyle}**`,
-		`Contract Mode: **${isIndependentMarket ? "Independent Set" : "Single Winner"}**`,
+		`Contract Mode: **${getContractModeLabel(market)}**`,
 		`Volume: **${summary.totalVolume} pts**`,
 		`Tags: ${market.tags.length > 0 ? market.tags.map((tag) => `\`${tag}\``).join(" ") : "None"}`,
 	].join("\n");
+	const resolvedWinners = market.outcomes.filter(
+		(outcome) => (outcome.settlementValue ?? 0) >= 1 - 1e-6,
+	);
 
 	const resolution =
 		[
-			market.winningOutcomeId
-				? `${isIndependentMarket ? "Top Settled Outcome" : "Winning Outcome"}: **${market.outcomes.find((outcome) => outcome.id === market.winningOutcomeId)?.label ?? market.winningOutcomeId}**`
-				: null,
+			isCompetitiveMultiWinner
+				? `Winning Outcomes: ${
+						resolvedWinners.length > 0
+							? resolvedWinners
+									.map((outcome) => `**${outcome.label}**`)
+									.join(", ")
+							: `None selected yet (${winnerCount} required)`
+					}`
+				: market.winningOutcomeId
+					? `${isIndependentMarket ? "Top Settled Outcome" : "Winning Outcome"}: **${market.outcomes.find((outcome) => outcome.id === market.winningOutcomeId)?.label ?? market.winningOutcomeId}**`
+					: null,
 			market.resolvedByUserId
 				? `Resolved By: <@${market.resolvedByUserId}>`
 				: null,
@@ -173,7 +204,9 @@ const buildDetailsFields = (
 		{ name: "Timing", value: timing },
 		{ name: "Liquidity & Incentives", value: liquidity },
 		{
-			name: "Current Probabilities",
+			name: isCompetitiveMultiWinner
+				? "Current Chances To Be Among Winners"
+				: "Current Probabilities",
 			value: sortedProbabilities
 				.map(
 					(entry, index) =>
@@ -197,6 +230,8 @@ export const buildMarketEmbed = (market: MarketWithRelations): EmbedBuilder => {
 	const status = summary.status;
 	const sortedProbabilities = sortOutcomeEntries(summary.probabilities);
 	const isIndependentMarket = market.contractMode === "independent_binary_set";
+	const isCompetitiveMultiWinner =
+		market.contractMode === "competitive_multi_winner";
 	const formatOutcomeStatus = (entry: {
 		isResolved: boolean;
 		settlementValue: number | null;
@@ -224,7 +259,9 @@ export const buildMarketEmbed = (market: MarketWithRelations): EmbedBuilder => {
 				value: buildMarketSynopsis(market, status),
 			},
 			{
-				name: "Current Probabilities",
+				name: isCompetitiveMultiWinner
+					? "Current Chances To Be Among Winners"
+					: "Current Probabilities",
 				value: sortedProbabilities
 					.map(
 						(entry, index) =>
@@ -245,7 +282,7 @@ export const buildMarketEmbed = (market: MarketWithRelations): EmbedBuilder => {
 				: []),
 		)
 		.setFooter({
-			text: `${isIndependentMarket ? "Independent Set" : "Single Winner"} • Market ID: ${market.id} • Volume: ${summary.totalVolume} pts`,
+			text: `${getContractModeLabel(market)} • Market ID: ${market.id} • Volume: ${summary.totalVolume} pts`,
 		});
 
 	if (market.description) {
@@ -328,7 +365,9 @@ export const buildMarketResolvePrompt = (
 			"Market Ready To Resolve",
 			market.contractMode === "independent_binary_set"
 				? `Trading on **${market.title}** is closed. Resolve remaining outcomes with **/market resolve-outcome** and a value between 0 and 1, or cancel to refund positions.`
-				: `Trading on **${market.title}** is closed. Choose **Resolve** to pick a winner or **Cancel** to refund positions.`,
+				: market.contractMode === "competitive_multi_winner"
+					? `Trading on **${market.title}** is closed. Choose **Resolve** and provide exactly ${resolveMarketWinnerCount(market)} winners (comma-separated), or **Cancel** to refund positions.`
+					: `Trading on **${market.title}** is closed. Choose **Resolve** to pick a winner or **Cancel** to refund positions.`,
 			0x60a5fa,
 		),
 	],

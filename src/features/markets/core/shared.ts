@@ -18,6 +18,8 @@ import {
 	computeBinaryLmsrProbability,
 	computeBinarySellPayout,
 	computeLmsrProbabilities,
+	computeTopKMarginals,
+	computeTopKSellPayout,
 	computeSellPayout,
 } from "./math.js";
 import type { MarketStatus, MarketWithRelations } from "./types.js";
@@ -33,6 +35,7 @@ export const refreshDelayMs = 5_000;
 export const maxOpenProbability = 0.98;
 export const minOpenProbability = 0.02;
 export const protectionPremiumMultiplier = 1.05;
+export const maxCompetitiveWinnerSubsets = 1_000;
 
 export const marketInclude = {
 	outcomes: {
@@ -76,6 +79,19 @@ export const clamp = (value: number, min: number, max: number): number =>
 const resolveMarketContractMode = (
 	contractMode?: MarketContractMode | null,
 ): MarketContractMode => contractMode ?? "categorical_single_winner";
+
+export const isCompetitiveMultiWinnerMarketMode = (market: {
+	contractMode?: MarketContractMode | null;
+}): boolean =>
+	resolveMarketContractMode(market.contractMode) === "competitive_multi_winner";
+
+export const resolveMarketWinnerCount = (market: {
+	contractMode?: MarketContractMode | null;
+	winnerCount?: number | null;
+}): number =>
+	isCompetitiveMultiWinnerMarketMode(market)
+		? Math.max(1, Math.floor(market.winnerCount ?? 1))
+		: 1;
 
 export const compareMarketHistoryEvents = <
 	T extends {
@@ -148,10 +164,14 @@ export const isIndependentMarketMode = (market: {
 export const getMarketResolutionVector = (
 	market: Pick<Market, "winningOutcomeId"> & {
 		contractMode?: MarketContractMode | null;
+		winnerCount?: number | null;
 		outcomes: Array<Pick<MarketOutcome, "id" | "settlementValue">>;
 	},
 ): number[] => {
-	if (isIndependentMarketMode(market)) {
+	if (
+		isIndependentMarketMode(market) ||
+		isCompetitiveMultiWinnerMarketMode(market)
+	) {
 		return market.outcomes.map((outcome) =>
 			clamp(outcome.settlementValue ?? 0, 0, 1),
 		);
@@ -178,6 +198,7 @@ export const getMarketProbabilities = (
 		"resolvedAt" | "winningOutcomeId" | "liquidityParameter"
 	> & {
 		contractMode?: MarketContractMode | null;
+		winnerCount?: number | null;
 		outcomes: Array<
 			Pick<MarketOutcome, "id" | "pricingShares" | "settlementValue">
 		>;
@@ -203,6 +224,43 @@ export const getMarketProbabilities = (
 	}
 
 	const activeIndexes = getActiveOutcomeIndexes(market.outcomes);
+
+	if (isCompetitiveMultiWinnerMarketMode(market)) {
+		const settledWinnerCount = market.outcomes.reduce(
+			(sum, outcome) =>
+				isMarketOutcomeResolved(outcome)
+					? sum + clamp(outcome.settlementValue ?? 0, 0, 1)
+					: sum,
+			0,
+		);
+		const remainingWinnerCount = Math.max(
+			0,
+			Math.min(
+				activeIndexes.length,
+				Math.round(resolveMarketWinnerCount(market) - settledWinnerCount),
+			),
+		);
+		const activeProbabilities =
+			activeIndexes.length === 0
+				? []
+				: computeTopKMarginals(
+						activeIndexes.map(
+							(index) => market.outcomes[index]?.pricingShares ?? 0,
+						),
+						market.liquidityParameter,
+						remainingWinnerCount,
+					);
+
+		return market.outcomes.map((outcome, index) => {
+			if (isMarketOutcomeResolved(outcome)) {
+				return clamp(outcome.settlementValue ?? 0, 0, 1);
+			}
+
+			const activeIndex = activeIndexes.indexOf(index);
+			return activeIndex >= 0 ? (activeProbabilities[activeIndex] ?? 0) : 0;
+		});
+	}
+
 	if (activeIndexes.length === 0) {
 		return market.outcomes.map((outcome) => outcome.settlementValue ?? 0);
 	}
@@ -366,6 +424,10 @@ export const getTradeLockReason = (
 	outcomeId: string,
 	action: MarketTradeSide,
 ): string | null => {
+	if (isCompetitiveMultiWinnerMarketMode(market) && action === "short") {
+		return "Shorting is not yet supported for competitive multi-winner markets.";
+	}
+
 	if (action !== "buy" && action !== "short") {
 		return null;
 	}
@@ -628,6 +690,35 @@ export const getMaxSellPayout = (
 	const tradableIndex = tradableIndexes.indexOf(index);
 	if (tradableIndex < 0) {
 		return 0;
+	}
+
+	if (isCompetitiveMultiWinnerMarketMode(market)) {
+		const settledWinnerCount = market.outcomes.reduce(
+			(sum, outcome) =>
+				isMarketOutcomeResolved(outcome)
+					? sum + clamp(outcome.settlementValue ?? 0, 0, 1)
+					: sum,
+			0,
+		);
+		const remainingWinnerCount = Math.max(
+			0,
+			Math.min(
+				tradableIndexes.length,
+				Math.round(resolveMarketWinnerCount(market) - settledWinnerCount),
+			),
+		);
+
+		return roundCurrency(
+			computeTopKSellPayout(
+				tradableIndexes.map(
+					(outcomeIndex) => market.outcomes[outcomeIndex]?.pricingShares ?? 0,
+				),
+				tradableIndex,
+				ownedShares,
+				market.liquidityParameter,
+				remainingWinnerCount,
+			),
+		);
 	}
 
 	return roundCurrency(

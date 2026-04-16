@@ -12,8 +12,12 @@ import type {
 	MarketTrade,
 } from "@prisma/client";
 
-export type MarketWithRelations = Omit<Market, "contractMode"> & {
+export type MarketWithRelations = Omit<
+	Market,
+	"contractMode" | "winnerCount"
+> & {
 	contractMode?: MarketContractMode;
+	winnerCount?: number;
 	outcomes: MarketOutcome[];
 	trades: MarketTrade[];
 	positions: MarketPosition[];
@@ -23,7 +27,10 @@ export type MarketWithRelations = Omit<Market, "contractMode"> & {
 };
 
 export type MarketPositionWithProtection = MarketPosition & {
-	market: Omit<Market, "contractMode"> & { contractMode?: MarketContractMode };
+	market: Omit<Market, "contractMode" | "winnerCount"> & {
+		contractMode?: MarketContractMode;
+		winnerCount?: number;
+	};
 	outcome: MarketOutcome;
 	insuredCostBasis?: number;
 	premiumPaid?: number;
@@ -47,6 +54,7 @@ export type MarketCreationInput = {
 	description: string | null;
 	buttonStyle: MarketButtonStyle;
 	contractMode?: MarketContractMode;
+	winnerCount?: number;
 	outcomes: string[];
 	tags: string[];
 	closeAt: Date;
@@ -70,6 +78,7 @@ export type MarketTradeQuoteAction = "buy" | "sell" | "short" | "cover";
 export type MarketTradeQuote = {
 	action: MarketTradeQuoteAction;
 	contractMode?: MarketContractMode;
+	winnerCount?: number;
 	marketId: string;
 	marketTitle: string;
 	outcomeId: string;
@@ -110,6 +119,7 @@ export type MarketTradeQuoteSession = {
 	sessionId: string;
 	action: MarketTradeQuoteAction;
 	contractMode?: MarketContractMode;
+	winnerCount?: number;
 	guildId: string;
 	marketId: string;
 	marketTitle: string;
