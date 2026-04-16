@@ -3,8 +3,10 @@ import {
 	assertMarketOpen,
 	assertOutcomeTradable,
 	getMarketProbabilities,
+	isCompetitiveMultiWinnerMarketMode,
 	getPosition,
 	getPositionMap,
+	resolveMarketWinnerCount,
 	getTradeLockReason,
 	getTradableOutcomeIndexes,
 	roundCurrency,
@@ -15,11 +17,14 @@ import {
 	computeBinarySellPayout,
 	computeBuyCost,
 	computeSellPayout,
+	computeTopKSellPayout,
 	solveBinaryBuySharesForAmount,
 	solveBinarySellSharesForAmount,
 	solveBinaryShortSharesForAmount,
 	solveBuySharesForAmount,
 	solveSellSharesForAmount,
+	solveTopKBuySharesForAmount,
+	solveTopKSellSharesForAmount,
 	solveShortSharesForAmount,
 } from "../../core/math.js";
 import { getMarketById } from "../records.js";
@@ -520,6 +525,203 @@ const calculateMarketTradeQuoteUnsafe = async (input: {
 			),
 			maxLossIfNotChosen: 0,
 		};
+	}
+
+	if (isCompetitiveMultiWinnerMarketMode(market)) {
+		const settledWinnerCount = market.outcomes.reduce(
+			(sum, marketOutcome) =>
+				marketOutcome.settlementValue === null
+					? sum
+					: sum + Math.min(1, Math.max(0, marketOutcome.settlementValue)),
+			0,
+		);
+		const remainingWinnerCount = Math.max(
+			0,
+			Math.min(
+				tradableOutcomeIndexes.length,
+				Math.round(resolveMarketWinnerCount(market) - settledWinnerCount),
+			),
+		);
+		let nextPricingShares = [...pricingShares];
+		const buildProbabilities = (): {
+			currentProbability: number;
+			nextProbability: number;
+		} =>
+			buildCategoricalProbabilities(
+				market,
+				outcomeIndex,
+				tradableOutcomeIndexes,
+				nextPricingShares,
+			);
+
+		if (input.action === "buy") {
+			if (shortPosition && shortPosition.shares > 1e-6) {
+				throw new Error(
+					"Shorting is not yet supported for competitive multi-winner markets.",
+				);
+			}
+
+			const feeCharged = 0;
+			if (account.bankroll < input.amount - 1e-6) {
+				throw new Error("You do not have enough bankroll for that trade.");
+			}
+
+			const sharesReceived = solveTopKBuySharesForAmount(
+				pricingShares,
+				tradableIndex,
+				input.amount,
+				market.liquidityParameter,
+				remainingWinnerCount,
+			);
+			nextPricingShares[tradableIndex] =
+				(nextPricingShares[tradableIndex] ?? 0) + sharesReceived;
+			const positionSharesAfter = roundCurrency(
+				(longPosition?.shares ?? 0) + sharesReceived,
+			);
+			const positionCostBasisAfter = roundCurrency(
+				(longPosition?.costBasis ?? 0) + input.amount,
+			);
+			const bankrollAfter = roundCurrency(account.bankroll - input.amount);
+			const probabilities = buildProbabilities();
+
+			return {
+				action: input.action,
+				contractMode: market.contractMode ?? "categorical_single_winner",
+				winnerCount: market.winnerCount,
+				marketId: market.id,
+				marketTitle: market.title,
+				outcomeId: outcome.id,
+				outcomeLabel: outcome.label,
+				userId: input.userId,
+				guildId: market.guildId,
+				amount: input.amount,
+				amountMode,
+				rawAmount: input.rawAmount,
+				shares: roundCurrency(sharesReceived),
+				averagePrice:
+					sharesReceived > 0
+						? roundCurrency(input.amount / sharesReceived)
+						: null,
+				currentProbability: probabilities.currentProbability,
+				nextProbability: probabilities.nextProbability,
+				immediateCash: roundCurrency(input.amount),
+				grossImmediateCash: roundCurrency(input.amount),
+				netImmediateCash: roundCurrency(input.amount),
+				feeCharged,
+				collateralLocked: 0,
+				collateralReleased: 0,
+				netBankrollChange: roundCurrency(-input.amount),
+				bankrollAfter,
+				positionSide: "long",
+				positionSharesAfter,
+				positionCostBasisAfter,
+				positionProceedsAfter: 0,
+				positionCollateralAfter: 0,
+				realizedProfitDelta: 0,
+				settlementIfChosen: positionSharesAfter,
+				settlementIfNotChosen: 0,
+				maxProfitIfChosen: roundCurrency(
+					positionSharesAfter - positionCostBasisAfter,
+				),
+				maxProfitIfNotChosen: 0,
+				maxLossIfChosen: 0,
+				maxLossIfNotChosen: positionCostBasisAfter,
+			};
+		}
+
+		if (input.action === "sell") {
+			const ownedShares = longPosition?.shares ?? 0;
+			if (ownedShares <= 1e-6) {
+				throw new Error("You do not own a long position in that outcome yet.");
+			}
+
+			const requestedSharesToSell =
+				amountMode === "shares"
+					? input.amount
+					: solveTopKSellSharesForAmount(
+							pricingShares,
+							tradableIndex,
+							input.amount,
+							ownedShares,
+							market.liquidityParameter,
+							remainingWinnerCount,
+						);
+			if (requestedSharesToSell > ownedShares + 1e-6) {
+				throw new Error(
+					"You do not have enough shares in that outcome to sell that much.",
+				);
+			}
+
+			const sharesSold = roundCurrency(requestedSharesToSell);
+			const cashAmount =
+				amountMode === "shares"
+					? roundCurrency(
+							computeTopKSellPayout(
+								pricingShares,
+								tradableIndex,
+								sharesSold,
+								market.liquidityParameter,
+								remainingWinnerCount,
+							),
+						)
+					: roundCurrency(input.amount);
+			const averageCostBasis = (longPosition?.costBasis ?? 0) / ownedShares;
+			const releasedCostBasis = roundCurrency(averageCostBasis * sharesSold);
+			nextPricingShares[tradableIndex] =
+				(nextPricingShares[tradableIndex] ?? 0) - sharesSold;
+			const positionSharesAfter = roundCurrency(ownedShares - sharesSold);
+			const positionCostBasisAfter = roundCurrency(
+				(longPosition?.costBasis ?? 0) - releasedCostBasis,
+			);
+			const bankrollAfter = roundCurrency(account.bankroll + cashAmount);
+			const probabilities = buildProbabilities();
+
+			return {
+				action: input.action,
+				contractMode: market.contractMode ?? "categorical_single_winner",
+				winnerCount: market.winnerCount,
+				marketId: market.id,
+				marketTitle: market.title,
+				outcomeId: outcome.id,
+				outcomeLabel: outcome.label,
+				userId: input.userId,
+				guildId: market.guildId,
+				amount: input.amount,
+				amountMode,
+				rawAmount: input.rawAmount,
+				shares: sharesSold,
+				averagePrice:
+					sharesSold > 0 ? roundCurrency(cashAmount / sharesSold) : null,
+				currentProbability: probabilities.currentProbability,
+				nextProbability: probabilities.nextProbability,
+				immediateCash: cashAmount,
+				grossImmediateCash: cashAmount,
+				netImmediateCash: cashAmount,
+				feeCharged: 0,
+				collateralLocked: 0,
+				collateralReleased: 0,
+				netBankrollChange: cashAmount,
+				bankrollAfter,
+				positionSide: "long",
+				positionSharesAfter,
+				positionCostBasisAfter,
+				positionProceedsAfter: 0,
+				positionCollateralAfter: 0,
+				realizedProfitDelta: roundCurrency(cashAmount - releasedCostBasis),
+				settlementIfChosen: positionSharesAfter,
+				settlementIfNotChosen: 0,
+				maxProfitIfChosen: roundCurrency(
+					positionSharesAfter - positionCostBasisAfter,
+				),
+				maxProfitIfNotChosen: 0,
+				maxLossIfChosen: 0,
+				maxLossIfNotChosen: positionCostBasisAfter,
+			};
+		}
+
+		throw new Error(
+			"Shorting is not yet supported for competitive multi-winner markets.",
+		);
 	}
 
 	let nextPricingShares = [...pricingShares];

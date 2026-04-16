@@ -87,6 +87,7 @@ const inferResolutionVectorFromWinningOutcome = (
 const normalizeForecastVector = (
 	market: Pick<Market, "winningOutcomeId"> & {
 		contractMode?: Market["contractMode"] | null;
+		winnerCount?: number | null;
 		outcomes: Array<Pick<MarketOutcome, "id">>;
 	},
 	weightedProbabilities: Map<string, { weightedSum: number; weight: number }>,
@@ -116,21 +117,43 @@ const normalizeForecastVector = (
 					filledValues[index] = 0.5;
 				}
 			}
-		} else if (knownSum < 1) {
-			const filler = (1 - knownSum) / missingCount;
-			for (let index = 0; index < filledValues.length; index += 1) {
-				if (values[index] === null) {
-					filledValues[index] = filler;
+		} else {
+			const targetTotal =
+				market.contractMode === "competitive_multi_winner"
+					? Math.max(1, Math.floor(market.winnerCount ?? 1))
+					: 1;
+			if (knownSum < targetTotal) {
+				const filler = Math.max(0, targetTotal - knownSum) / missingCount;
+				for (let index = 0; index < filledValues.length; index += 1) {
+					if (values[index] === null) {
+						filledValues[index] = filler;
+					}
 				}
 			}
 		}
 	}
 
-	if (market.contractMode === "independent_binary_set") {
+	if (
+		market.contractMode === "independent_binary_set" ||
+		market.contractMode === "competitive_multi_winner"
+	) {
+		const targetTotal =
+			market.contractMode === "competitive_multi_winner"
+				? Math.max(1, Math.floor(market.winnerCount ?? 1))
+				: null;
+		const total = filledValues.reduce((sum, value) => sum + value, 0);
 		return market.outcomes.map((outcome, index) => ({
 			outcomeId: outcome.id,
 			probability: roundProbability(
-				Math.min(1, Math.max(0, filledValues[index] ?? 0)),
+				Math.min(
+					1,
+					Math.max(
+						0,
+						targetTotal && total > 0
+							? ((filledValues[index] ?? 0) * targetTotal) / total
+							: (filledValues[index] ?? 0),
+					),
+				),
 			),
 		}));
 	}
@@ -218,6 +241,7 @@ export const hydrateForecastRecord = (
 const buildHistoricalProbabilityVector = (
 	market: Pick<Market, "winningOutcomeId"> & {
 		contractMode?: Market["contractMode"] | null;
+		winnerCount?: number | null;
 		outcomes: Array<
 			Pick<MarketOutcome, "id" | "resolvedAt" | "settlementValue">
 		>;
@@ -229,6 +253,9 @@ const buildHistoricalProbabilityVector = (
 	const probabilities = getMarketProbabilities({
 		...(market.contractMode !== undefined
 			? { contractMode: market.contractMode }
+			: {}),
+		...(market.winnerCount !== undefined
+			? { winnerCount: market.winnerCount }
 			: {}),
 		liquidityParameter,
 		resolvedAt: null,
@@ -253,6 +280,7 @@ const buildHistoricalProbabilityVector = (
 const reconstructMarketProfitByUser = (
 	market: Pick<Market, "winningOutcomeId"> & {
 		contractMode?: Market["contractMode"] | null;
+		winnerCount?: number | null;
 		trades: MarketTrade[];
 		outcomes: Array<Pick<MarketOutcome, "id" | "settlementValue">>;
 	},
@@ -351,6 +379,9 @@ const reconstructMarketProfitByUser = (
 	const resolutionVector = getMarketResolutionVector({
 		...(market.contractMode !== undefined
 			? { contractMode: market.contractMode }
+			: {}),
+		...(market.winnerCount !== undefined
+			? { winnerCount: market.winnerCount }
 			: {}),
 		winningOutcomeId: market.winningOutcomeId,
 		outcomes: market.outcomes,

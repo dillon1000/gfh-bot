@@ -5,6 +5,7 @@ import {
 
 import { env } from "../../../../app/config.js";
 import { executeMarketTrade } from "../../services/trading/execution.js";
+import { isCompetitiveMultiWinnerMarketMode } from "../../core/shared.js";
 import {
 	parseFlexibleTradeAmount,
 	parseTradeAmount,
@@ -317,6 +318,9 @@ export const buildTradeExecutionDescription = (
 	outcomeLabel: string,
 	result: Awaited<ReturnType<typeof executeMarketTrade>>,
 ): string => {
+	const isCompetitiveMultiWinner = isCompetitiveMultiWinnerMarketMode(
+		result.market,
+	);
 	const netCashAmount = result.netCashAmount ?? result.cashAmount;
 	const settledShares = Math.abs(result.shareDelta);
 	const payoutSummary =
@@ -337,8 +341,12 @@ export const buildTradeExecutionDescription = (
 		`Bankroll: ${result.account.bankroll.toFixed(2)} pts`,
 		...(payoutSummary
 			? [
-					`If ${outcomeLabel} is chosen: ${payoutSummary.ifChosen.toFixed(2)} pts`,
-					`If ${outcomeLabel} is not chosen: ${payoutSummary.ifNotChosen.toFixed(2)} pts`,
+					isCompetitiveMultiWinner
+						? `If ${outcomeLabel} is among the winners: ${payoutSummary.ifChosen.toFixed(2)} pts`
+						: `If ${outcomeLabel} is chosen: ${payoutSummary.ifChosen.toFixed(2)} pts`,
+					isCompetitiveMultiWinner
+						? `If ${outcomeLabel} misses the winner set: ${payoutSummary.ifNotChosen.toFixed(2)} pts`
+						: `If ${outcomeLabel} is not chosen: ${payoutSummary.ifNotChosen.toFixed(2)} pts`,
 				]
 			: []),
 	]

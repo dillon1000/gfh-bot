@@ -69,6 +69,7 @@ enum MarketButtonStyle {
 enum MarketContractMode {
   categorical_single_winner
   independent_binary_set
+  competitive_multi_winner
 }
 
 enum CasinoGameKind {
@@ -331,6 +332,7 @@ model Market {
   description            String?
   buttonStyle            MarketButtonStyle @default(primary)
   contractMode           MarketContractMode @default(categorical_single_winner)
+  winnerCount            Int              @default(1)
   tags                   String[]         @default([])
   baseLiquidityParameter Int              @default(150)
   liquidityParameter     Int              @default(150)

@@ -87,10 +87,23 @@ export const marketCommand = new SlashCommandBuilder()
 							value: "categorical_single_winner",
 						},
 						{
+							name: "Competitive Multi-Winner (sum ~k*100%)",
+							value: "competitive_multi_winner",
+						},
+						{
 							name: "Independent Set (sum can exceed 100%)",
 							value: "independent_binary_set",
 						},
 					),
+			)
+			.addIntegerOption((option) =>
+				option
+					.setName("winner_count")
+					.setDescription(
+						"Required for competitive multi-winner (for example 2 in a top-2 market)",
+					)
+					.setRequired(false)
+					.setMinValue(1),
 			)
 			.addStringOption((option) =>
 				option
@@ -146,6 +159,33 @@ export const marketCommand = new SlashCommandBuilder()
 						{ name: "Success", value: "success" },
 						{ name: "Danger", value: "danger" },
 					),
+			)
+			.addStringOption((option) =>
+				option
+					.setName("contract_mode")
+					.setDescription("Updated contract mode")
+					.setRequired(false)
+					.addChoices(
+						{
+							name: "Single Winner (sum ~100%)",
+							value: "categorical_single_winner",
+						},
+						{
+							name: "Competitive Multi-Winner (sum ~k*100%)",
+							value: "competitive_multi_winner",
+						},
+						{
+							name: "Independent Set (sum can exceed 100%)",
+							value: "independent_binary_set",
+						},
+					),
+			)
+			.addIntegerOption((option) =>
+				option
+					.setName("winner_count")
+					.setDescription("Updated winner count for competitive multi-winner")
+					.setRequired(false)
+					.setMinValue(1),
 			)
 			.addStringOption((option) =>
 				option
@@ -294,7 +334,7 @@ export const marketCommand = new SlashCommandBuilder()
 	.addSubcommand((subcommand) =>
 		subcommand
 			.setName("resolve")
-			.setDescription("Resolve a market by naming the winner.")
+			.setDescription("Resolve a market by naming the winner(s).")
 			.addStringOption((option) =>
 				option
 					.setName("query")
@@ -304,7 +344,9 @@ export const marketCommand = new SlashCommandBuilder()
 			.addStringOption((option) =>
 				option
 					.setName("winning_outcome")
-					.setDescription("Winning outcome number, ID, or exact label")
+					.setDescription(
+						"Winner(s): number, ID, or exact label; comma-separated for multi-winner",
+					)
 					.setRequired(true),
 			)
 			.addStringOption((option) =>

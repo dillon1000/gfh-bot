@@ -16,7 +16,14 @@ import { getMarketById } from "../../services/records.js";
 import { scheduleMarketRefresh } from "../../services/scheduler.js";
 import { cancelMarket } from "../../services/trading/cancel.js";
 import { resolveMarket } from "../../services/trading/resolution.js";
-import { parseOutcomeSelection } from "../../parsing/market.js";
+import {
+	parseOutcomeSelection,
+	parseOutcomeSelections,
+} from "../../parsing/market.js";
+import {
+	isCompetitiveMultiWinnerMarketMode,
+	resolveMarketWinnerCount,
+} from "../../core/shared.js";
 import { createTradeQuotePreview } from "./quotes.js";
 import {
 	buildRootMarketInteractionSessionResponse,
@@ -96,14 +103,19 @@ export const handleMarketModal = async (
 			throw new Error("Market not found.");
 		}
 
-		const outcome = parseOutcomeSelection(
-			interaction.fields.getTextInputValue("winning_outcome"),
-			market.outcomes,
-		);
+		const winningOutcomeInput =
+			interaction.fields.getTextInputValue("winning_outcome");
+		const winningOutcomes = isCompetitiveMultiWinnerMarketMode(market)
+			? parseOutcomeSelections(winningOutcomeInput, market.outcomes)
+			: [parseOutcomeSelection(winningOutcomeInput, market.outcomes)];
 		const resolved = await resolveMarket({
 			marketId: market.id,
 			actorId: interaction.user.id,
-			winningOutcomeId: outcome.id,
+			...(isCompetitiveMultiWinnerMarketMode(market)
+				? {
+						winningOutcomeIds: winningOutcomes.map((entry) => entry.id),
+					}
+				: { winningOutcomeId: winningOutcomes[0]!.id }),
 			note: interaction.fields.getTextInputValue("note").trim() || null,
 			evidenceUrl: validateEvidenceUrl(
 				interaction.fields.getTextInputValue("evidence_url"),
@@ -120,7 +132,9 @@ export const handleMarketModal = async (
 			embeds: [
 				buildMarketStatusEmbed(
 					"Market Resolved",
-					`Resolved **${market.title}** in favor of **${outcome.label}**.`,
+					isCompetitiveMultiWinnerMarketMode(market)
+						? `Resolved **${market.title}** with **${resolveMarketWinnerCount(market)}** winners: **${winningOutcomes.map((entry) => entry.label).join(", ")}**.`
+						: `Resolved **${market.title}** in favor of **${winningOutcomes[0]?.label ?? "Unknown"}**.`,
 					0x57f287,
 				),
 			],

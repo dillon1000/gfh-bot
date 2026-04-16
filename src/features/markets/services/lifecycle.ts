@@ -27,6 +27,10 @@ import type { MarketWithRelations } from "../core/types.js";
 import type { MarketResolutionResult } from "../core/types.js";
 import type { MarketCancellationRefund } from "../core/types.js";
 import { buildMarketDiagram } from "../ui/visualize.js";
+import {
+	isCompetitiveMultiWinnerMarketMode,
+	resolveMarketWinnerCount,
+} from "../core/shared.js";
 
 const buildMarketMessagePayload = async (
 	market: MarketWithRelations,
@@ -283,7 +287,14 @@ export const notifyMarketResolved = async (
 		resolved.market,
 		"Market Resolved",
 		[
-			`**${resolved.market.title}** resolved in favor of **${resolved.market.winningOutcome?.label ?? "Unknown"}**.`,
+			isCompetitiveMultiWinnerMarketMode(resolved.market)
+				? `**${resolved.market.title}** resolved with ${resolveMarketWinnerCount(resolved.market)} winners: **${
+						resolved.market.outcomes
+							.filter((outcome) => (outcome.settlementValue ?? 0) >= 1 - 1e-6)
+							.map((outcome) => outcome.label)
+							.join(", ") || "Unknown"
+					}**.`
+				: `**${resolved.market.title}** resolved in favor of **${resolved.market.winningOutcome?.label ?? "Unknown"}**.`,
 			resolved.market.resolutionNote
 				? `Note: ${resolved.market.resolutionNote}`
 				: null,
@@ -321,7 +332,17 @@ export const notifyMarketResolved = async (
 						buildMarketStatusEmbed(
 							"Your Market Position Resolved",
 							[
-								`**${resolved.market.title}** resolved in favor of **${resolved.market.winningOutcome?.label ?? "Unknown"}**.`,
+								isCompetitiveMultiWinnerMarketMode(resolved.market)
+									? `**${resolved.market.title}** resolved with ${resolveMarketWinnerCount(resolved.market)} winners: **${
+											resolved.market.outcomes
+												.filter(
+													(outcome) =>
+														(outcome.settlementValue ?? 0) >= 1 - 1e-6,
+												)
+												.map((outcome) => outcome.label)
+												.join(", ") || "Unknown"
+										}**.`
+									: `**${resolved.market.title}** resolved in favor of **${resolved.market.winningOutcome?.label ?? "Unknown"}**.`,
 								"",
 								"Your positions in this market:",
 								positionLines,

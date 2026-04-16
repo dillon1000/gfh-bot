@@ -64,6 +64,7 @@ import {
 	parseMarketOutcomes,
 	parseMarketTags,
 	parseOutcomeSelection,
+	parseOutcomeSelections,
 	sanitizeMarketDescription,
 	sanitizeMarketTitle,
 } from "../../parsing/market.js";
@@ -79,6 +80,10 @@ import {
 } from "./shared.js";
 import { handleMarketConfigCommand } from "./config.js";
 import type { MarketWithRelations } from "../../core/types.js";
+import {
+	isCompetitiveMultiWinnerMarketMode,
+	resolveMarketWinnerCount,
+} from "../../core/shared.js";
 
 const describeMarketEditChanges = (
 	previous: MarketWithRelations,
@@ -102,6 +107,18 @@ const describeMarketEditChanges = (
 	if (previous.buttonStyle !== updated.buttonStyle) {
 		changes.push(
 			`Button style: **${previous.buttonStyle}** -> **${updated.buttonStyle}**`,
+		);
+	}
+
+	if (previous.contractMode !== updated.contractMode) {
+		changes.push(
+			`Contract mode: **${previous.contractMode}** -> **${updated.contractMode}**`,
+		);
+	}
+
+	if (previous.winnerCount !== updated.winnerCount) {
+		changes.push(
+			`Winner count: **${previous.winnerCount}** -> **${updated.winnerCount}**`,
 		);
 	}
 
@@ -190,6 +207,11 @@ export const handleMarketCommand = async (
 					(interaction.options.getString("contract_mode") as
 						| MarketWithRelations["contractMode"]
 						| null) ?? "categorical_single_winner",
+				...(interaction.options.getInteger("winner_count") !== null
+					? {
+							winnerCount: interaction.options.getInteger("winner_count", true),
+						}
+					: {}),
 				outcomes: parseMarketOutcomes(
 					interaction.options.getString("outcomes", true),
 				),
@@ -258,6 +280,19 @@ export const handleMarketCommand = async (
 								"button_style",
 								true,
 							) as MarketWithRelations["buttonStyle"],
+						}
+					: {}),
+				...(interaction.options.getString("contract_mode") !== null
+					? {
+							contractMode: interaction.options.getString(
+								"contract_mode",
+								true,
+							) as MarketWithRelations["contractMode"],
+						}
+					: {}),
+				...(interaction.options.getInteger("winner_count") !== null
+					? {
+							winnerCount: interaction.options.getInteger("winner_count", true),
 						}
 					: {}),
 				...(interaction.options.getString("tags") !== null
@@ -466,14 +501,21 @@ export const handleMarketCommand = async (
 				throw new Error("Market not found.");
 			}
 
-			const outcome = parseOutcomeSelection(
-				interaction.options.getString("winning_outcome", true),
-				market.outcomes,
+			const winningOutcomeInput = interaction.options.getString(
+				"winning_outcome",
+				true,
 			);
+			const winningOutcomes = isCompetitiveMultiWinnerMarketMode(market)
+				? parseOutcomeSelections(winningOutcomeInput, market.outcomes)
+				: [parseOutcomeSelection(winningOutcomeInput, market.outcomes)];
 			const resolved = await resolveMarket({
 				marketId: market.id,
 				actorId: interaction.user.id,
-				winningOutcomeId: outcome.id,
+				...(isCompetitiveMultiWinnerMarketMode(market)
+					? {
+							winningOutcomeIds: winningOutcomes.map((entry) => entry.id),
+						}
+					: { winningOutcomeId: winningOutcomes[0]!.id }),
 				note: interaction.options.getString("note"),
 				evidenceUrl: validateEvidenceUrl(
 					interaction.options.getString("evidence_url"),
@@ -487,7 +529,9 @@ export const handleMarketCommand = async (
 				embeds: [
 					buildMarketStatusEmbed(
 						"Market Resolved",
-						`Resolved **${resolved.market.title}** in favor of **${outcome.label}**.`,
+						isCompetitiveMultiWinnerMarketMode(market)
+							? `Resolved **${resolved.market.title}** with **${resolveMarketWinnerCount(market)}** winners: **${winningOutcomes.map((entry) => entry.label).join(", ")}**.`
+							: `Resolved **${resolved.market.title}** in favor of **${winningOutcomes[0]?.label ?? "Unknown"}**.`,
 						0x57f287,
 					),
 				],

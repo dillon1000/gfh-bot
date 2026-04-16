@@ -10,11 +10,13 @@ import {
 	clearMarketExposureTx,
 	computeSupplementaryBonusDistribution,
 	getMarketResolutionVector,
+	isCompetitiveMultiWinnerMarketMode,
 	isIndependentMarketMode,
 	getLossProtection,
 	getLossProtectionMap,
 	getMarketForUpdate,
 	marketInclude,
+	resolveMarketWinnerCount,
 	roundCurrency,
 	roundProbability,
 } from "../../core/shared.js";
@@ -48,6 +50,11 @@ export const resolveMarketOutcome = async (input: {
 		}
 
 		assertCanResolveOutcome(market, input.actorId, input.permissions);
+		if (isCompetitiveMultiWinnerMarketMode(market)) {
+			throw new Error(
+				"Competitive multi-winner markets must be resolved by selecting all winners at once.",
+			);
+		}
 		const outcome = market.outcomes.find(
 			(entry) => entry.id === input.outcomeId,
 		);
@@ -234,7 +241,8 @@ export const resolveMarketOutcome = async (input: {
 export const resolveMarket = async (input: {
 	marketId: string;
 	actorId: string;
-	winningOutcomeId: string;
+	winningOutcomeId?: string;
+	winningOutcomeIds?: string[];
 	note?: string | null;
 	evidenceUrl?: string | null;
 	permissions?: PermissionsBitField | Readonly<PermissionsBitField> | null;
@@ -252,11 +260,43 @@ export const resolveMarket = async (input: {
 				"Independent markets must be resolved outcome-by-outcome with settlement values.",
 			);
 		}
-		const winningOutcome = market.outcomes.find(
-			(outcome) => outcome.id === input.winningOutcomeId,
+
+		const requestedWinningOutcomeIds = (
+			isCompetitiveMultiWinnerMarketMode(market)
+				? (input.winningOutcomeIds ??
+					(input.winningOutcomeId ? [input.winningOutcomeId] : []))
+				: input.winningOutcomeId
+					? [input.winningOutcomeId]
+					: input.winningOutcomeIds && input.winningOutcomeIds.length > 0
+						? [input.winningOutcomeIds[0] as string]
+						: []
+		).map((value) => value.trim());
+		if (requestedWinningOutcomeIds.length === 0) {
+			throw new Error("Select at least one winning outcome.");
+		}
+
+		const uniqueWinningOutcomeIds = [...new Set(requestedWinningOutcomeIds)];
+		if (uniqueWinningOutcomeIds.length !== requestedWinningOutcomeIds.length) {
+			throw new Error("Winning outcomes cannot include duplicates.");
+		}
+
+		const winningOutcomeIdSet = new Set(uniqueWinningOutcomeIds);
+		const winningOutcomes = market.outcomes.filter((outcome) =>
+			winningOutcomeIdSet.has(outcome.id),
 		);
-		if (!winningOutcome) {
+		if (winningOutcomes.length !== uniqueWinningOutcomeIds.length) {
 			throw new Error("Winning outcome not found.");
+		}
+
+		if (isCompetitiveMultiWinnerMarketMode(market)) {
+			const expectedWinnerCount = resolveMarketWinnerCount(market);
+			if (winningOutcomes.length !== expectedWinnerCount) {
+				throw new Error(
+					`Competitive multi-winner markets must resolve exactly ${expectedWinnerCount} winner${expectedWinnerCount === 1 ? "" : "s"}.`,
+				);
+			}
+		} else if (winningOutcomes.length !== 1) {
+			throw new Error("Single-winner markets must resolve exactly one winner.");
 		}
 
 		const payouts = new Map<
@@ -277,7 +317,7 @@ export const resolveMarket = async (input: {
 
 			for (const position of positions) {
 				if (position.side === "long") {
-					const isWinner = position.outcomeId === winningOutcome.id;
+					const isWinner = winningOutcomeIdSet.has(position.outcomeId);
 					const positionPayout = isWinner ? position.shares : 0;
 					const protection = isWinner
 						? undefined
@@ -291,7 +331,7 @@ export const resolveMarket = async (input: {
 					continue;
 				}
 
-				const shortWins = position.outcomeId !== winningOutcome.id;
+				const shortWins = !winningOutcomeIdSet.has(position.outcomeId);
 				const releasedCollateral = shortWins ? position.collateralLocked : 0;
 				payout += releasedCollateral;
 				profit += shortWins
@@ -345,32 +385,34 @@ export const resolveMarket = async (input: {
 		await clearMarketExposureTx(tx, { marketId: market.id });
 
 		await Promise.all(
-			market.outcomes.map((outcome) =>
-				tx.marketOutcome.update({
+			market.outcomes.map((outcome) => {
+				const isWinningOutcome = winningOutcomeIdSet.has(outcome.id);
+				return tx.marketOutcome.update({
 					where: {
 						id: outcome.id,
 					},
 					data: {
 						outstandingShares: 0,
 						pricingShares: 0,
-						settlementValue:
-							outcome.id === winningOutcome.id
-								? 1
-								: (outcome.settlementValue ?? 0),
+						settlementValue: isWinningOutcome ? 1 : 0,
 						resolvedAt: outcome.resolvedAt ?? resolvedAt,
 						resolvedByUserId: outcome.resolvedByUserId ?? input.actorId,
-						resolutionNote:
-							outcome.id === winningOutcome.id
-								? (input.note ?? outcome.resolutionNote ?? null)
-								: (outcome.resolutionNote ?? null),
-						resolutionEvidenceUrl:
-							outcome.id === winningOutcome.id
-								? (input.evidenceUrl ?? outcome.resolutionEvidenceUrl ?? null)
-								: (outcome.resolutionEvidenceUrl ?? null),
+						resolutionNote: isWinningOutcome
+							? (input.note ?? outcome.resolutionNote ?? null)
+							: (outcome.resolutionNote ?? null),
+						resolutionEvidenceUrl: isWinningOutcome
+							? (input.evidenceUrl ?? outcome.resolutionEvidenceUrl ?? null)
+							: (outcome.resolutionEvidenceUrl ?? null),
 					},
-				}),
-			),
+				});
+			}),
 		);
+
+		const sortedWinningOutcomeIds = market.outcomes
+			.filter((outcome) => winningOutcomeIdSet.has(outcome.id))
+			.map((outcome) => outcome.id);
+		const primaryWinningOutcomeId =
+			sortedWinningOutcomeIds[0] ?? market.outcomes[0]?.id ?? null;
 
 		const resolvedMarket = await tx.market.update({
 			where: {
@@ -379,7 +421,7 @@ export const resolveMarket = async (input: {
 			data: {
 				tradingClosedAt: market.tradingClosedAt ?? resolvedAt,
 				resolvedAt,
-				winningOutcomeId: winningOutcome.id,
+				winningOutcomeId: primaryWinningOutcomeId,
 				resolutionNote: input.note ?? null,
 				resolutionEvidenceUrl: input.evidenceUrl ?? null,
 				resolvedByUserId: input.actorId,
