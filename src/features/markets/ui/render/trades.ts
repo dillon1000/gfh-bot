@@ -52,7 +52,7 @@ import {
 
 const getContractModeLabel = (input: {
 	contractMode?: MarketWithRelations["contractMode"];
-	winnerCount?: number;
+	winnerCount?: number | undefined;
 }): string => {
 	if (input.contractMode === "independent_binary_set") {
 		return "Independent Set";

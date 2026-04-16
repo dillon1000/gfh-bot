@@ -587,7 +587,7 @@ const calculateMarketTradeQuoteUnsafe = async (input: {
 			return {
 				action: input.action,
 				contractMode: market.contractMode ?? "categorical_single_winner",
-				winnerCount: market.winnerCount,
+				winnerCount: market.winnerCount ?? 1,
 				marketId: market.id,
 				marketTitle: market.title,
 				outcomeId: outcome.id,
@@ -679,7 +679,7 @@ const calculateMarketTradeQuoteUnsafe = async (input: {
 			return {
 				action: input.action,
 				contractMode: market.contractMode ?? "categorical_single_winner",
-				winnerCount: market.winnerCount,
+				winnerCount: market.winnerCount ?? 1,
 				marketId: market.id,
 				marketTitle: market.title,
 				outcomeId: outcome.id,

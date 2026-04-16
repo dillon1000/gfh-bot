@@ -618,10 +618,7 @@ export const executeMarketTrade = async (input: {
 							userId: input.userId,
 							outcomeId: outcome.id,
 							side: input.action,
-							cashDelta:
-								input.action === "buy" || input.action === "cover"
-									? -cashAmount
-									: cashAmount,
+							cashDelta: input.action === "buy" ? -cashAmount : cashAmount,
 							shareDelta: roundCurrency(shareDelta),
 							feeCharged,
 							probabilitySnapshot: computedProbabilities[tradableIndex] ?? 0,
@@ -942,10 +939,7 @@ export const executeMarketTrade = async (input: {
 						userId: input.userId,
 						outcomeId: outcome.id,
 						side: input.action,
-						cashDelta:
-							input.action === "buy" || input.action === "cover"
-								? -cashAmount
-								: cashAmount,
+						cashDelta: input.action === "buy" ? -cashAmount : cashAmount,
 						shareDelta: roundCurrency(shareDelta),
 						feeCharged,
 						probabilitySnapshot: computedProbabilities[tradableIndex] ?? 0,

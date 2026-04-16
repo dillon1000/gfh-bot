@@ -48,7 +48,8 @@ const resolveValidatedWinnerCount = (input: {
 	winnerCount: number | null | undefined;
 	outcomeCount: number;
 }): number => {
-	if (isCompetitiveMultiWinnerMarketMode(input)) {
+	const contractMode = input.contractMode ?? null;
+	if (isCompetitiveMultiWinnerMarketMode({ contractMode })) {
 		const winnerCount = input.winnerCount ?? 1;
 		validateCompetitiveWinnerCount({
 			winnerCount,
@@ -367,7 +368,7 @@ export const appendMarketOutcomes = async (
 
 		if (isCompetitiveMultiWinnerMarketMode(market)) {
 			validateCompetitiveWinnerCount({
-				winnerCount: market.winnerCount,
+				winnerCount: market.winnerCount ?? 1,
 				outcomeCount: market.outcomes.length + nextOutcomes.length,
 			});
 		}
