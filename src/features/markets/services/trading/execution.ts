@@ -939,7 +939,10 @@ export const executeMarketTrade = async (input: {
 						userId: input.userId,
 						outcomeId: outcome.id,
 						side: input.action,
-						cashDelta: input.action === "buy" ? -cashAmount : cashAmount,
+						cashDelta:
+							input.action === "buy" || input.action === "cover"
+								? -cashAmount
+								: cashAmount,
 						shareDelta: roundCurrency(shareDelta),
 						feeCharged,
 						probabilitySnapshot: computedProbabilities[tradableIndex] ?? 0,
