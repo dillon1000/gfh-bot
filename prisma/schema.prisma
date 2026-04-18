@@ -140,6 +140,7 @@ model GuildConfig {
   starboardEmojiId   String?
   starboardEmojiName String?
   memberRoleId       String?
+  removalNotificationChannelId String?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
   starboardEntries   StarboardEntry[]

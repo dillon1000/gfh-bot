@@ -46,12 +46,19 @@ export const removeCommand = new SlashCommandBuilder()
   .addSubcommand((subcommand) =>
     subcommand
       .setName('configure')
-      .setDescription('Configure the member role used for removal requests and votes.')
+      .setDescription('Configure removal request settings.')
       .addRoleOption((option) =>
         option
           .setName('member_role')
           .setDescription('Role whose members can request, second, and vote in removal polls')
-          .setRequired(true),
+          .setRequired(false),
+      )
+      .addChannelOption((option) =>
+        option
+          .setName('notification_channel')
+          .setDescription('Channel where removal requests and seconds are posted')
+          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+          .setRequired(false),
       ),
   );
 
