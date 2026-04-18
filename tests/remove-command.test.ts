@@ -36,7 +36,7 @@ describe('removeCommand', () => {
     expect(request.options?.map((option) => option.name) ?? []).toEqual(['target', 'channel']);
     expect(second.options?.map((option) => option.name) ?? []).toEqual(['target']);
     expect(status.options?.map((option) => option.name) ?? []).toEqual(['target']);
-    expect(configure.options?.map((option) => option.name) ?? []).toEqual(['member_role']);
+    expect(configure.options?.map((option) => option.name) ?? []).toEqual(['member_role', 'notification_channel']);
   });
 
   it('is included in the registered application commands', () => {

@@ -5,6 +5,7 @@ import {
   PermissionFlagsBits,
   type ChatInputCommandInteraction,
   type GuildBasedChannel,
+  type TextChannel,
 } from 'discord.js';
 
 import { removeConfigurePermissions } from '../commands/definition.js';
@@ -12,10 +13,12 @@ import {
   createRemovalVoteRequest,
   getLatestRemovalVoteRequest,
   getRemovalEligibilityConfig,
+  getRemovalNotificationChannelId,
   getRemovalRequestStatusDescription,
   getRemovalVotePollLink,
   secondRemovalVoteRequest,
   setRemovalMemberRole,
+  setRemovalNotificationChannel,
 } from '../services/removals/requests.js';
 import { recordAuditLogEvent } from '../../audit-log/services/events/delivery.js';
 
@@ -92,6 +95,78 @@ const buildSecondSuccessEmbed = (description: string, waiting: boolean): EmbedBu
     waiting ? 0xdc2626 : 0xf59e0b,
   );
 
+const buildRequestNotificationEmbed = (
+  interaction: ChatInputCommandInteraction,
+  request: Awaited<ReturnType<typeof createRemovalVoteRequest>>,
+  target: { id: string },
+): EmbedBuilder => {
+  const timestamp = Math.floor(request.supportWindowEndsAt.getTime() / 1000);
+  return new EmbedBuilder()
+    .setTitle('Removal Requested')
+    .setDescription(
+      [
+        `<@${interaction.user.id}> requested a removal vote for <@${target.id}>.`,
+        `Supporters: ${request.supports.length}/3`,
+        `Poll channel: <#${request.pollChannelId}>`,
+        `Seconders have until <t:${timestamp}:R>.`,
+      ].join('\n'),
+    )
+    .setColor(0xf59e0b)
+    .setTimestamp();
+};
+
+const buildSecondNotificationEmbed = (
+  interaction: ChatInputCommandInteraction,
+  request: Awaited<ReturnType<typeof secondRemovalVoteRequest>>,
+  target: { id: string },
+): EmbedBuilder => {
+  const isWaiting = request.status === 'waiting';
+  const timestamp = isWaiting
+    ? Math.floor((request.waitUntil ?? new Date()).getTime() / 1000)
+    : Math.floor(request.supportWindowEndsAt.getTime() / 1000);
+
+  return new EmbedBuilder()
+    .setTitle(isWaiting ? 'Removal Vote Ready' : 'Removal Seconded')
+    .setDescription(
+      isWaiting
+        ? [
+            `<@${interaction.user.id}> added the third support for a removal vote on <@${target.id}>.`,
+            `Supporters: ${request.supports.length}/3`,
+            `The waiting period ends <t:${timestamp}:R>.`,
+            `The poll will auto-start by <t:${Math.floor((request.initiateBy ?? new Date()).getTime() / 1000)}:R>.`,
+          ].join('\n')
+        : [
+            `<@${interaction.user.id}> seconded the removal request for <@${target.id}>.`,
+            `Supporters: ${request.supports.length}/3`,
+            `Support window ends <t:${timestamp}:R>.`,
+          ].join('\n'),
+    )
+    .setColor(isWaiting ? 0xdc2626 : 0xf59e0b)
+    .setTimestamp();
+};
+
+const postRemovalNotification = async (
+  interaction: ChatInputCommandInteraction,
+  embed: EmbedBuilder,
+): Promise<void> => {
+  const notificationChannelId = await getRemovalNotificationChannelId(interaction.guildId!);
+  if (!notificationChannelId) {
+    return;
+  }
+
+  const channel = await interaction.client.channels.fetch(notificationChannelId);
+  if (!channel?.isTextBased()) {
+    return;
+  }
+
+  await (channel as TextChannel).send({
+    embeds: [embed],
+    allowedMentions: {
+      parse: [],
+    },
+  });
+};
+
 const buildStatusEmbed = async (
   interaction: ChatInputCommandInteraction,
   targetUserId: string,
@@ -129,31 +204,57 @@ export const handleRemoveCommand = async (
 
   if (subcommand === 'configure') {
     assertCanConfigure(interaction);
-    const role = interaction.options.getRole('member_role', true);
-    const config = await setRemovalMemberRole(interaction.guildId, role.id);
+    const role = interaction.options.getRole('member_role', false);
+    const notificationChannel = interaction.options.getChannel('notification_channel', false);
+
+    const lines: string[] = [];
+    if (role) {
+      const config = await setRemovalMemberRole(interaction.guildId, role.id);
+      lines.push(`Member role: <@&${config.memberRoleId}>`);
+      await recordAuditLogEvent(interaction.client, {
+        guildId: interaction.guildId,
+        bucket: 'primary',
+        source: 'bot',
+        eventName: 'bot.removal_config.updated',
+        payload: {
+          actorId: interaction.user.id,
+          memberRoleId: config.memberRoleId,
+        },
+      });
+    }
+    if (notificationChannel) {
+      if ('isTextBased' in notificationChannel && !notificationChannel.isTextBased()) {
+        throw new Error('Notification channel must be text-based.');
+      }
+      const config = await setRemovalNotificationChannel(interaction.guildId, notificationChannel.id);
+      lines.push(`Notification channel: <#${config.removalNotificationChannelId}>`);
+      await recordAuditLogEvent(interaction.client, {
+        guildId: interaction.guildId,
+        bucket: 'primary',
+        source: 'bot',
+        eventName: 'bot.removal_config.updated',
+        payload: {
+          actorId: interaction.user.id,
+          removalNotificationChannelId: config.removalNotificationChannelId,
+        },
+      });
+    }
+    if (!role && !notificationChannel) {
+      throw new Error('You must provide at least one option to configure.');
+    }
 
     await interaction.reply({
       flags: MessageFlags.Ephemeral,
       embeds: [
         buildEmbed(
           'Removal Configuration Updated',
-          `Configured member role: <@&${config.memberRoleId}>`,
+          lines.join('\n'),
           0x16a34a,
         ),
       ],
       allowedMentions: {
         parse: [],
         roles: [],
-      },
-    });
-    await recordAuditLogEvent(interaction.client, {
-      guildId: interaction.guildId,
-      bucket: 'primary',
-      source: 'bot',
-      eventName: 'bot.removal_config.updated',
-      payload: {
-        actorId: interaction.user.id,
-        memberRoleId: config.memberRoleId,
       },
     });
     return;
@@ -169,9 +270,6 @@ export const handleRemoveCommand = async (
     throw new Error('Removal requests are not configured yet. Ask a server manager to run /remove configure.');
   }
 
-  const actor = await getGuildActor(interaction);
-  assertEligibleSupporter(actor, config.memberRoleId, target.id);
-
   switch (subcommand) {
     case 'request': {
       const channel = interaction.options.getChannel('channel', true);
@@ -183,6 +281,9 @@ export const handleRemoveCommand = async (
       }
       assertCanPublishRemovalPoll(interaction, channel);
 
+      const actor = await getGuildActor(interaction);
+      assertEligibleSupporter(actor, config.memberRoleId, target.id);
+
       const request = await createRemovalVoteRequest({
         guildId: interaction.guildId,
         targetUserId: target.id,
@@ -190,6 +291,8 @@ export const handleRemoveCommand = async (
         pollChannelId: channel.id,
         originChannelId: interaction.channelId,
       });
+
+      await postRemovalNotification(interaction, buildRequestNotificationEmbed(interaction, request, target));
 
       await interaction.reply({
         embeds: [
@@ -207,12 +310,17 @@ export const handleRemoveCommand = async (
       return;
     }
     case 'second': {
+      const actor = await getGuildActor(interaction);
+      assertEligibleSupporter(actor, config.memberRoleId, target.id);
+
       const request = await secondRemovalVoteRequest({
         guildId: interaction.guildId,
         targetUserId: target.id,
         supporterId: interaction.user.id,
         channelId: interaction.channelId,
       });
+
+      await postRemovalNotification(interaction, buildSecondNotificationEmbed(interaction, request, target));
 
       await interaction.reply({
         embeds: [

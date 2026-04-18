@@ -7,6 +7,7 @@ const {
   getRemovalEligibilityConfig,
   getRemovalRequestStatusDescription,
   getRemovalVotePollLink,
+  getRemovalNotificationChannelId,
   setRemovalMemberRole,
   recordAuditLogEvent,
 } = vi.hoisted(() => ({
@@ -16,6 +17,7 @@ const {
   getRemovalEligibilityConfig: vi.fn(),
   getRemovalRequestStatusDescription: vi.fn(),
   getRemovalVotePollLink: vi.fn(),
+  getRemovalNotificationChannelId: vi.fn(),
   setRemovalMemberRole: vi.fn(),
   recordAuditLogEvent: vi.fn(),
 }));
@@ -27,6 +29,7 @@ vi.mock('../src/features/removals/services/removals/requests.js', () => ({
   getRemovalEligibilityConfig,
   getRemovalRequestStatusDescription,
   getRemovalVotePollLink,
+  getRemovalNotificationChannelId,
   setRemovalMemberRole,
 }));
 
@@ -128,6 +131,7 @@ describe('remove interactions', () => {
     getRemovalEligibilityConfig.mockReset();
     getRemovalRequestStatusDescription.mockReset();
     getRemovalVotePollLink.mockReset();
+    getRemovalNotificationChannelId.mockReset();
     setRemovalMemberRole.mockReset();
     recordAuditLogEvent.mockReset();
 
@@ -137,6 +141,7 @@ describe('remove interactions', () => {
     });
     getRemovalRequestStatusDescription.mockReturnValue('Status: collecting');
     getRemovalVotePollLink.mockResolvedValue(null);
+    getRemovalNotificationChannelId.mockResolvedValue(null);
   });
 
   it('creates a public removal request and forwards the locked poll channel', async () => {

@@ -201,3 +201,28 @@ export const getRemovalVotePollLink = async (
 
   return `https://discord.com/channels/${request.guildId}/${poll.channelId}/${poll.messageId}`;
 };
+
+export const getRemovalNotificationChannelId = async (
+  guildId: string,
+): Promise<string | null> => {
+  const config = await prisma.guildConfig.findUnique({
+    where: { guildId },
+    select: { removalNotificationChannelId: true },
+  });
+  return config?.removalNotificationChannelId ?? null;
+};
+
+export const setRemovalNotificationChannel = async (
+  guildId: string,
+  notificationChannelId: string,
+): Promise<GuildConfig> =>
+  prisma.guildConfig.upsert({
+    where: { guildId },
+    create: {
+      guildId,
+      removalNotificationChannelId: notificationChannelId,
+    },
+    update: {
+      removalNotificationChannelId: notificationChannelId,
+    },
+  });
