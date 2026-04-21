@@ -12,6 +12,9 @@ vi.mock("../src/features/markets/core/shared.js", () => ({
 					: "open",
 	),
 	getTradeLockReason: vi.fn(() => null),
+	resolveMarketWinnerCount: vi.fn((market: MarketWithRelations) =>
+		Math.max(1, Math.floor(market.winnerCount ?? 1)),
+	),
 	computeMarketSummary: vi.fn((market: MarketWithRelations) => ({
 		status: market.cancelledAt
 			? "cancelled"
@@ -34,6 +37,7 @@ vi.mock("../src/features/markets/core/shared.js", () => ({
 
 import { buildMarketMessage } from "../src/features/markets/ui/render/market.js";
 import { buildPortfolioMessage } from "../src/features/markets/ui/render/portfolio.js";
+import { buildMarketOutcomeTradePrompt } from "../src/features/markets/ui/render/trades.js";
 
 const market = {
 	id: "market_1",
@@ -143,6 +147,12 @@ const market = {
 	trades: [],
 	positions: [],
 	liquidityEvents: [],
+};
+
+const topKMarket = {
+	...market,
+	contractMode: "competitive_multi_winner" as const,
+	winnerCount: 2,
 };
 
 describe("market render", () => {
@@ -411,5 +421,20 @@ describe("market render", () => {
 
 		const selectJson = payload.components[0]!.components[0]!.toJSON();
 		expect(selectJson.options).toHaveLength(25);
+	});
+
+	it("offers shorting in competitive top-k trade prompts", () => {
+		const payload = buildMarketOutcomeTradePrompt(topKMarket, "a");
+		const embed = payload.embeds[0].toJSON();
+		const buttons = (payload.components[0]?.toJSON().components ?? []) as Array<{
+			label?: string;
+			disabled?: boolean;
+		}>;
+
+		expect(embed.description).toContain(
+			"buy this outcome's chance to finish in the top 2 or short that outcome",
+		);
+		expect(buttons[1]?.label).toBe("Short 66.0%");
+		expect(buttons[1]?.disabled).toBe(false);
 	});
 });

@@ -12,6 +12,7 @@ import {
 	solveSellSharesForAmount,
 	solveShortSharesForAmount,
 	solveTopKBuySharesForAmount,
+	solveTopKShortSharesForAmount,
 } from "../src/features/markets/core/math.js";
 import { getMarketProbabilities } from "../src/features/markets/core/shared.js";
 
@@ -107,6 +108,15 @@ describe("market math", () => {
 
 		expect(buyCost).toBeGreaterThan(0);
 		expect(unwindPayout).toBeCloseTo(buyCost, 8);
+	});
+
+	it("solves top-k short share amounts against desired proceeds", () => {
+		const shares = [0, 0, 0, 0];
+		const shortShares = solveTopKShortSharesForAmount(shares, 0, 40, 150, 2);
+		const proceeds = computeTopKSellPayout(shares, 0, shortShares, 150, 2);
+
+		expect(shortShares).toBeGreaterThan(0);
+		expect(proceeds).toBeCloseTo(40, 5);
 	});
 
 	it("solves buy share amounts against LMSR cost", () => {

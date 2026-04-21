@@ -162,7 +162,7 @@ export const buildMarketOutcomeTradePrompt = (
 					isIndependentMarket
 						? "Choose whether to buy YES exposure or short YES exposure (take the NO side)."
 						: isCompetitiveMultiWinner
-							? `Choose whether you want to buy this outcome's chance to finish in the top ${resolveMarketWinnerCount(market)}.`
+							? `Choose whether you want to buy this outcome's chance to finish in the top ${resolveMarketWinnerCount(market)} or short that outcome.`
 							: "Choose whether you want to buy this outcome or short it.",
 				].join("\n"),
 				0x60a5fa,
@@ -181,11 +181,7 @@ export const buildMarketOutcomeTradePrompt = (
 					.setCustomId(
 						marketQuickTradeButtonCustomId("short", market.id, outcomeId),
 					)
-					.setLabel(
-						isCompetitiveMultiWinner
-							? "Short (unavailable)"
-							: `Short ${formatProbabilityPercent(1 - entry.probability)}`,
-					)
+					.setLabel(`Short ${formatProbabilityPercent(1 - entry.probability)}`)
 					.setDisabled(shortLocked)
 					.setStyle(ButtonStyle.Danger),
 			),
@@ -506,7 +502,7 @@ export const buildMarketInteractionSessionMessage = (input: {
 				: session.preview?.kind === "trade"
 					? buildTradeQuoteDescription(session.preview.quote)
 					: isCompetitiveMultiWinner
-						? "Select an outcome, then use a quick amount or enter a custom amount to preview the trade. Shorting is not yet supported for competitive multi-winner markets."
+						? "Select an outcome, then use a quick amount or enter a custom amount to preview a top-K trade."
 						: "Select an outcome, then use a quick amount or enter a custom amount to preview the trade.",
 		].join("\n");
 
@@ -527,7 +523,6 @@ export const buildMarketInteractionSessionMessage = (input: {
 						marketSessionSideButtonCustomId(session.sessionId, "short"),
 					)
 					.setLabel("Short")
-					.setDisabled(isCompetitiveMultiWinner)
 					.setStyle(
 						selectedAction === "short"
 							? ButtonStyle.Danger

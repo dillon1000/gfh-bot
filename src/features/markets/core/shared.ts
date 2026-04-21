@@ -424,10 +424,6 @@ export const getTradeLockReason = (
 	outcomeId: string,
 	action: MarketTradeSide,
 ): string | null => {
-	if (isCompetitiveMultiWinnerMarketMode(market) && action === "short") {
-		return "Shorting is not yet supported for competitive multi-winner markets.";
-	}
-
 	if (action !== "buy" && action !== "short") {
 		return null;
 	}
