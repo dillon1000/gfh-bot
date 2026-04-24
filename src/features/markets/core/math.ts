@@ -409,6 +409,75 @@ export const solveBinarySellSharesForAmount = (
 	return clampSmall(high);
 };
 
+const computeTopKMaxShortPayout = (
+	shares: number[],
+	outcomeIndex: number,
+	liquidity: number,
+	winnerCount: number,
+): number => {
+	const baseline = computeTopKCost(shares, liquidity, winnerCount);
+	if (winnerCount === shares.length) {
+		return Number.POSITIVE_INFINITY;
+	}
+
+	const remainingShares = shares.filter((_, index) => index !== outcomeIndex);
+	const minCost = computeTopKCost(remainingShares, liquidity, winnerCount);
+	return clampSmall(baseline - minCost);
+};
+
+export const solveTopKShortSharesForAmount = (
+	shares: number[],
+	outcomeIndex: number,
+	desiredPayout: number,
+	liquidity: number,
+	winnerCount: number,
+): number => {
+	const maxPayout = computeTopKMaxShortPayout(
+		shares,
+		outcomeIndex,
+		liquidity,
+		winnerCount,
+	);
+	if (desiredPayout > maxPayout + 1e-6) {
+		throw new Error(
+			"That short cannot pay out that many points. Try a smaller point amount or specify shares.",
+		);
+	}
+
+	let low = 0;
+	let high = Math.max(1, desiredPayout);
+
+	while (
+		computeTopKSellPayout(
+			shares,
+			outcomeIndex,
+			high,
+			liquidity,
+			winnerCount,
+		) < desiredPayout
+	) {
+		high *= 2;
+	}
+
+	for (let index = 0; index < binarySearchIterations; index += 1) {
+		const mid = (low + high) / 2;
+		const payout = computeTopKSellPayout(
+			shares,
+			outcomeIndex,
+			mid,
+			liquidity,
+			winnerCount,
+		);
+		if (payout < desiredPayout) {
+			low = mid;
+		} else {
+			high = mid;
+		}
+	}
+
+	return clampSmall(high);
+};
+
 export const solveBinaryShortSharesForAmount = (
 	shares: number,
 	desiredPayout: number,

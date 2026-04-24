@@ -191,6 +191,42 @@ const market = {
 	liquidityEvents: [],
 };
 
+const competitiveTopKMarket = {
+	...market,
+	id: "market_topk",
+	title: "Who finishes top 2?",
+	contractMode: "competitive_multi_winner" as const,
+	winnerCount: 2,
+	outcomes: [
+		{
+			...market.outcomes[0],
+			id: "topk_a",
+			marketId: "market_topk",
+			label: "Alpha",
+		},
+		{
+			...market.outcomes[1],
+			id: "topk_b",
+			marketId: "market_topk",
+			label: "Beta",
+		},
+		{
+			...market.outcomes[0],
+			id: "topk_c",
+			marketId: "market_topk",
+			label: "Gamma",
+			sortOrder: 2,
+		},
+		{
+			...market.outcomes[1],
+			id: "topk_d",
+			marketId: "market_topk",
+			label: "Delta",
+			sortOrder: 3,
+		},
+	],
+};
+
 type TestMarketPosition = {
 	id: string;
 	marketId: string;
@@ -736,6 +772,48 @@ describe("market service", () => {
 						create: expect.objectContaining({
 							side: "short",
 							cashDelta: result.cashAmount,
+							shareDelta: -3,
+						}),
+					}),
+				}),
+			}),
+		);
+	});
+
+	it("opens a short position in a competitive top-k market", async () => {
+		transaction.market.findUnique.mockResolvedValue(competitiveTopKMarket);
+		runTransaction();
+
+		const result = await executeMarketTrade({
+			marketId: "market_topk",
+			userId: "user_2",
+			outcomeId: "topk_a",
+			action: "short",
+			amount: 3,
+			amountMode: "shares",
+		});
+
+		expect(result.shareDelta).toBeCloseTo(-3, 5);
+		expect(result.positionSide).toBe("short");
+		expect(result.cashAmount).toBeGreaterThan(0);
+		expect(transaction.marketPosition.upsert).toHaveBeenCalledWith(
+			expect.objectContaining({
+				create: expect.objectContaining({
+					marketId: "market_topk",
+					outcomeId: "topk_a",
+					side: "short",
+					shares: 3,
+					collateralLocked: 3,
+				}),
+			}),
+		);
+		expect(transaction.market.update).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({
+					trades: expect.objectContaining({
+						create: expect.objectContaining({
+							outcomeId: "topk_a",
+							side: "short",
 							shareDelta: -3,
 						}),
 					}),
@@ -1414,6 +1492,28 @@ describe("market service", () => {
 		expect(quote.collateralLocked).toBeGreaterThan(0);
 		expect(quote.settlementIfChosen).toBe(0);
 		expect(quote.settlementIfNotChosen).toBeGreaterThan(0);
+	});
+
+	it("quotes a competitive top-k short trade", async () => {
+		prisma.market.findUnique.mockResolvedValue(competitiveTopKMarket);
+		prisma.marketAccount.findUnique.mockResolvedValue(baseAccount);
+
+		const quote = await calculateMarketTradeQuote({
+			marketId: "market_topk",
+			userId: "user_2",
+			outcomeId: "topk_a",
+			action: "short",
+			amount: 10,
+			amountMode: "points",
+			rawAmount: "10 pts",
+		});
+
+		expect(quote.action).toBe("short");
+		expect(quote.contractMode).toBe("competitive_multi_winner");
+		expect(quote.winnerCount).toBe(2);
+		expect(quote.immediateCash).toBe(10);
+		expect(quote.collateralLocked).toBeGreaterThan(0);
+		expect(quote.nextProbability).toBeLessThan(quote.currentProbability);
 	});
 
 	it("quotes a sell trade against the remaining long position", async () => {
