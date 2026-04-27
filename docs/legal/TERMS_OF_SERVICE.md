@@ -170,8 +170,6 @@ To the maximum extent permitted by law, you will indemnify, defend, and hold har
 
 These Terms are governed by the laws of the **United States of America**, without regard to conflict-of-law rules. Any dispute arising from or relating to these Terms or the App will be resolved exclusively in the state or federal courts located in **United States of America**, and you consent to personal jurisdiction and venue there, except where applicable law provides otherwise.
 
-If you prefer arbitration or another dispute framework, revise this section before publishing.
-
 ## 20. Changes to These Terms
 
 We may update these Terms from time to time. If we make material changes, we will update the "Last updated" date and may provide additional notice where appropriate. Your continued use of the App after updated Terms become effective means you accept the revised Terms.
