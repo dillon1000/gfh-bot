@@ -5,7 +5,7 @@ import { createFallbackPollSnapshot } from '../services/governance.js';
 import type { EvaluatedPollSnapshot, PollComputedResults, PollWithRelations } from '../core/types.js';
 import type { DiagramPayload } from './visualize/shared.js';
 import { buildRankedPollSvg } from './visualize/ranked.js';
-import { buildStandardPollSvg, getStandardPollSummary } from './visualize/standard.js';
+import { buildStandardPollPng } from './visualize/standard.js';
 
 export { getStandardPollSummary } from './visualize/standard.js';
 
@@ -25,13 +25,10 @@ export async function buildPollResultDiagram(
     : createFallbackPollSnapshot(snapshotOrPoll, providedResults);
   const { poll, results, outcome } = snapshot;
   const fileName = `poll-result-${poll.id}.png`;
-  const svg = results.kind === 'ranked'
-    ? buildRankedPollSvg(poll, results, outcome)
-    : buildStandardPollSvg(poll, results, outcome, snapshot.electorate);
 
-  const buffer = await sharp(Buffer.from(svg))
-    .png()
-    .toBuffer();
+  const buffer = results.kind === 'ranked'
+    ? await sharp(Buffer.from(buildRankedPollSvg(poll, results, outcome))).png().toBuffer()
+    : await buildStandardPollPng(poll, results, outcome, snapshot.electorate);
 
   return {
     fileName,
