@@ -18,6 +18,7 @@ const basePoll = {
   mode: 'single',
   singleSelect: true,
   anonymous: false,
+  hideResultsUntilClosed: false,
   quorumPercent: null,
   allowedRoleIds: [],
   blockedRoleIds: [],

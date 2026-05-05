@@ -34,6 +34,7 @@ const buildPoll = (
   mode: options.mode ?? 'single',
   singleSelect: (options.mode ?? 'single') !== 'multi',
   anonymous: options.anonymous ?? false,
+  hideResultsUntilClosed: false,
   quorumPercent: options.quorumPercent ?? null,
   allowedRoleIds: [],
   blockedRoleIds: [],

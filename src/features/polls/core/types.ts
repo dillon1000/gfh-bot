@@ -38,6 +38,7 @@ export type PollCreationInput = {
     emoji?: string | null;
   }>;
   anonymous: boolean;
+  hideResultsUntilClosed: boolean;
   quorumPercent?: number | null;
   allowedRoleIds: string[];
   blockedRoleIds: string[];
@@ -56,6 +57,7 @@ export type PollDraft = {
   choices: string[];
   choiceEmojis: Array<string | null>;
   anonymous: boolean;
+  hideResultsUntilClosed: boolean;
   quorumPercent: number | null;
   allowedRoleIds: string[];
   blockedRoleIds: string[];

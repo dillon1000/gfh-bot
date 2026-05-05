@@ -18,6 +18,7 @@ const rankedPoll = {
   mode: 'ranked',
   singleSelect: false,
   anonymous: false,
+  hideResultsUntilClosed: false,
   quorumPercent: null,
   allowedRoleIds: [],
   blockedRoleIds: [],

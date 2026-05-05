@@ -202,6 +202,7 @@ const createPoll = (overrides?: Partial<PollWithRelations>): PollWithRelations =
   mode: 'single',
   singleSelect: true,
   anonymous: false,
+  hideResultsUntilClosed: false,
   quorumPercent: null,
   allowedRoleIds: [],
   blockedRoleIds: [],

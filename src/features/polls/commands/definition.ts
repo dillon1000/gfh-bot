@@ -44,6 +44,12 @@ export const pollCommand = new SlashCommandBuilder()
       .setDescription('Hide voter identities in public output')
       .setRequired(false),
   )
+  .addBooleanOption((option) =>
+    option
+      .setName('hide_results')
+      .setDescription('Hide vote counts and percentages until the poll closes')
+      .setRequired(false),
+  )
   .addIntegerOption((option) =>
     option
       .setName('quorum_percent')

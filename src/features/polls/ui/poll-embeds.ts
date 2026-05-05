@@ -13,6 +13,7 @@ import {
   getPollStatusLabel,
   getReminderLabel,
   isPollCancelled,
+  isPollClosedOrExpired,
   renderChoiceLine,
   shouldRevealRankedResults,
 } from './render-helpers.js';
@@ -99,7 +100,7 @@ const getRankedStatusLabel = (
   return 'Final rounds available below';
 };
 
-const buildCompactDetailsLines = (snapshot: EvaluatedPollSnapshot): string[] => {
+const buildCompactDetailsLines = (snapshot: EvaluatedPollSnapshot, resultsHidden: boolean): string[] => {
   const { poll, results, outcome, electorate } = snapshot;
   const lines = [
     `**Poll** ${getCompactModeLabel(poll.mode)} ${getVisibilitySummaryLabel(poll)} poll started by <@${poll.authorId}>`,
@@ -126,6 +127,10 @@ const buildCompactDetailsLines = (snapshot: EvaluatedPollSnapshot): string[] => 
   });
   if (reminderLabel !== 'Disabled') {
     lines.push(`**Reminders** ${reminderLabel}`);
+  }
+
+  if (resultsHidden) {
+    return lines;
   }
 
   const participationParts: string[] = [];
@@ -185,7 +190,8 @@ export const buildPollMessageEmbed = (
 ): EmbedBuilder => {
   const { poll, results, outcome } = snapshot;
   const revealRankedResults = shouldRevealRankedResults(poll);
-  const details = buildCompactDetailsLines(snapshot);
+  const resultsHidden = poll.hideResultsUntilClosed && !isPollClosedOrExpired(poll);
+  const details = buildCompactDetailsLines(snapshot, resultsHidden);
 
   const embed = new EmbedBuilder()
     .setTitle(poll.question)
@@ -208,21 +214,25 @@ export const buildPollMessageEmbed = (
           ? 'Ranked Choice Snapshot'
           : revealRankedResults
             ? 'Final Ranked Rounds'
-            : 'Ranked Choice Status',
+            : resultsHidden
+              ? 'Ranked Choice Status'
+              : 'Ranked Choice Status',
         value: clampFieldValue(revealRankedResults
           ? results.rounds.length === 0
             ? 'No ballots yet.'
             : roundSummaries.join('\n\n')
-          : [
-              'Round-by-round tallies are hidden until this ranked-choice poll closes.',
-              `Ballots submitted: ${results.totalVoters}`,
-            ].join('\n')),
+          : resultsHidden
+            ? 'Round-by-round tallies and ballot counts are hidden until this ranked-choice poll closes.'
+            : [
+                'Round-by-round tallies are hidden until this ranked-choice poll closes.',
+                `Ballots submitted: ${results.totalVoters}`,
+              ].join('\n')),
       },
       {
         name: 'Details',
         value: clampFieldValue([
           ...details,
-          `**Ballots** ${results.totalVoters}`,
+          `**Ballots** ${resultsHidden ? 'Hidden until close' : results.totalVoters}`,
           revealRankedResults && latestRound ? `**Latest Elimination** ${buildRoundEliminationLabel(poll, latestRound)}` : null,
         ]
           .filter(Boolean)
@@ -236,8 +246,12 @@ export const buildPollMessageEmbed = (
           ? 'Results at Cancellation'
           : poll.closedAt
             ? 'Final Results'
-            : 'Live Results',
-        value: clampFieldValue(results.choices.map((choice, index) => renderPollChoiceLine(choice, index)).join('\n\n')),
+            : resultsHidden
+              ? 'Results Hidden'
+              : 'Live Results',
+        value: resultsHidden
+          ? 'Vote counts and percentages are hidden until the poll closes.'
+          : clampFieldValue(results.choices.map((choice, index) => renderPollChoiceLine(choice, index)).join('\n\n')),
       },
       {
         name: 'Details',
@@ -254,7 +268,7 @@ export const buildPollMessageEmbed = (
   }
 
   embed.setFooter({
-    text: `Poll ID: ${poll.id} • ${results.totalVoters} voter${results.totalVoters === 1 ? '' : 's'}`,
+    text: `Poll ID: ${poll.id}${resultsHidden ? '' : ` • ${results.totalVoters} voter${results.totalVoters === 1 ? '' : 's'}`}`,
   });
 
   return embed;
@@ -276,12 +290,23 @@ export function buildPollResultsEmbed(
   const votersByOption = buildVoterMentionsByOption(evaluatedPoll);
   const uniqueVoterMentions = buildUniqueVoterMentions(evaluatedPoll);
   const revealRankedResults = shouldRevealRankedResults(poll);
+  const resultsHidden = poll.hideResultsUntilClosed && !isPollClosedOrExpired(poll);
   const embed = new EmbedBuilder()
     .setTitle(`Results: ${poll.question}`)
     .setColor(getPollColor(poll))
     .setFooter({
       text: `Poll ID: ${poll.id}`,
     });
+
+  if (resultsHidden) {
+    embed.setDescription(
+      [
+        `Status: ${getPollStatusText(poll)}`,
+        'Results are hidden until the poll closes.',
+      ].join('\n'),
+    );
+    return embed;
+  }
 
   if (results.kind === 'ranked') {
     const winnerLabel = results.winnerOptionId
