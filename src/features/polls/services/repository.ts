@@ -114,6 +114,7 @@ export const createPollRecord = async (
       mode: input.mode,
       singleSelect: input.mode !== 'multi',
       anonymous: input.anonymous,
+      hideResultsUntilClosed: input.hideResultsUntilClosed,
       quorumPercent: input.quorumPercent ?? null,
       allowedRoleIds: input.allowedRoleIds,
       blockedRoleIds: input.blockedRoleIds,

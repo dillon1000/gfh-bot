@@ -17,6 +17,7 @@
     "register-commands:dist": "node dist/src/app/register-commands.js",
     "backfill:market-liquidity": "tsx src/app/backfill-market-liquidity.ts",
     "backfill:market-forum-posts": "tsx src/app/backfill-market-forum-posts.ts",
+    "backfill:starboard-reactions": "tsx src/app/backfill-starboard-reactions.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",

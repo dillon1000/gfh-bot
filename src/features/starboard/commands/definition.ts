@@ -67,7 +67,14 @@ export const starboardCommand = new SlashCommandBuilder()
           .addChoices(
             { name: 'Posts', value: 'posts' },
             { name: 'Authors', value: 'authors' },
+            { name: 'Reactors', value: 'reactors' },
           ),
+      )
+      .addStringOption((option) =>
+        option
+          .setName('emoji')
+          .setDescription('Emoji to look up reactors for (required when type is Reactors)')
+          .setRequired(false),
       )
       .addIntegerOption((option) =>
         option

@@ -65,6 +65,7 @@ const buildDraftFromPoll = (poll: PollWithRelations): PollDraft => ({
   choices: poll.options.map((option) => option.label),
   choiceEmojis: poll.options.map((option) => option.emoji ?? null),
   anonymous: poll.anonymous,
+  hideResultsUntilClosed: poll.hideResultsUntilClosed,
   quorumPercent: poll.quorumPercent,
   allowedRoleIds: [...poll.allowedRoleIds],
   blockedRoleIds: [...poll.blockedRoleIds],

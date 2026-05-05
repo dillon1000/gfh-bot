@@ -150,7 +150,7 @@ export const getDraftSummary = (
       ? draft.choiceEmojis.map((emoji, index) => getPollChoiceEmojiDisplay(emoji, index)).join(' • ')
       : 'Default numbered emoji'}`,
     `**Mode** ${getModeLabel(draft.mode)}`,
-    `**Visibility** ${draft.anonymous ? 'Anonymous option selections' : 'Public vote totals'}`,
+    `**Visibility** ${draft.anonymous ? 'Anonymous option selections' : 'Public vote totals'}${draft.hideResultsUntilClosed ? ' • Hidden until close' : ''}`,
     `**Governance** ${getGovernanceLabel(draft)}`,
     `**Reminders** ${getReminderLabel(draft)}`,
     `**Pass Rule** ${getPassRuleLabel(draft.mode, draft.passThreshold, draft.passOptionIndex, draft.choices.map((label) => ({ label })))}`,

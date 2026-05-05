@@ -73,6 +73,7 @@ const basePoll: PollWithRelations = {
   mode: 'single',
   singleSelect: true,
   anonymous: false,
+  hideResultsUntilClosed: false,
   quorumPercent: 60,
   allowedRoleIds: ['role_1'],
   blockedRoleIds: ['role_2'],

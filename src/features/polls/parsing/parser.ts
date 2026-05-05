@@ -188,13 +188,17 @@ export const parsePassChoiceIndex = (
     return null;
   }
 
+  if (typeof value === 'string' && value.trim() === '') {
+    return null;
+  }
+
   const normalized = typeof value === 'number' ? value : Number(value.trim());
   if (!Number.isInteger(normalized)) {
     throw new Error('Pass choice must be a whole number.');
   }
 
   if (normalized < 1 || normalized > choiceCount) {
-    throw new Error(`Pass choice must be between 1 and ${choiceCount}.`);
+    throw new Error(`Pass choice must be between 1 and ${choiceCount}. You need to set both a pass threshold and pass choice for these settings to apply, and the pass choice indicates which choice voters must select to meet the pass threshold. If you want to allow voters to meet the pass threshold without selecting a specific choice, set the pass choice to 1 and make the first choice something like "None of the above".`);
   }
 
   return normalized - 1;

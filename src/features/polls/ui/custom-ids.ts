@@ -10,6 +10,7 @@ export type PollBuilderAction =
   | 'thread-name'
   | 'mode'
   | 'anonymous'
+  | 'hide-results'
   | 'publish'
   | 'cancel';
 

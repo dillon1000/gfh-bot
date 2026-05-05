@@ -33,9 +33,9 @@ type ReactionBreakdownEntry = {
   count: number;
 };
 
-const isAnyEmojiStarboardMode = (config: GuildConfig): boolean => config.starboardAllowAnyEmoji;
+export const isAnyEmojiStarboardMode = (config: GuildConfig): boolean => config.starboardAllowAnyEmoji;
 
-const getConfiguredStarboardEmojis = (config: GuildConfig): string[] => {
+export const getConfiguredStarboardEmojis = (config: GuildConfig): string[] => {
   if (config.starboardEmojis.length > 0) {
     return config.starboardEmojis;
   }
@@ -483,6 +483,160 @@ export const getStarboardAuthorLeaderboard = async (
       return right.postCount - left.postCount;
     })
     .slice(0, limit);
+};
+
+const isReactionTrackable = (
+  config: GuildConfig,
+  reaction: MessageReaction,
+): boolean => {
+  if (!config.starboardEnabled || !config.starboardChannelId) {
+    return false;
+  }
+
+  if (isAnyEmojiStarboardMode(config)) {
+    return true;
+  }
+
+  const configuredEmojis = getConfiguredStarboardEmojis(config);
+  const parsedConfiguredEmojis = configuredEmojis.map((value) => {
+    const emoji = deserializeStoredEmoji(value);
+    return {
+      id: emoji.id,
+      name: emoji.name,
+    };
+  });
+
+  return reactionMatchesAnyEmoji(reaction.emoji, parsedConfiguredEmojis);
+};
+
+export const recordStarboardReactionAdd = async (
+  reaction: MessageReaction | PartialMessageReaction,
+  user: User | PartialUser,
+): Promise<void> => {
+  if (user.bot) {
+    return;
+  }
+
+  const resolvedReaction = reaction.partial ? await reaction.fetch() : reaction;
+  const message = resolvedReaction.message.partial ? await resolvedReaction.message.fetch() : resolvedReaction.message;
+
+  if (!message.guildId) {
+    return;
+  }
+
+  const config = await getStarboardConfig(message.guildId);
+  if (!config) {
+    return;
+  }
+
+  if (message.channelId === config.starboardChannelId) {
+    return;
+  }
+
+  if (config.starboardBlacklistedChannelIds.includes(message.channelId)) {
+    return;
+  }
+
+  if (message.author?.bot) {
+    return;
+  }
+
+  if (!isReactionTrackable(config, resolvedReaction)) {
+    return;
+  }
+
+  const emojiName = resolvedReaction.emoji.name ?? resolvedReaction.emoji.toString() ?? 'emoji';
+
+  await prisma.starboardReaction.upsert({
+    where: {
+      guildId_sourceMessageId_userId_emojiId_emojiName: {
+        guildId: message.guildId,
+        sourceMessageId: message.id,
+        userId: user.id,
+        emojiId: resolvedReaction.emoji.id ?? '',
+        emojiName,
+      },
+    },
+    create: {
+      guildId: message.guildId,
+      sourceMessageId: message.id,
+      userId: user.id,
+      emojiId: resolvedReaction.emoji.id ?? '',
+      emojiName,
+    },
+    update: {},
+  });
+};
+
+export const recordStarboardReactionRemove = async (
+  reaction: MessageReaction | PartialMessageReaction,
+  user: User | PartialUser,
+): Promise<void> => {
+  if (user.bot) {
+    return;
+  }
+
+  const resolvedReaction = reaction.partial ? await reaction.fetch() : reaction;
+  const message = resolvedReaction.message.partial ? await resolvedReaction.message.fetch() : resolvedReaction.message;
+
+  if (!message.guildId) {
+    return;
+  }
+
+  const config = await getStarboardConfig(message.guildId);
+  if (!config) {
+    return;
+  }
+
+  if (message.author?.bot) {
+    return;
+  }
+
+  if (!isReactionTrackable(config, resolvedReaction)) {
+    return;
+  }
+
+  const emojiName = resolvedReaction.emoji.name ?? resolvedReaction.emoji.toString() ?? 'emoji';
+
+  await prisma.starboardReaction.deleteMany({
+    where: {
+      guildId: message.guildId,
+      sourceMessageId: message.id,
+      userId: user.id,
+      emojiId: resolvedReaction.emoji.id ?? '',
+      emojiName,
+    },
+  });
+};
+
+export const getStarboardEmojiReactorLeaderboard = async (
+  guildId: string,
+  emojiName: string,
+  emojiId: string | null,
+  limit: number,
+): Promise<Array<{ userId: string; reactionCount: number }>> => {
+  const rows = await prisma.starboardReaction.groupBy({
+    by: ['userId'],
+    where: {
+      guildId,
+      emojiName,
+      emojiId: emojiId ?? '',
+    },
+    _count: {
+      id: true,
+    },
+    orderBy: {
+      _count: {
+        id: 'desc',
+      },
+    },
+    take: limit,
+  });
+
+  return rows.map((row) => ({
+    userId: row.userId,
+    reactionCount: row._count.id,
+  }));
 };
 
 export const handleStarboardError = (error: unknown): void => {

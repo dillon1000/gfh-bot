@@ -25,6 +25,7 @@ const governedPoll = {
   mode: 'single',
   singleSelect: true,
   anonymous: false,
+  hideResultsUntilClosed: false,
   quorumPercent: 60,
   allowedRoleIds: ['role_allowed'],
   blockedRoleIds: ['role_blocked'],

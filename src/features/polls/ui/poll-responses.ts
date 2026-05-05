@@ -15,8 +15,14 @@ import { createFallbackPollSnapshot } from '../services/governance.js';
 import type { EvaluatedPollSnapshot, PollComputedResults, PollWithRelations } from '../core/types.js';
 
 const shouldAttachPollDiagram = (
-  poll: Pick<PollWithRelations, 'mode' | 'closedAt' | 'closesAt'>,
-): boolean => poll.mode !== 'ranked' || poll.closedAt !== null || poll.closesAt.getTime() <= Date.now();
+  poll: Pick<PollWithRelations, 'mode' | 'closedAt' | 'closesAt' | 'hideResultsUntilClosed'>,
+): boolean => {
+  if (poll.hideResultsUntilClosed && !isPollClosedOrExpired(poll)) {
+    return false;
+  }
+
+  return poll.mode !== 'ranked' || poll.closedAt !== null || poll.closesAt.getTime() <= Date.now();
+};
 
 const buildPollComponents = (poll: PollWithRelations) => {
   const votingDisabled = isPollClosedOrExpired(poll);

@@ -11,9 +11,11 @@ import {
   disableStarboard,
   getStarboardAuthorLeaderboard,
   getStarboardConfig,
+  getStarboardEmojiReactorLeaderboard,
   getStarboardPostLeaderboard,
   setStarboardConfig,
 } from '../services/starboard.js';
+import { normalizeEmojiInput } from '../../../lib/emoji.js';
 import { recordAuditLogEvent } from '../../audit-log/services/events/delivery.js';
 
 const buildStarboardStatusEmbed = (description: string): EmbedBuilder =>
@@ -163,6 +165,39 @@ export const handleStarboardCommand = async (
                 ? 'No starred authors yet.'
                 : entries.map((entry, index) =>
                   `${index + 1}. <@${entry.authorId}> • ${entry.totalReactions} total reaction${entry.totalReactions === 1 ? '' : 's'} across ${entry.postCount} post${entry.postCount === 1 ? '' : 's'}`,
+                ).join('\n'),
+            ),
+          ],
+          allowedMentions: {
+            parse: [],
+          },
+        });
+        return;
+      }
+
+      if (type === 'reactors') {
+        const emojiInput = interaction.options.getString('emoji');
+        if (!emojiInput?.trim()) {
+          throw new Error('Provide an emoji when using the Reactors leaderboard type.');
+        }
+
+        const normalized = normalizeEmojiInput(emojiInput.trim());
+        const entries = await getStarboardEmojiReactorLeaderboard(
+          interaction.guildId,
+          normalized.name,
+          normalized.id,
+          limit,
+        );
+
+        await interaction.reply({
+          flags: MessageFlags.Ephemeral,
+          embeds: [
+            buildStarboardLeaderboardEmbed(
+              `Starboard Leaderboard: ${normalized.display} Reactors`,
+              entries.length === 0
+                ? 'No tracked reactions for that emoji yet.'
+                : entries.map((entry, index) =>
+                  `${index + 1}. <@${entry.userId}> • ${entry.reactionCount} reaction${entry.reactionCount === 1 ? '' : 's'}`,
                 ).join('\n'),
             ),
           ],

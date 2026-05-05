@@ -15,6 +15,7 @@ const poll = {
   mode: 'multi',
   singleSelect: false,
   anonymous: false,
+  hideResultsUntilClosed: false,
   quorumPercent: null,
   allowedRoleIds: [],
   blockedRoleIds: [],

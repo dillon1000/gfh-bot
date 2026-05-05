@@ -22,7 +22,12 @@ import {
   syncWaitingRemovalVoteStartJobs,
 } from '../features/removals/services/removals/schedule.js';
 import { startRemovalVoteWorker } from '../features/removals/workers/removals.js';
-import { removeStarboardEntryForSourceMessage, syncStarboardForReaction } from '../features/starboard/services/starboard.js';
+import {
+  recordStarboardReactionAdd,
+  recordStarboardReactionRemove,
+  removeStarboardEntryForSourceMessage,
+  syncStarboardForReaction,
+} from '../features/starboard/services/starboard.js';
 import { disconnectPrisma } from '../lib/prisma.js';
 import { closeAllQueues } from '../lib/queue.js';
 import { quitRedis } from '../lib/redis.js';
@@ -185,6 +190,11 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
   } catch (error) {
     logger.error({ err: error }, 'Failed to sync starboard on reaction add');
   }
+  try {
+    await recordStarboardReactionAdd(reaction, user);
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to record starboard reaction add');
+  }
 });
 
 client.on(Events.MessageReactionRemove, async (reaction, user) => {
@@ -192,6 +202,11 @@ client.on(Events.MessageReactionRemove, async (reaction, user) => {
     await syncStarboardForReaction(client, reaction, user);
   } catch (error) {
     logger.error({ err: error }, 'Failed to sync starboard on reaction remove');
+  }
+  try {
+    await recordStarboardReactionRemove(reaction, user);
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to record starboard reaction remove');
   }
 });
 

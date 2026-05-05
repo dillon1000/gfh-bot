@@ -160,6 +160,7 @@ model Poll {
   mode           PollMode        @default(single)
   singleSelect   Boolean         @default(true)
   anonymous      Boolean         @default(false)
+  hideResultsUntilClosed Boolean @default(false)
   quorumPercent  Int?
   allowedRoleIds String[]        @default([])
   blockedRoleIds String[]        @default([])
@@ -254,6 +255,20 @@ model StarboardEntry {
   guildConfig     GuildConfig @relation(fields: [guildConfigId], references: [id], onDelete: Cascade)
 
   @@index([guildConfigId])
+}
+
+model StarboardReaction {
+  id              String   @id @default(cuid())
+  guildId         String
+  sourceMessageId String
+  userId          String
+  emojiId         String   @default("")
+  emojiName       String
+  createdAt       DateTime @default(now())
+
+  @@unique([guildId, sourceMessageId, userId, emojiId, emojiName])
+  @@index([guildId, emojiName, emojiId, userId])
+  @@index([guildId, userId])
 }
 
 model ReactionRolePanel {

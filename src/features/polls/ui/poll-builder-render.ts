@@ -81,6 +81,10 @@ export const buildPollBuilderPreview = (
 
   const rowThree = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
+      .setCustomId(pollBuilderButtonCustomId('hide-results'))
+      .setLabel(draft.hideResultsUntilClosed ? 'Results: Hidden' : 'Results: Live')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('mode'))
       .setLabel(`Mode: ${getModeLabel(draft.mode)}`)
       .setStyle(ButtonStyle.Secondary),

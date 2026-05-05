@@ -39,6 +39,7 @@ type PublishDraft = {
   choiceEmojis: Array<string | null>;
   mode: 'single' | 'multi' | 'ranked';
   anonymous: boolean;
+  hideResultsUntilClosed: boolean;
   quorumPercent: number | null;
   allowedRoleIds: string[];
   blockedRoleIds: string[];
@@ -87,6 +88,7 @@ const publishPoll = async (
     })),
     mode: draft.mode,
     anonymous: draft.anonymous,
+    hideResultsUntilClosed: draft.hideResultsUntilClosed,
     quorumPercent: draft.quorumPercent,
     allowedRoleIds: draft.allowedRoleIds,
     blockedRoleIds: draft.blockedRoleIds,
@@ -154,6 +156,7 @@ export const handlePollCommand = async (
   const published = await publishPoll(client, interaction, {
     ...parsed,
     anonymous: interaction.options.getBoolean('anonymous') ?? false,
+    hideResultsUntilClosed: interaction.options.getBoolean('hide_results') ?? false,
     quorumPercent,
     allowedRoleIds: parseGovernanceRoleTargets(interaction.options.getString('allowed_roles')),
     blockedRoleIds: parseGovernanceRoleTargets(interaction.options.getString('blocked_roles')),
@@ -207,6 +210,7 @@ export const handlePollFromMessageContext = async (
     choices: ['Yes', 'No'],
     choiceEmojis: [null, null],
     anonymous: false,
+    hideResultsUntilClosed: false,
     quorumPercent: null,
     allowedRoleIds: [],
     blockedRoleIds: [],
@@ -302,6 +306,11 @@ export const handlePollBuilderButton = async (
       await savePollDraft(redis, interaction.guildId, interaction.user.id, draft);
       await updatePollBuilderPreview(interaction);
       return;
+    case pollBuilderButtonCustomId('hide-results'):
+      draft.hideResultsUntilClosed = !draft.hideResultsUntilClosed;
+      await savePollDraft(redis, interaction.guildId, interaction.user.id, draft);
+      await updatePollBuilderPreview(interaction);
+      return;
     case pollBuilderButtonCustomId('publish'): {
       await interaction.deferUpdate();
 
@@ -317,6 +326,7 @@ export const handlePollBuilderButton = async (
       const published = await publishPoll(client, interaction, {
         ...parsed,
         anonymous: draft.anonymous,
+        hideResultsUntilClosed: draft.hideResultsUntilClosed,
         quorumPercent: draft.quorumPercent,
         allowedRoleIds: draft.allowedRoleIds,
         blockedRoleIds: draft.blockedRoleIds,

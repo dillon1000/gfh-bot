@@ -161,6 +161,10 @@ export const handlePollExportCommand = async (
     throw new Error('Poll not found.');
   }
 
+  if (snapshot.poll.hideResultsUntilClosed && !snapshot.poll.closedAt && snapshot.poll.closesAt.getTime() > Date.now()) {
+    throw new Error('This poll hides results until it closes. Exports are not available while the poll is open.');
+  }
+
   await replyWithPollExport(interaction, snapshot.poll.question, await exportPollToCsv(snapshot));
 };
 
@@ -176,6 +180,10 @@ export const handlePollExportContext = async (
   const poll = await getPollByMessageId(interaction.targetMessage.id);
   if (!poll || poll.guildId !== interaction.guildId) {
     throw new Error('Poll not found.');
+  }
+
+  if (poll.hideResultsUntilClosed && !poll.closedAt && poll.closesAt.getTime() > Date.now()) {
+    throw new Error('This poll hides results until it closes. Exports are not available while the poll is open.');
   }
 
   const snapshot = await getPollResultsSnapshot(client, poll.id);

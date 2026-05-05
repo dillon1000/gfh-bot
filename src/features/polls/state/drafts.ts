@@ -14,6 +14,7 @@ export const createDefaultDraft = (): PollDraft => ({
   choices: ['Yes', 'No'],
   choiceEmojis: [null, null],
   anonymous: false,
+  hideResultsUntilClosed: false,
   quorumPercent: null,
   allowedRoleIds: [],
   blockedRoleIds: [],
