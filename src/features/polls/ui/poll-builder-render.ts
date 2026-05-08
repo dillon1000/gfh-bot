@@ -40,7 +40,8 @@ export const buildPollBuilderPreview = (
     new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('choices'))
       .setLabel('Choices')
-      .setStyle(ButtonStyle.Primary),
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(draft.mode === 'freeform'),
     new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('description'))
       .setLabel('Description')
@@ -48,7 +49,8 @@ export const buildPollBuilderPreview = (
     new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('emojis'))
       .setLabel('Emojis')
-      .setStyle(ButtonStyle.Secondary),
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(draft.mode === 'freeform'),
     new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('time'))
       .setLabel('Timing')
@@ -64,7 +66,7 @@ export const buildPollBuilderPreview = (
       .setCustomId(pollBuilderButtonCustomId('pass-rule'))
       .setLabel('Pass Rule')
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(draft.mode === 'ranked'),
+      .setDisabled(draft.mode === 'ranked' || draft.mode === 'freeform'),
     new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('thread-toggle'))
       .setLabel(draft.createThread ? 'Thread: On' : 'Thread: Off')
@@ -80,6 +82,11 @@ export const buildPollBuilderPreview = (
   );
 
   const rowThree = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(pollBuilderButtonCustomId('allow-other'))
+      .setLabel(draft.allowOtherOption ? 'Other: On' : 'Other: Off')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(draft.mode !== 'single' && draft.mode !== 'multi'),
     new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('hide-results'))
       .setLabel(draft.hideResultsUntilClosed ? 'Results: Hidden' : 'Results: Live')

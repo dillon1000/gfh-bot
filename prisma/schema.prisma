@@ -11,6 +11,7 @@ enum PollMode {
   single
   multi
   ranked
+  freeform
 }
 
 enum PollClosedReason {
@@ -161,6 +162,7 @@ model Poll {
   singleSelect   Boolean         @default(true)
   anonymous      Boolean         @default(false)
   hideResultsUntilClosed Boolean @default(false)
+  allowOtherOption Boolean       @default(false)
   quorumPercent  Int?
   allowedRoleIds String[]        @default([])
   blockedRoleIds String[]        @default([])
@@ -201,6 +203,7 @@ model PollOption {
   pollId    String
   label     String
   emoji     String?
+  isOther   Boolean    @default(false)
   sortOrder Int
   createdAt DateTime   @default(now())
   poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
@@ -213,12 +216,13 @@ model PollOption {
 model PollVote {
   id        String     @id @default(cuid())
   pollId    String
-  optionId  String
+  optionId  String?
   userId    String
   rank      Int?
+  responseText String?
   createdAt DateTime   @default(now())
   poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
-  option    PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  option    PollOption? @relation(fields: [optionId], references: [id], onDelete: Cascade)
 
   @@unique([pollId, userId, optionId])
   @@unique([pollId, userId, rank])
@@ -231,6 +235,8 @@ model PollVoteEvent {
   userId            String
   previousOptionIds String[]
   nextOptionIds     String[]
+  previousResponseTexts String[] @default([])
+  nextResponseTexts String[]     @default([])
   createdAt         DateTime @default(now())
   poll              Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
 

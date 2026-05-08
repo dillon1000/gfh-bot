@@ -19,15 +19,21 @@ import {
 } from './render-helpers.js';
 import type { EvaluatedPollSnapshot, PollComputedResults, PollWithRelations } from '../core/types.js';
 
-const buildVoterMentionsByOption = (poll: PollWithRelations): Map<string, string[]> => {
+const buildVoterMentionsByChoice = (
+  poll: PollWithRelations,
+  results: PollComputedResults,
+): Map<string, string[]> => {
   const votersByOption = new Map<string, string[]>();
 
-  for (const option of poll.options) {
-    votersByOption.set(option.id, []);
+  for (const choice of results.choices) {
+    votersByOption.set(choice.id, []);
   }
 
   for (const vote of poll.votes) {
-    const voters = votersByOption.get(vote.optionId);
+    const choiceId = results.kind === 'freeform'
+      ? vote.responseText?.trim().toLocaleLowerCase() ?? null
+      : vote.optionId;
+    const voters = choiceId ? votersByOption.get(choiceId) : null;
     if (voters) {
       voters.push(`<@${vote.userId}>`);
     }
@@ -111,6 +117,8 @@ const buildCompactDetailsLines = (snapshot: EvaluatedPollSnapshot, resultsHidden
       ? POLL_CANCELLED_STATUS_DETAIL
       : poll.mode === 'ranked' && results.kind === 'ranked'
       ? getRankedStatusLabel(poll, results, outcome)
+      : poll.mode === 'freeform'
+        ? `Responses ${resultsHidden ? 'hidden until close' : `${results.totalVoters} collected`}`
       : `Pass rule ${getPassRuleLabel(poll.mode, poll.passThreshold, poll.passOptionIndex, poll.options)}`,
   ];
 
@@ -250,13 +258,18 @@ export const buildPollMessageEmbed = (
               ? 'Results Hidden'
               : 'Live Results',
         value: resultsHidden
-          ? 'Vote counts and percentages are hidden until the poll closes.'
-          : clampFieldValue(results.choices.map((choice, index) => renderPollChoiceLine(choice, index)).join('\n\n')),
+          ? `${results.kind === 'freeform' ? 'Responses' : 'Vote counts and percentages'} are hidden until the poll closes.`
+          : clampFieldValue(
+              results.choices.length === 0
+                ? (results.kind === 'freeform' ? 'No responses yet.' : 'No votes yet.')
+                : results.choices.map((choice, index) => renderPollChoiceLine(choice, index)).join('\n\n'),
+            ),
       },
       {
         name: 'Details',
         value: clampFieldValue([
           ...details,
+          results.kind === 'freeform' ? `**Unique Responses** ${results.uniqueResponses}` : null,
           outcome.kind === 'standard' && outcome.status !== 'quorum-failed' && poll.closedAt && !isPollCancelled(poll)
             ? `**Outcome** ${outcome.status === 'passed' ? 'Passed' : outcome.status === 'failed' ? 'Failed' : 'No pass threshold'}`
             : null,
@@ -287,7 +300,7 @@ export function buildPollResultsEmbed(
     ? snapshotOrPoll
     : createFallbackPollSnapshot(snapshotOrPoll, providedResults);
   const { poll, evaluatedPoll, results, outcome } = snapshot;
-  const votersByOption = buildVoterMentionsByOption(evaluatedPoll);
+  const votersByOption = buildVoterMentionsByChoice(evaluatedPoll, results);
   const uniqueVoterMentions = buildUniqueVoterMentions(evaluatedPoll);
   const revealRankedResults = shouldRevealRankedResults(poll);
   const resultsHidden = poll.hideResultsUntilClosed && !isPollClosedOrExpired(poll);
@@ -362,12 +375,15 @@ export function buildPollResultsEmbed(
     [
       `Status: ${getPollStatusText(poll)}`,
       `Total voters: ${results.totalVoters}`,
-      `Pass rule: ${getPassRuleLabel(poll.mode, poll.passThreshold, poll.passOptionIndex, poll.options)}`,
+      results.kind === 'freeform'
+        ? `Unique responses: ${results.uniqueResponses}`
+        : `Pass rule: ${getPassRuleLabel(poll.mode, poll.passThreshold, poll.passOptionIndex, poll.options)}`,
       ...buildElectorateLines(snapshot).map(toPlainLine),
       isPollCancelled(poll) ? 'Outcome: Poll cancelled' : null,
       outcome.kind === 'standard' && outcome.status === 'quorum-failed' ? 'Outcome: Quorum not met' : null,
+      outcome.kind === 'freeform' && outcome.status === 'quorum-failed' ? 'Outcome: Quorum not met' : null,
       poll.anonymous
-        ? 'Anonymous poll: voter identities are shown below, but option selections remain private.'
+        ? `Anonymous poll: voter identities are shown below, but ${results.kind === 'freeform' ? 'individual responses remain unattributed.' : 'option selections remain private.'}`
         : 'Non-anonymous poll: voter identities are shown below.',
     ]
       .filter(Boolean)
@@ -380,13 +396,23 @@ export function buildPollResultsEmbed(
       : (votersByOption.get(choice.id) ?? []).join(', ') || 'No votes yet';
 
     embed.addFields({
-      name: `${getPollChoiceEmojiDisplay(choice.emoji, index)} ${choice.label}`,
+      name: results.kind === 'freeform'
+        ? `Response ${index + 1}`
+        : `${getPollChoiceEmojiDisplay(choice.emoji, index)} ${choice.label}`,
       value: clampFieldValue([
+        results.kind === 'freeform' ? `Answer: ${choice.label}` : null,
         renderPollChoiceLine(choice, index),
         voterMentions ? `Voters: ${voterMentions}` : null,
       ]
         .filter(Boolean)
         .join('\n')),
+    });
+  }
+
+  if (results.kind === 'freeform' && results.choices.length === 0) {
+    embed.addFields({
+      name: 'Responses',
+      value: 'No responses yet.',
     });
   }
 
@@ -403,8 +429,11 @@ export function buildPollResultsEmbed(
 const formatAuditSelection = (
   optionLabels: Map<string, string>,
   optionIds: string[],
+  responseTexts: string[],
 ): string =>
-  optionIds.length === 0
+  responseTexts.length > 0
+    ? responseTexts.map((value, index) => `${index + 1}. ${value}`).join('\n')
+    : optionIds.length === 0
     ? 'No vote'
     : optionIds.map((optionId, index) => `${index + 1}. ${optionLabels.get(optionId) ?? optionId}`).join('\n');
 
@@ -431,7 +460,7 @@ export const buildPollAuditEmbed = (
   for (const event of events.slice(0, 10)) {
     embed.addFields({
       name: `<@${event.userId}> • <t:${Math.floor(event.createdAt.getTime() / 1000)}:R>`,
-      value: clampFieldValue(`**From**\n${formatAuditSelection(optionLabels, event.previousOptionIds)}\n\n**To**\n${formatAuditSelection(optionLabels, event.nextOptionIds)}`),
+      value: clampFieldValue(`**From**\n${formatAuditSelection(optionLabels, event.previousOptionIds, event.previousResponseTexts)}\n\n**To**\n${formatAuditSelection(optionLabels, event.nextOptionIds, event.nextResponseTexts)}`),
     });
   }
 

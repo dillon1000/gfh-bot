@@ -5,6 +5,7 @@ import { buildPollResultDiagram } from './visualize.js';
 import {
   pollChoiceCustomId,
   pollRankOpenCustomId,
+  pollResponseButtonCustomId,
   pollResultsCustomId,
   pollVoteCustomId,
 } from './custom-ids.js';
@@ -21,11 +22,17 @@ const shouldAttachPollDiagram = (
     return false;
   }
 
-  return poll.mode !== 'ranked' || poll.closedAt !== null || poll.closesAt.getTime() <= Date.now();
+  if (poll.mode === 'freeform') {
+    return false;
+  }
+
+  return poll.mode !== 'ranked' || isPollClosedOrExpired(poll);
 };
 
 const buildPollComponents = (poll: PollWithRelations) => {
   const votingDisabled = isPollClosedOrExpired(poll);
+  const otherOption = poll.options.find((option) => option.isOther) ?? null;
+  const regularOptions = poll.options.filter((option) => !option.isOther);
   const controls = new ActionRowBuilder<ButtonBuilder>().addComponents(
     ...(poll.mode === 'ranked'
       ? [
@@ -35,7 +42,23 @@ const buildPollComponents = (poll: PollWithRelations) => {
             .setStyle(ButtonStyle.Primary)
             .setDisabled(votingDisabled),
         ]
-      : []),
+      : poll.mode === 'freeform'
+        ? [
+            new ButtonBuilder()
+              .setCustomId(pollResponseButtonCustomId(poll.id, 'freeform'))
+              .setLabel('Answer')
+              .setStyle(ButtonStyle.Primary)
+              .setDisabled(votingDisabled),
+          ]
+        : otherOption
+          ? [
+              new ButtonBuilder()
+                .setCustomId(pollResponseButtonCustomId(poll.id, 'other'))
+                .setLabel('Other')
+                .setStyle(ButtonStyle.Primary)
+                .setDisabled(votingDisabled),
+            ]
+          : []),
     new ButtonBuilder()
       .setCustomId(pollResultsCustomId(poll.id))
       .setLabel('Results')
@@ -44,38 +67,40 @@ const buildPollComponents = (poll: PollWithRelations) => {
 
   return poll.mode === 'ranked'
     ? [controls]
-    : poll.mode === 'single'
-      ? [
-          ...chunkButtons(
-            poll.options.map((option, index) =>
-              new ButtonBuilder()
-                .setCustomId(pollChoiceCustomId(poll.id, option.id))
-                .setLabel(option.label)
-                .setEmoji(getPollChoiceComponentEmoji(option.emoji, index))
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(votingDisabled),
-            ),
-          ),
-          controls,
-        ]
-      : [
-          new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-            new StringSelectMenuBuilder()
-              .setCustomId(pollVoteCustomId(poll.id))
-              .setPlaceholder(votingDisabled ? 'Poll closed' : 'Choose one or more options')
-              .setDisabled(votingDisabled)
-              .setMinValues(1)
-              .setMaxValues(poll.options.length)
-              .addOptions(
-                poll.options.map((option, index) => ({
-                  label: option.label,
-                  value: option.id,
-                  emoji: getPollChoiceComponentEmoji(option.emoji, index),
-                })),
+    : poll.mode === 'freeform'
+      ? [controls]
+      : poll.mode === 'single'
+        ? [
+            ...chunkButtons(
+              regularOptions.map((option, index) =>
+                new ButtonBuilder()
+                  .setCustomId(pollChoiceCustomId(poll.id, option.id))
+                  .setLabel(option.label)
+                  .setEmoji(getPollChoiceComponentEmoji(option.emoji, index))
+                  .setStyle(ButtonStyle.Secondary)
+                  .setDisabled(votingDisabled),
               ),
-          ),
-          controls,
-        ];
+            ),
+            controls,
+          ]
+        : [
+            new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+              new StringSelectMenuBuilder()
+                .setCustomId(pollVoteCustomId(poll.id))
+                .setPlaceholder(votingDisabled ? 'Poll closed' : 'Choose one or more options')
+                .setDisabled(votingDisabled)
+                .setMinValues(1)
+                .setMaxValues(Math.max(1, regularOptions.length))
+                .addOptions(
+                  regularOptions.map((option, index) => ({
+                    label: option.label,
+                    value: option.id,
+                    emoji: getPollChoiceComponentEmoji(option.emoji, index),
+                  })),
+                ),
+            ),
+            controls,
+          ];
 };
 
 const maybeBuildDiagram = async (

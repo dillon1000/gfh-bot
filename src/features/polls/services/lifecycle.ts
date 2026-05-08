@@ -133,6 +133,14 @@ export const describePollOutcome = (
     return `The ranked-choice poll finished ${outcome.status}, after ${outcome.rounds} round${outcome.rounds === 1 ? '' : 's'}, with ${outcome.exhaustedVotes} exhausted ballot${outcome.exhaustedVotes === 1 ? '' : 's'}.`;
   }
 
+  if (outcome.kind === 'freeform') {
+    if (outcome.status === 'quorum-failed' && electorate && electorate.quorumPercent !== null && electorate.turnoutPercent !== null) {
+      return `Quorum not met: turnout reached ${electorate.turnoutPercent.toFixed(1)}% against a ${electorate.quorumPercent}% requirement.`;
+    }
+
+    return `${outcome.uniqueResponses} unique response${outcome.uniqueResponses === 1 ? '' : 's'} collected.`;
+  }
+
   if (outcome.status === 'no-threshold') {
     return `No pass threshold was configured. ${outcome.measuredChoiceLabel} finished at ${outcome.measuredPercentage.toFixed(1)}%.`;
   }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  assertChoicesCompatibleWithOtherOption,
   parseChoiceEmojisCsv,
   parseChoicesCsv,
   parseGovernanceChannelTargets,
@@ -12,6 +13,7 @@ import {
   parseReminderOffsets,
   parseReminderRoleTarget,
   resolvePassRule,
+  sanitizeFreeformResponse,
 } from '../src/features/polls/parsing/parser.js';
 
 describe('parseChoicesCsv', () => {
@@ -38,10 +40,56 @@ describe('parsePollFormInput', () => {
       question: 'Should we ship?',
       description: 'Final check',
       mode: 'single',
+      allowOtherOption: false,
       choices: ['Yes', 'No'],
       choiceEmojis: [null, null],
       durationMs: 24 * 60 * 60 * 1000,
     });
+  });
+
+  it('returns no choices for freeform polls and disables the Other option automatically', () => {
+    expect(
+      parsePollFormInput({
+        question: 'What should we build?',
+        description: 'Ideas welcome',
+        mode: 'freeform',
+        choices: '',
+        durationText: '24h',
+        allowOtherOption: true,
+      }),
+    ).toEqual({
+      question: 'What should we build?',
+      description: 'Ideas welcome',
+      mode: 'freeform',
+      allowOtherOption: false,
+      choices: [],
+      choiceEmojis: [],
+      durationMs: 24 * 60 * 60 * 1000,
+    });
+  });
+
+  it('keeps the Other option enabled for supported poll modes', () => {
+    expect(
+      parsePollFormInput({
+        question: 'Where should we go?',
+        mode: 'multi',
+        choices: 'Beach, Mountains',
+        durationText: '24h',
+        allowOtherOption: true,
+      }).allowOtherOption,
+    ).toBe(true);
+  });
+
+  it('rejects a reserved Other choice label when the Other option is enabled', () => {
+    expect(() =>
+      parsePollFormInput({
+        question: 'Where should we go?',
+        mode: 'single',
+        choices: 'Other, Mountains',
+        durationText: '24h',
+        allowOtherOption: true,
+      }),
+    ).toThrow(/reserved/i);
   });
 });
 
@@ -73,6 +121,12 @@ describe('parsePassThreshold', () => {
 
   it('rejects invalid thresholds', () => {
     expect(() => parsePassThreshold('101')).toThrow(/1 to 100/);
+  });
+});
+
+describe('assertChoicesCompatibleWithOtherOption', () => {
+  it('allows an Other label when the synthetic Other option is disabled', () => {
+    expect(() => assertChoicesCompatibleWithOtherOption(['Other'], false)).not.toThrow();
   });
 });
 
@@ -171,5 +225,23 @@ describe('resolvePassRule', () => {
 
   it('rejects pass thresholds for ranked polls', () => {
     expect(() => resolvePassRule('ranked', 60, 0)).toThrow(/Ranked-choice polls/);
+  });
+
+  it('rejects pass thresholds for freeform polls', () => {
+    expect(() => resolvePassRule('freeform', 60, 0)).toThrow(/Freeform polls/);
+  });
+});
+
+describe('sanitizeFreeformResponse', () => {
+  it('trims a valid freeform response', () => {
+    expect(sanitizeFreeformResponse('  hello world  ')).toBe('hello world');
+  });
+
+  it('rejects blank freeform responses', () => {
+    expect(() => sanitizeFreeformResponse('   ')).toThrow(/cannot be empty|Response cannot be empty/i);
+  });
+
+  it('rejects overly long freeform responses', () => {
+    expect(() => sanitizeFreeformResponse('x'.repeat(501))).toThrow(/500 characters or fewer/);
   });
 });

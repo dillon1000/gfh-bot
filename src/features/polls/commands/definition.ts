@@ -12,8 +12,8 @@ export const pollCommand = new SlashCommandBuilder()
   .addStringOption((option) =>
     option
       .setName('choices')
-      .setDescription('Comma separated choices')
-      .setRequired(true),
+      .setDescription('Comma separated choices, or leave blank for freeform polls')
+      .setRequired(false),
   )
   .addStringOption((option) =>
     option
@@ -36,7 +36,14 @@ export const pollCommand = new SlashCommandBuilder()
         { name: 'Single choice', value: 'single' },
         { name: 'Multi choice', value: 'multi' },
         { name: 'Ranked choice', value: 'ranked' },
+        { name: 'Freeform', value: 'freeform' },
       ),
+  )
+  .addBooleanOption((option) =>
+    option
+      .setName('allow_other')
+      .setDescription('Add an Other response option to single or multi-choice polls')
+      .setRequired(false),
   )
   .addBooleanOption((option) =>
     option

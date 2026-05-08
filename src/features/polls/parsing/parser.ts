@@ -7,6 +7,7 @@ const maxChoices = 10;
 const maxQuestionLength = 200;
 const maxDescriptionLength = 1_000;
 const maxChoiceLength = 80;
+const maxFreeformResponseLength = 500;
 const maxGovernanceTargets = 25;
 const maxReminderOffsets = 10;
 const minuteMs = 60_000;
@@ -53,9 +54,10 @@ export const parsePollMode = (value: string | null | undefined): PollMode => {
     case 'single':
     case 'multi':
     case 'ranked':
+    case 'freeform':
       return normalized;
     default:
-      throw new Error('Poll mode must be single, multi, or ranked.');
+      throw new Error('Poll mode must be single, multi, ranked, or freeform.');
   }
 };
 
@@ -209,9 +211,9 @@ export const resolvePassRule = (
   passThreshold: number | null,
   passChoiceIndex: number | null,
 ): { passThreshold: number | null; passOptionIndex: number | null } => {
-  if (mode === 'ranked') {
+  if (mode === 'ranked' || mode === 'freeform') {
     if (passThreshold !== null || passChoiceIndex !== null) {
-      throw new Error('Ranked-choice polls cannot use pass-threshold settings.');
+      throw new Error(`${mode === 'ranked' ? 'Ranked-choice' : 'Freeform'} polls cannot use pass-threshold settings.`);
     }
 
     return {
@@ -293,6 +295,24 @@ export const parseChoicesCsv = (value: string): string[] => {
   return choices;
 };
 
+export const assertChoicesCompatibleWithOtherOption = (
+  choices: string[],
+  allowOtherOption: boolean,
+): void => {
+  if (!allowOtherOption) {
+    return;
+  }
+
+  if (choices.some((choice) => choice.trim().toLocaleLowerCase() === 'other')) {
+    throw new Error('The choice label "Other" is reserved when the Other option is enabled.');
+  }
+};
+
+export const parseOptionalChoicesCsv = (value: string | null | undefined): string[] => {
+  const trimmed = (value ?? '').trim();
+  return trimmed ? parseChoicesCsv(trimmed) : [];
+};
+
 export const parseChoiceEmojisCsv = (
   value: string | Array<string | null> | null | undefined,
   choiceCount: number,
@@ -324,9 +344,10 @@ export const parsePollFormInput = (input: {
   question: string;
   description?: string;
   mode?: PollMode | string | null;
-  choices: string[] | string;
+  choices: string[] | string | null | undefined;
   choiceEmojis?: Array<string | null> | string | null;
   durationText: string;
+  allowOtherOption?: boolean;
 }): {
   question: string;
   description?: string;
@@ -334,15 +355,22 @@ export const parsePollFormInput = (input: {
   choices: string[];
   choiceEmojis: Array<string | null>;
   durationMs: number;
+  allowOtherOption: boolean;
 } => {
   const question = sanitizeQuestion(input.question);
   const description = sanitizeDescription(input.description ?? '');
   const mode = parsePollMode(input.mode);
-  const choices = Array.isArray(input.choices)
-    ? parseChoicesCsv(input.choices.join(', '))
-    : parseChoicesCsv(input.choices);
+  const rawChoices = Array.isArray(input.choices)
+    ? input.choices.join(', ')
+    : (input.choices ?? '');
+  const choices = mode === 'freeform'
+    ? []
+    : parseChoicesCsv(rawChoices);
   const choiceEmojis = parseChoiceEmojisCsv(input.choiceEmojis, choices.length);
   const durationMs = parseDurationToMs(input.durationText);
+  const allowOtherOption = mode !== 'ranked' && mode !== 'freeform' && (input.allowOtherOption ?? false);
+
+  assertChoicesCompatibleWithOtherOption(choices, allowOtherOption);
 
   return {
     question,
@@ -350,6 +378,21 @@ export const parsePollFormInput = (input: {
     mode,
     choiceEmojis,
     durationMs,
+    allowOtherOption,
     ...(description ? { description } : {}),
   };
+};
+
+export const sanitizeFreeformResponse = (value: string): string => {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    throw new Error('Response cannot be empty.');
+  }
+
+  if (trimmed.length > maxFreeformResponseLength) {
+    throw new Error(`Responses must be ${maxFreeformResponseLength} characters or fewer.`);
+  }
+
+  return trimmed;
 };

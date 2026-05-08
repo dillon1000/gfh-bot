@@ -1,22 +1,50 @@
-import type { Poll, PollOption } from '@prisma/client';
-
 import { withRedisLock } from '../../../lib/locks.js';
 import { prisma } from '../../../lib/prisma.js';
 import { redis } from '../../../lib/redis.js';
+import { sanitizeFreeformResponse } from '../parsing/parser.js';
 import { pollInclude } from './repository.js';
 import type { PollMode, PollWithRelations } from '../core/types.js';
 
 const getEffectivePollMode = (poll: { mode?: PollMode | null; singleSelect: boolean }): PollMode =>
   poll.mode ?? (poll.singleSelect ? 'single' : 'multi');
 
+const getOtherOption = (poll: Pick<PollWithRelations, 'options'>): PollWithRelations['options'][number] | null =>
+  poll.options.find((option) => option.isOther) ?? null;
+
+const buildResponseAuditTexts = (
+  poll: Pick<PollWithRelations, 'options'>,
+  optionIds: string[],
+  responseText: string | null,
+): string[] => {
+  if (optionIds.length === 0 && responseText) {
+    return [responseText];
+  }
+
+  return optionIds.map((optionId) => {
+    const option = poll.options.find((entry) => entry.id === optionId);
+    if (!option) {
+      return optionId;
+    }
+
+    if (option.isOther && responseText) {
+      return `${option.label}: ${responseText}`;
+    }
+
+    return option.label;
+  });
+};
+
 const assertPollVoteSelection = (
   poll: PollWithRelations,
   selectedOptionIds: string[],
+  responseText: string | null,
   options?: {
     allowRankedClear?: boolean;
+    allowTextClear?: boolean;
   },
 ): void => {
   const mode = getEffectivePollMode(poll);
+  const otherOption = getOtherOption(poll);
 
   if (mode === 'single' && selectedOptionIds.length > 1) {
     throw new Error('This poll only allows one selection.');
@@ -30,7 +58,15 @@ const assertPollVoteSelection = (
     throw new Error('Ranked-choice polls require a complete ranking.');
   }
 
-  if (mode !== 'ranked' && selectedOptionIds.length === 0) {
+  if (mode === 'freeform') {
+    if (selectedOptionIds.length > 0) {
+      throw new Error('Freeform polls do not accept option selections.');
+    }
+
+    if (!responseText && !options?.allowTextClear) {
+      throw new Error('A text response is required for this poll.');
+    }
+
     return;
   }
 
@@ -48,14 +84,26 @@ const assertPollVoteSelection = (
 
     uniqueIds.add(optionId);
   }
+
+  if (mode !== 'ranked' && responseText && (!otherOption || !selectedOptionIds.includes(otherOption.id))) {
+    throw new Error('Text responses are only allowed through the Other choice.');
+  }
+
+  if (otherOption && selectedOptionIds.includes(otherOption.id) && !responseText && !options?.allowTextClear) {
+    throw new Error('Please include text for the Other choice.');
+  }
 };
 
-export const setPollVotes = async (
+export const setPollResponse = async (
   pollId: string,
   userId: string,
-  selectedOptionIds: string[],
+  input: {
+    selectedOptionIds: string[];
+    responseText?: string | null;
+  },
   options?: {
     allowRankedClear?: boolean;
+    allowTextClear?: boolean;
   },
 ): Promise<PollWithRelations> => {
   const result = await withRedisLock(redis, `lock:poll-vote:${pollId}:${userId}`, 5_000, async () =>
@@ -75,21 +123,29 @@ export const setPollVotes = async (
         throw new Error('This poll is already closed.');
       }
 
-      assertPollVoteSelection(poll, selectedOptionIds, options);
+      const responseText = input.responseText?.trim()
+        ? sanitizeFreeformResponse(input.responseText)
+        : null;
+
+      assertPollVoteSelection(poll, input.selectedOptionIds, responseText, options);
+
       const mode = getEffectivePollMode(poll);
-      const previousOptionIds = poll.votes
+      const previousVotes = poll.votes
         .filter((vote) => vote.userId === userId)
         .sort((left, right) => {
           if (mode === 'ranked') {
             return (left.rank ?? Number.MAX_SAFE_INTEGER) - (right.rank ?? Number.MAX_SAFE_INTEGER);
           }
 
-          return left.optionId.localeCompare(right.optionId);
-        })
-        .map((vote) => vote.optionId);
+          return (left.optionId ?? '').localeCompare(right.optionId ?? '');
+        });
+      const previousOptionIds = previousVotes
+        .map((vote) => vote.optionId)
+        .filter((optionId): optionId is string => Boolean(optionId));
+      const previousResponseText = previousVotes.find((vote) => vote.responseText?.trim())?.responseText?.trim() ?? null;
       const nextOptionIds = mode === 'ranked'
-        ? [...selectedOptionIds]
-        : [...selectedOptionIds].sort();
+        ? [...input.selectedOptionIds]
+        : [...input.selectedOptionIds].sort();
 
       await tx.pollVote.deleteMany({
         where: {
@@ -98,24 +154,41 @@ export const setPollVotes = async (
         },
       });
 
-      if (selectedOptionIds.length > 0) {
+      if (mode === 'freeform') {
+        if (responseText) {
+          await tx.pollVote.create({
+            data: {
+              pollId,
+              userId,
+              responseText,
+            },
+          });
+        }
+      } else if (input.selectedOptionIds.length > 0) {
+        const otherOptionId = getOtherOption(poll)?.id ?? null;
         await tx.pollVote.createMany({
-          data: selectedOptionIds.map((optionId, index) => ({
+          data: input.selectedOptionIds.map((optionId, index) => ({
             pollId,
             optionId,
             userId,
             ...(mode === 'ranked' ? { rank: index + 1 } : {}),
+            ...(otherOptionId && optionId === otherOptionId && responseText ? { responseText } : {}),
           })),
         });
       }
 
-      if (previousOptionIds.join(',') !== nextOptionIds.join(',')) {
+      if (
+        previousOptionIds.join(',') !== nextOptionIds.join(',')
+        || (previousResponseText ?? '') !== (responseText ?? '')
+      ) {
         await tx.pollVoteEvent.create({
           data: {
             pollId,
             userId,
             previousOptionIds,
             nextOptionIds,
+            previousResponseTexts: buildResponseAuditTexts(poll, previousOptionIds, previousResponseText),
+            nextResponseTexts: buildResponseAuditTexts(poll, nextOptionIds, responseText),
           },
         });
       }
@@ -136,11 +209,51 @@ export const setPollVotes = async (
   return result;
 };
 
+export const setPollVotes = async (
+  pollId: string,
+  userId: string,
+  selectedOptionIds: string[],
+  options?: {
+    allowRankedClear?: boolean;
+  },
+): Promise<PollWithRelations> =>
+  setPollResponse(
+    pollId,
+    userId,
+    {
+      selectedOptionIds,
+    },
+    options,
+  );
+
+export const setPollTextResponse = async (
+  pollId: string,
+  userId: string,
+  responseText: string | null,
+  options?: {
+    selectedOptionIds?: string[];
+    allowTextClear?: boolean;
+  },
+): Promise<PollWithRelations> =>
+  setPollResponse(
+    pollId,
+    userId,
+    {
+      selectedOptionIds: options?.selectedOptionIds ?? [],
+      responseText,
+    },
+    options?.allowTextClear === undefined
+      ? undefined
+      : {
+          allowTextClear: options.allowTextClear,
+        },
+  );
+
 export const clearPollVotes = async (
   pollId: string,
   userId: string,
 ): Promise<PollWithRelations> =>
-  setPollVotes(pollId, userId, [], { allowRankedClear: true });
+  setPollResponse(pollId, userId, { selectedOptionIds: [] }, { allowRankedClear: true, allowTextClear: true });
 
 export const closePoll = async (
   pollId: string,
@@ -202,10 +315,27 @@ export const getPollRankingForUser = (
   poll: PollWithRelations,
   userId: string,
 ): string[] => poll.votes
-  .filter((vote) => vote.userId === userId)
+  .filter((vote) => vote.userId === userId && Boolean(vote.optionId))
   .sort((left, right) => (left.rank ?? Number.MAX_SAFE_INTEGER) - (right.rank ?? Number.MAX_SAFE_INTEGER))
-  .map((vote) => vote.optionId);
+  .map((vote) => vote.optionId!)
+;
+
+export const getPollResponseForUser = (
+  poll: PollWithRelations,
+  userId: string,
+): { optionIds: string[]; responseText: string | null } => {
+  const votes = poll.votes
+    .filter((vote) => vote.userId === userId)
+    .sort((left, right) => (left.optionId ?? '').localeCompare(right.optionId ?? ''));
+
+  return {
+    optionIds: votes
+      .map((vote) => vote.optionId)
+      .filter((optionId): optionId is string => Boolean(optionId)),
+    responseText: votes.find((vote) => vote.responseText?.trim())?.responseText?.trim() ?? null,
+  };
+};
 
 export const mapOptionIdsToLabels = (
-  options: PollOption[],
+  options: PollWithRelations['options'],
 ): Map<string, string> => new Map(options.map((option) => [option.id, option.label]));

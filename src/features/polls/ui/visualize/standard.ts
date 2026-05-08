@@ -488,6 +488,10 @@ const buildSnapshots = (
   let total = 0;
 
   for (const vote of sortedVotes) {
+    if (!vote.optionId) {
+      continue;
+    }
+
     const index = optionIndex.get(vote.optionId);
     if (index === undefined) {
       continue;

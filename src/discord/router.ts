@@ -58,6 +58,8 @@ import {
   handlePollRankOpenButton,
   handlePollRankSubmitButton,
   handlePollRankUndoButton,
+  handlePollResponseButton,
+  handlePollResponseModal,
   handlePollVoteSelect,
 } from '../features/polls/handlers/voting.js';
 import {
@@ -235,6 +237,11 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
+        if (interaction.customId.startsWith('poll:response:')) {
+          await handlePollResponseButton(client, interaction);
+          return;
+        }
+
         if (interaction.customId.startsWith('poll:rank:open:')) {
           await handlePollRankOpenButton(interaction);
           return;
@@ -322,6 +329,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('poll:manage-modal:')) {
           await handlePollManageModal(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:response-modal:')) {
+          await handlePollResponseModal(client, interaction);
           return;
         }
 

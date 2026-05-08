@@ -37,9 +37,10 @@ type PublishDraft = {
   description?: string;
   choices: string[];
   choiceEmojis: Array<string | null>;
-  mode: 'single' | 'multi' | 'ranked';
+  mode: 'single' | 'multi' | 'ranked' | 'freeform';
   anonymous: boolean;
   hideResultsUntilClosed: boolean;
+  allowOtherOption: boolean;
   quorumPercent: number | null;
   allowedRoleIds: string[];
   blockedRoleIds: string[];
@@ -87,6 +88,7 @@ const publishPoll = async (
       emoji: draft.choiceEmojis[index] ?? null,
     })),
     mode: draft.mode,
+    allowOtherOption: draft.allowOtherOption,
     anonymous: draft.anonymous,
     hideResultsUntilClosed: draft.hideResultsUntilClosed,
     quorumPercent: draft.quorumPercent,
@@ -135,9 +137,10 @@ export const handlePollCommand = async (
     question: interaction.options.getString('question', true),
     description: interaction.options.getString('description') ?? '',
     mode: interaction.options.getString('mode'),
-    choices: interaction.options.getString('choices', true),
+    choices: interaction.options.getString('choices'),
     choiceEmojis: interaction.options.getString('emojis'),
     durationText: interaction.options.getString('time') ?? '24h',
+    allowOtherOption: interaction.options.getBoolean('allow_other') ?? false,
   });
   const passThreshold = interaction.options.getInteger('pass_threshold');
   const passChoiceIndex = parsePassChoiceIndex(
@@ -211,6 +214,7 @@ export const handlePollFromMessageContext = async (
     choiceEmojis: [null, null],
     anonymous: false,
     hideResultsUntilClosed: false,
+    allowOtherOption: false,
     quorumPercent: null,
     allowedRoleIds: [],
     blockedRoleIds: [],
@@ -231,12 +235,14 @@ export const handlePollFromMessageContext = async (
   });
 };
 
-const cyclePollMode = (mode: 'single' | 'multi' | 'ranked'): 'single' | 'multi' | 'ranked' => {
+const cyclePollMode = (mode: 'single' | 'multi' | 'ranked' | 'freeform'): 'single' | 'multi' | 'ranked' | 'freeform' => {
   switch (mode) {
     case 'single':
       return 'multi';
     case 'multi':
       return 'ranked';
+    case 'ranked':
+      return 'freeform';
     default:
       return 'single';
   }
@@ -294,9 +300,19 @@ export const handlePollBuilderButton = async (
       return;
     case pollBuilderButtonCustomId('mode'):
       draft.mode = cyclePollMode(draft.mode);
-      if (draft.mode === 'ranked') {
+      if (draft.mode === 'ranked' || draft.mode === 'freeform') {
         draft.passThreshold = null;
         draft.passOptionIndex = null;
+      }
+      if (draft.mode !== 'single' && draft.mode !== 'multi') {
+        draft.allowOtherOption = false;
+      }
+      await savePollDraft(redis, interaction.guildId, interaction.user.id, draft);
+      await updatePollBuilderPreview(interaction);
+      return;
+    case pollBuilderButtonCustomId('allow-other'):
+      if (draft.mode === 'single' || draft.mode === 'multi') {
+        draft.allowOtherOption = !draft.allowOtherOption;
       }
       await savePollDraft(redis, interaction.guildId, interaction.user.id, draft);
       await updatePollBuilderPreview(interaction);
@@ -321,6 +337,7 @@ export const handlePollBuilderButton = async (
         choices: draft.choices,
         choiceEmojis: draft.choiceEmojis,
         durationText: draft.durationText,
+        allowOtherOption: draft.allowOtherOption,
       });
 
       const published = await publishPoll(client, interaction, {
@@ -400,6 +417,7 @@ export const handlePollBuilderModal = async (
           choices: draft.choices,
           choiceEmojis: draft.choiceEmojis,
           durationText: draft.durationText,
+          allowOtherOption: draft.allowOtherOption,
         }).durationMs,
       );
       break;
