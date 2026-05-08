@@ -66,7 +66,7 @@ export const buildPollBuilderPreview = (
       .setCustomId(pollBuilderButtonCustomId('pass-rule'))
       .setLabel('Pass Rule')
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(draft.mode === 'ranked'),
+      .setDisabled(draft.mode === 'ranked' || draft.mode === 'freeform'),
     new ButtonBuilder()
       .setCustomId(pollBuilderButtonCustomId('thread-toggle'))
       .setLabel(draft.createThread ? 'Thread: On' : 'Thread: Off')

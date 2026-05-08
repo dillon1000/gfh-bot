@@ -22,7 +22,11 @@ const shouldAttachPollDiagram = (
     return false;
   }
 
-  return poll.mode !== 'ranked' && poll.mode !== 'freeform';
+  if (poll.mode === 'freeform') {
+    return false;
+  }
+
+  return poll.mode !== 'ranked' || isPollClosedOrExpired(poll);
 };
 
 const buildPollComponents = (poll: PollWithRelations) => {

@@ -6,6 +6,7 @@ import { prisma } from '../../../lib/prisma.js';
 import { redis } from '../../../lib/redis.js';
 import { durationMsToMinutes, getPollDurationMinutes } from '../state/poll-state.js';
 import { parsePollLookup } from '../parsing/query.js';
+import { assertChoicesCompatibleWithOtherOption } from '../parsing/parser.js';
 import type { PollCreationInput, PollWithRelations } from '../core/types.js';
 import {
   buildPollReminderRecords,
@@ -93,6 +94,11 @@ export const createPollRecord = async (
     skipRateLimit?: boolean;
   },
 ): Promise<PollWithRelations> => {
+  assertChoicesCompatibleWithOtherOption(
+    input.choices.map((choice) => choice.label),
+    input.allowOtherOption,
+  );
+
   if (!options?.skipRateLimit) {
     await assertWithinRateLimit(
       redis,
@@ -257,6 +263,7 @@ export const editPollBeforeFirstVote = async (
     }
 
     assertPollIsEditable(poll);
+    assertChoicesCompatibleWithOtherOption(input.choices, poll.allowOtherOption ?? false);
     const nextPassOptionIndex = poll.passThreshold === null
       ? null
       : (poll.passOptionIndex ?? 0) >= input.choices.length

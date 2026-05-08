@@ -344,7 +344,6 @@ export const handlePollBuilderButton = async (
         ...parsed,
         anonymous: draft.anonymous,
         hideResultsUntilClosed: draft.hideResultsUntilClosed,
-        allowOtherOption: draft.allowOtherOption,
         quorumPercent: draft.quorumPercent,
         allowedRoleIds: draft.allowedRoleIds,
         blockedRoleIds: draft.blockedRoleIds,

@@ -295,6 +295,19 @@ export const parseChoicesCsv = (value: string): string[] => {
   return choices;
 };
 
+export const assertChoicesCompatibleWithOtherOption = (
+  choices: string[],
+  allowOtherOption: boolean,
+): void => {
+  if (!allowOtherOption) {
+    return;
+  }
+
+  if (choices.some((choice) => choice.trim().toLocaleLowerCase() === 'other')) {
+    throw new Error('The choice label "Other" is reserved when the Other option is enabled.');
+  }
+};
+
 export const parseOptionalChoicesCsv = (value: string | null | undefined): string[] => {
   const trimmed = (value ?? '').trim();
   return trimmed ? parseChoicesCsv(trimmed) : [];
@@ -356,6 +369,8 @@ export const parsePollFormInput = (input: {
   const choiceEmojis = parseChoiceEmojisCsv(input.choiceEmojis, choices.length);
   const durationMs = parseDurationToMs(input.durationText);
   const allowOtherOption = mode !== 'ranked' && mode !== 'freeform' && (input.allowOtherOption ?? false);
+
+  assertChoicesCompatibleWithOtherOption(choices, allowOtherOption);
 
   return {
     question,
