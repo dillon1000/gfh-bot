@@ -9,6 +9,7 @@ export type PollBuilderAction =
   | 'thread-toggle'
   | 'thread-name'
   | 'mode'
+  | 'allow-other'
   | 'anonymous'
   | 'hide-results'
   | 'publish'
@@ -28,6 +29,8 @@ export type PollManageAction = 'edit' | 'cancel' | 'reopen' | 'extend';
 
 export const pollVoteCustomId = (pollId: string): string => `poll:vote:${pollId}`;
 export const pollChoiceCustomId = (pollId: string, optionId: string): string => `poll:choice:${pollId}:${optionId}`;
+export const pollResponseButtonCustomId = (pollId: string, kind: 'freeform' | 'other'): string => `poll:response:${kind}:${pollId}`;
+export const pollResponseModalCustomId = (pollId: string, kind: 'freeform' | 'other'): string => `poll:response-modal:${kind}:${pollId}`;
 export const pollResultsCustomId = (pollId: string): string => `poll:results:${pollId}`;
 export const pollRankOpenCustomId = (pollId: string): string => `poll:rank:open:${pollId}`;
 export const pollRankAddCustomId = (pollId: string, optionId: string): string => `poll:rank:add:${pollId}:${optionId}`;

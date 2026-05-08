@@ -62,10 +62,11 @@ const buildDraftFromPoll = (poll: PollWithRelations): PollDraft => ({
   question: poll.question,
   description: poll.description ?? '',
   mode: poll.mode,
-  choices: poll.options.map((option) => option.label),
-  choiceEmojis: poll.options.map((option) => option.emoji ?? null),
+  choices: poll.options.filter((option) => !option.isOther).map((option) => option.label),
+  choiceEmojis: poll.options.filter((option) => !option.isOther).map((option) => option.emoji ?? null),
   anonymous: poll.anonymous,
   hideResultsUntilClosed: poll.hideResultsUntilClosed,
+  allowOtherOption: poll.allowOtherOption ?? false,
   quorumPercent: poll.quorumPercent,
   allowedRoleIds: [...poll.allowedRoleIds],
   blockedRoleIds: [...poll.blockedRoleIds],
@@ -219,11 +220,13 @@ export const handlePollManageModal = async (
   switch (action) {
     case 'edit': {
       const question = sanitizeQuestion(interaction.fields.getTextInputValue('question'));
-      const choices = parseChoicesCsv(interaction.fields.getTextInputValue('choices'));
+      const choices = poll.mode === 'freeform'
+        ? []
+        : parseChoicesCsv(interaction.fields.getTextInputValue('choices'));
       await editPollBeforeFirstVote(poll.id, { question, choices });
       await refreshPollMessage(client, poll.id);
       await interaction.editReply({
-        embeds: [buildFeedbackEmbed('Poll Updated', 'The poll question and choices have been updated.')],
+        embeds: [buildFeedbackEmbed('Poll Updated', poll.mode === 'freeform' ? 'The poll question has been updated.' : 'The poll question and choices have been updated.')],
       });
       return;
     }

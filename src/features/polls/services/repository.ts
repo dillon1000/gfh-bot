@@ -1,4 +1,4 @@
-import type { Poll, PollReminder, Prisma } from '@prisma/client';
+import type { Poll, PollReminder, PollMode as PrismaPollMode, Prisma } from '@prisma/client';
 
 import { env } from '../../../app/config.js';
 import { assertWithinRateLimit } from '../../../lib/rate-limit.js';
@@ -111,10 +111,11 @@ export const createPollRecord = async (
       authorId: input.authorId,
       question: input.question,
       description: input.description ?? null,
-      mode: input.mode,
+      mode: input.mode as PrismaPollMode,
       singleSelect: input.mode !== 'multi',
       anonymous: input.anonymous,
       hideResultsUntilClosed: input.hideResultsUntilClosed,
+      allowOtherOption: input.allowOtherOption,
       quorumPercent: input.quorumPercent ?? null,
       allowedRoleIds: input.allowedRoleIds,
       blockedRoleIds: input.blockedRoleIds,
@@ -125,11 +126,22 @@ export const createPollRecord = async (
       durationMinutes: durationMsToMinutes(input.durationMs),
       closesAt,
       options: {
-        create: input.choices.map((choice, index) => ({
-          label: choice.label,
-          emoji: choice.emoji ?? null,
-          sortOrder: index,
-        })),
+        create: [
+          ...input.choices.map((choice, index) => ({
+            label: choice.label,
+            emoji: choice.emoji ?? null,
+            isOther: false,
+            sortOrder: index,
+          })),
+          ...(input.allowOtherOption
+            ? [{
+                label: 'Other',
+                emoji: null,
+                isOther: true,
+                sortOrder: input.choices.length,
+              }]
+            : []),
+        ],
       },
       reminders: {
         create: buildPollReminderRecords(closesAt, input.reminderOffsets),
@@ -260,11 +272,23 @@ export const editPollBeforeFirstVote = async (
         passOptionIndex: nextPassOptionIndex,
         options: {
           deleteMany: {},
-          create: input.choices.map((label, index) => ({
-            label,
-            emoji: poll.options[index]?.emoji ?? null,
-            sortOrder: index,
-          })),
+          create: [
+            ...input.choices.map((label, index) => ({
+              label,
+              emoji: poll.options.find((option) => option.sortOrder === index && !option.isOther)?.emoji ?? null,
+              isOther: false,
+              sortOrder: index,
+            })),
+            ...(poll.allowOtherOption
+              ? [{
+                  label: 'Other',
+                  emoji: null,
+                  isOther: true,
+                  sortOrder: input.choices.length,
+                }]
+              : [])
+            ,
+          ],
         },
       },
     });

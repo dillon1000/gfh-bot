@@ -1,4 +1,6 @@
 import type {
+  FreeformPollComputedResults,
+  FreeformPollOutcome,
   PollComputedResults,
   PollOutcome,
   PollWithRelations,
@@ -24,6 +26,10 @@ export const getRankedBallots = (poll: PollWithRelations): RankedBallot[] => {
   const grouped = new Map<string, Array<{ optionId: string; rank: number | null; createdAt: Date }>>();
 
   for (const vote of poll.votes) {
+    if (!vote.optionId) {
+      continue;
+    }
+
     const votes = grouped.get(vote.userId) ?? [];
     votes.push({
       optionId: vote.optionId,
@@ -62,11 +68,15 @@ const computeStandardPollResults = (poll: PollWithRelations): StandardPollComput
   const voters = new Set<string>();
 
   for (const vote of poll.votes) {
+    if (!vote.optionId) {
+      continue;
+    }
+
     totals.set(vote.optionId, (totals.get(vote.optionId) ?? 0) + 1);
     voters.add(vote.userId);
   }
 
-  const totalVotes = poll.votes.length;
+  const totalVotes = [...totals.values()].reduce((sum, value) => sum + value, 0);
   const choices = poll.options.map((option) => {
     const votes = totals.get(option.id) ?? 0;
     const percentage = totalVotes === 0 ? 0 : (votes / totalVotes) * 100;
@@ -84,6 +94,56 @@ const computeStandardPollResults = (poll: PollWithRelations): StandardPollComput
     kind: 'standard',
     totalVotes,
     totalVoters: voters.size,
+    choices,
+  };
+};
+
+const computeFreeformPollResults = (poll: PollWithRelations): FreeformPollComputedResults => {
+  const grouped = new Map<string, { label: string; votes: number }>();
+  const voters = new Set<string>();
+
+  for (const vote of poll.votes) {
+    const responseText = vote.responseText?.trim();
+    if (!responseText) {
+      continue;
+    }
+
+    voters.add(vote.userId);
+    const key = responseText.toLocaleLowerCase();
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.votes += 1;
+      continue;
+    }
+
+    grouped.set(key, {
+      label: responseText,
+      votes: 1,
+    });
+  }
+
+  const totalVotes = [...grouped.values()].reduce((sum, entry) => sum + entry.votes, 0);
+  const choices = [...grouped.entries()]
+    .map(([key, entry]) => ({
+      id: key,
+      label: entry.label,
+      emoji: null,
+      votes: entry.votes,
+      percentage: totalVotes === 0 ? 0 : (entry.votes / totalVotes) * 100,
+    }))
+    .sort((left, right) => {
+      if (right.votes !== left.votes) {
+        return right.votes - left.votes;
+      }
+
+      return left.label.localeCompare(right.label);
+    });
+
+  return {
+    kind: 'freeform',
+    totalVotes,
+    totalVoters: voters.size,
+    uniqueResponses: choices.length,
     choices,
   };
 };
@@ -280,6 +340,8 @@ const computeRankedPollResults = (poll: PollWithRelations): RankedPollComputedRe
 export const computePollResults = (poll: PollWithRelations): PollComputedResults =>
   poll.mode === 'ranked'
     ? computeRankedPollResults(poll)
+    : poll.mode === 'freeform'
+      ? computeFreeformPollResults(poll)
     : computeStandardPollResults(poll);
 
 export const computePollOutcome = (
@@ -298,6 +360,16 @@ export const computePollOutcome = (
       rounds: results.rounds.length,
       exhaustedVotes: results.exhaustedVotes,
     };
+  }
+
+  if (results.kind === 'freeform') {
+    const outcome: FreeformPollOutcome = {
+      kind: 'freeform',
+      status: 'responses-collected',
+      uniqueResponses: results.uniqueResponses,
+    };
+
+    return outcome;
   }
 
   const measuredChoice = getMeasuredChoice(poll);

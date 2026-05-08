@@ -26,6 +26,10 @@ export async function buildPollResultDiagram(
   const { poll, results, outcome } = snapshot;
   const fileName = `poll-result-${poll.id}.png`;
 
+  if (results.kind === 'freeform') {
+    throw new Error('Freeform poll diagrams are not supported.');
+  }
+
   const buffer = results.kind === 'ranked'
     ? await sharp(Buffer.from(buildRankedPollSvg(poll, results, outcome))).png().toBuffer()
     : await buildStandardPollPng(poll, results, outcome, snapshot.electorate);

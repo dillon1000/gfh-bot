@@ -30,7 +30,9 @@ const buildStandardPollExportCsv = (snapshot: EvaluatedPollSnapshot): string => 
   }
 
   for (const vote of evaluatedPoll.votes) {
-    voterMentionsByOption.get(vote.optionId)?.push(`<@${vote.userId}>`);
+    if (vote.optionId) {
+      voterMentionsByOption.get(vote.optionId)?.push(`<@${vote.userId}>`);
+    }
   }
 
   const allVoters = [...new Set(evaluatedPoll.votes.map((vote) => vote.userId))]
@@ -59,6 +61,7 @@ const buildStandardPollExportCsv = (snapshot: EvaluatedPollSnapshot): string => 
     'eligible_channel_ids',
     'all_voters',
     'voters',
+    'response_texts',
   ].join(',');
 
   const rows = results.choices.map((choice) =>
@@ -75,6 +78,12 @@ const buildStandardPollExportCsv = (snapshot: EvaluatedPollSnapshot): string => 
       ...serializeGovernanceFields(snapshot),
       escapeCsv(allVoters),
       escapeCsv(poll.anonymous ? '' : (voterMentionsByOption.get(choice.id) ?? []).join(' | ')),
+      escapeCsv(
+        evaluatedPoll.votes
+          .filter((vote) => vote.optionId === choice.id && vote.responseText?.trim())
+          .map((vote) => vote.responseText!.trim())
+          .join(' | '),
+      ),
     ].join(','),
   );
 
@@ -181,6 +190,64 @@ const buildRankedNonAnonymousExportCsv = (snapshot: EvaluatedPollSnapshot): stri
   return [header, ...rows].join('\n');
 };
 
+const buildFreeformExportCsv = (snapshot: EvaluatedPollSnapshot): string => {
+  const { poll, evaluatedPoll, results, outcome } = snapshot;
+  if (results.kind !== 'freeform') {
+    throw new Error('Expected freeform poll results.');
+  }
+
+  const header = [
+    'poll_id',
+    'question',
+    'response_text',
+    'vote_count',
+    'percentage',
+    'total_voters',
+    'unique_responses',
+    'anonymous',
+    'outcome',
+    'quorum_percent',
+    'eligible_voter_count',
+    'participating_eligible_voters',
+    'turnout_percent',
+    'quorum_met',
+    'excluded_ballot_count',
+    'excluded_voter_count',
+    'allowed_role_ids',
+    'blocked_role_ids',
+    'eligible_channel_ids',
+    'voters',
+  ].join(',');
+
+  const votersByResponse = new Map<string, string[]>();
+  for (const vote of evaluatedPoll.votes) {
+    const key = vote.responseText?.trim().toLocaleLowerCase();
+    if (!key) {
+      continue;
+    }
+
+    const voters = votersByResponse.get(key) ?? [];
+    voters.push(`<@${vote.userId}>`);
+    votersByResponse.set(key, voters);
+  }
+
+  const rows = results.choices.map((choice) => [
+    escapeCsv(poll.id),
+    escapeCsv(poll.question),
+    escapeCsv(choice.label),
+    choice.votes,
+    choice.percentage.toFixed(1),
+    results.totalVoters,
+    results.uniqueResponses,
+    poll.anonymous ? 'true' : 'false',
+    escapeCsv(outcome.status),
+    ...serializeGovernanceFields(snapshot),
+    escapeCsv(poll.anonymous ? '' : (votersByResponse.get(choice.id) ?? []).join(' | ')),
+  ].join(','));
+
+  return [header, ...rows].join('\n');
+};
+
 export function buildPollExportCsv(snapshot: EvaluatedPollSnapshot): string;
 export function buildPollExportCsv(poll: PollWithRelations): string;
 export function buildPollExportCsv(snapshotOrPoll: EvaluatedPollSnapshot | PollWithRelations): string {
@@ -192,6 +259,10 @@ export function buildPollExportCsv(snapshotOrPoll: EvaluatedPollSnapshot | PollW
     return snapshot.poll.anonymous
       ? buildRankedAnonymousExportCsv(snapshot)
       : buildRankedNonAnonymousExportCsv(snapshot);
+  }
+
+  if (snapshot.poll.mode === 'freeform') {
+    return buildFreeformExportCsv(snapshot);
   }
 
   return buildStandardPollExportCsv(snapshot);

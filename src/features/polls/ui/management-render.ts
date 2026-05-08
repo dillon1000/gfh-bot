@@ -10,7 +10,7 @@ import { pollManageModalCustomId } from './custom-ids.js';
 import type { PollWithRelations } from '../core/types.js';
 
 export const buildPollEditModal = (
-  poll: Pick<PollWithRelations, 'id' | 'question' | 'options'>,
+  poll: Pick<PollWithRelations, 'id' | 'question' | 'options' | 'mode'>,
 ): ModalBuilder => {
   const questionInput = new TextInputBuilder()
     .setCustomId('question')
@@ -20,21 +20,24 @@ export const buildPollEditModal = (
     .setValue(poll.question)
     .setMaxLength(200);
 
-  const choicesInput = new TextInputBuilder()
-    .setCustomId('choices')
-    .setLabel('Choices (comma separated)')
-    .setStyle(TextInputStyle.Paragraph)
-    .setRequired(true)
-    .setValue(poll.options.map((option) => option.label).join(', '))
-    .setMaxLength(500);
-
-  return new ModalBuilder()
+  const modal = new ModalBuilder()
     .setCustomId(pollManageModalCustomId('edit', poll.id))
     .setTitle('Edit poll')
-    .addComponents(
-      new ActionRowBuilder<TextInputBuilder>().addComponents(questionInput),
-      new ActionRowBuilder<TextInputBuilder>().addComponents(choicesInput),
-    );
+    .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(questionInput));
+
+  if (poll.mode !== 'freeform') {
+    const choicesInput = new TextInputBuilder()
+      .setCustomId('choices')
+      .setLabel('Choices (comma separated)')
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true)
+      .setValue(poll.options.filter((option) => !option.isOther).map((option) => option.label).join(', '))
+      .setMaxLength(500);
+
+    modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(choicesInput));
+  }
+
+  return modal;
 };
 
 export const buildPollCancelModal = (

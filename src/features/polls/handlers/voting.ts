@@ -1,18 +1,30 @@
 import {
+  ActionRowBuilder,
   type ButtonInteraction,
   type Client,
   MessageFlags,
+  ModalBuilder,
   type StringSelectMenuInteraction,
+  TextInputBuilder,
+  TextInputStyle,
+  type ModalSubmitInteraction,
 } from 'discord.js';
 
 import { redis } from '../../../lib/redis.js';
 import { deletePollRankDraft, getPollRankDraft, savePollRankDraft } from '../state/rank-drafts.js';
 import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
 import { buildRankedChoiceEditor } from '../ui/ranked-editor.js';
+import { pollResponseModalCustomId } from '../ui/custom-ids.js';
 import { assertUserCanVoteInPoll } from '../services/governance.js';
 import { refreshPollMessage } from '../services/lifecycle.js';
 import { getPollById } from '../services/repository.js';
-import { clearPollVotes, getPollRankingForUser, setPollVotes } from '../services/voting.js';
+import {
+  clearPollVotes,
+  getPollRankingForUser,
+  getPollResponseForUser,
+  setPollTextResponse,
+  setPollVotes,
+} from '../services/voting.js';
 import { resolveSingleSelectVoteToggle } from '../core/vote-toggle.js';
 
 export const handlePollVoteSelect = async (
@@ -33,7 +45,16 @@ export const handlePollVoteSelect = async (
   }
 
   await assertUserCanVoteInPoll(client, poll, interaction.user.id);
-  await setPollVotes(pollId, interaction.user.id, interaction.values);
+  const currentResponse = getPollResponseForUser(poll, interaction.user.id);
+  const otherOptionId = poll.options.find((option) => option.isOther)?.id ?? null;
+  const nextSelections = otherOptionId && currentResponse.optionIds.includes(otherOptionId)
+    ? [...interaction.values, otherOptionId]
+    : interaction.values;
+
+  await setPollTextResponse(pollId, interaction.user.id, currentResponse.responseText, {
+    selectedOptionIds: nextSelections,
+    allowTextClear: true,
+  });
   await refreshPollMessage(client, pollId);
 
   await interaction.editReply({
@@ -61,6 +82,7 @@ export const handlePollChoiceButton = async (
   const currentOptionIds = poll.votes
     .filter((vote) => vote.userId === interaction.user.id)
     .map((vote) => vote.optionId)
+    .filter((optionId): optionId is string => Boolean(optionId))
     .sort();
   const nextOptionIds = resolveSingleSelectVoteToggle(currentOptionIds, optionId);
 
@@ -71,6 +93,105 @@ export const handlePollChoiceButton = async (
       buildFeedbackEmbed(
         nextOptionIds.length === 0 ? 'Vote Removed' : 'Vote Recorded',
         nextOptionIds.length === 0 ? 'Your vote has been removed.' : 'Your vote has been updated.',
+      ),
+    ],
+  });
+};
+
+const buildPollResponseModal = (
+  pollId: string,
+  kind: 'freeform' | 'other',
+  existingResponse: string | null,
+): ModalBuilder => {
+  const input = new TextInputBuilder()
+    .setCustomId('response')
+    .setLabel(kind === 'freeform' ? 'Your answer' : 'Other answer')
+    .setStyle(TextInputStyle.Paragraph)
+    .setRequired(false)
+    .setValue(existingResponse ?? '')
+    .setPlaceholder('Leave blank to remove your response')
+    .setMaxLength(500);
+
+  return new ModalBuilder()
+    .setCustomId(pollResponseModalCustomId(pollId, kind))
+    .setTitle(kind === 'freeform' ? 'Answer Poll' : 'Other Response')
+    .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input));
+};
+
+export const handlePollResponseButton = async (
+  client: Client,
+  interaction: ButtonInteraction,
+): Promise<void> => {
+  const [, , kind, pollId] = interaction.customId.split(':');
+  if (!pollId || (kind !== 'freeform' && kind !== 'other')) {
+    throw new Error('Invalid poll response action.');
+  }
+
+  const poll = await getPollById(pollId);
+  if (!poll) {
+    throw new Error('Poll not found.');
+  }
+
+  await assertUserCanVoteInPoll(client, poll, interaction.user.id);
+
+  if (kind === 'freeform' && poll.mode !== 'freeform') {
+    throw new Error('This poll is not accepting freeform answers.');
+  }
+
+  if (kind === 'other' && !poll.options.some((option) => option.isOther)) {
+    throw new Error('This poll does not offer an Other choice.');
+  }
+
+  const currentResponse = getPollResponseForUser(poll, interaction.user.id);
+  await interaction.showModal(buildPollResponseModal(pollId, kind, currentResponse.responseText));
+};
+
+export const handlePollResponseModal = async (
+  client: Client,
+  interaction: ModalSubmitInteraction,
+): Promise<void> => {
+  const [, , kind, pollId] = interaction.customId.split(':');
+  if (!pollId || (kind !== 'freeform' && kind !== 'other')) {
+    throw new Error('Invalid poll response submission.');
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const poll = await getPollById(pollId);
+  if (!poll) {
+    throw new Error('Poll not found.');
+  }
+
+  await assertUserCanVoteInPoll(client, poll, interaction.user.id);
+  const responseText = interaction.fields.getTextInputValue('response').trim();
+
+  if (kind === 'freeform') {
+    await setPollTextResponse(pollId, interaction.user.id, responseText || null, {
+      allowTextClear: true,
+    });
+  } else {
+    const otherOptionId = poll.options.find((option) => option.isOther)?.id;
+    if (!otherOptionId) {
+      throw new Error('This poll does not offer an Other choice.');
+    }
+
+    const currentResponse = getPollResponseForUser(poll, interaction.user.id);
+    const nonOtherOptionIds = currentResponse.optionIds.filter((optionId) => optionId !== otherOptionId);
+    const selectedOptionIds = responseText
+      ? (poll.mode === 'single' ? [otherOptionId] : [...nonOtherOptionIds, otherOptionId])
+      : nonOtherOptionIds;
+
+    await setPollTextResponse(pollId, interaction.user.id, responseText || null, {
+      selectedOptionIds,
+      allowTextClear: true,
+    });
+  }
+
+  await refreshPollMessage(client, pollId);
+  await interaction.editReply({
+    embeds: [
+      buildFeedbackEmbed(
+        responseText ? 'Response Recorded' : 'Response Removed',
+        responseText ? 'Your response has been updated.' : 'Your response has been removed.',
       ),
     ],
   });

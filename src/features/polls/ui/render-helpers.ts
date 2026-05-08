@@ -51,6 +51,8 @@ export const getModeLabel = (mode: PollMode): string => {
       return 'Multi choice';
     case 'ranked':
       return 'Ranked choice';
+    case 'freeform':
+      return 'Freeform';
     default:
       return 'Single choice';
   }
@@ -64,6 +66,10 @@ export const getPassRuleLabel = (
 ): string => {
   if (mode === 'ranked') {
     return 'Not used in ranked-choice polls';
+  }
+
+  if (mode === 'freeform') {
+    return 'Not used in freeform polls';
   }
 
   if (!passThreshold) {
@@ -145,11 +151,16 @@ export const getDraftSummary = (
     draft.description || '*No description or source link yet*',
     '',
     `**Question** ${draft.question}`,
-    `**Choices** ${draft.choices.map((choice, index) => `${getPollChoiceEmojiDisplay(draft.choiceEmojis[index] ?? null, index)} ${choice}`).join(' • ')}`,
-    `**Emojis** ${draft.choiceEmojis.some((emoji) => emoji)
+    `**Choices** ${draft.mode === 'freeform'
+      ? 'Freeform text responses'
+      : `${draft.choices.map((choice, index) => `${getPollChoiceEmojiDisplay(draft.choiceEmojis[index] ?? null, index)} ${choice}`).join(' • ')}${draft.allowOtherOption ? ' • Other' : ''}`}`,
+    `**Emojis** ${draft.mode === 'freeform'
+      ? 'Not used in freeform polls'
+      : draft.choiceEmojis.some((emoji) => emoji)
       ? draft.choiceEmojis.map((emoji, index) => getPollChoiceEmojiDisplay(emoji, index)).join(' • ')
       : 'Default numbered emoji'}`,
     `**Mode** ${getModeLabel(draft.mode)}`,
+    `**Other Choice** ${draft.mode === 'single' || draft.mode === 'multi' ? (draft.allowOtherOption ? 'Enabled' : 'Disabled') : 'Not available in this mode'}`,
     `**Visibility** ${draft.anonymous ? 'Anonymous option selections' : 'Public vote totals'}${draft.hideResultsUntilClosed ? ' • Hidden until close' : ''}`,
     `**Governance** ${getGovernanceLabel(draft)}`,
     `**Reminders** ${getReminderLabel(draft)}`,

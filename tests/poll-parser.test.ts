@@ -38,6 +38,7 @@ describe('parsePollFormInput', () => {
       question: 'Should we ship?',
       description: 'Final check',
       mode: 'single',
+      allowOtherOption: false,
       choices: ['Yes', 'No'],
       choiceEmojis: [null, null],
       durationMs: 24 * 60 * 60 * 1000,

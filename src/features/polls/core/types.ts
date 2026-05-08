@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 
-export type PollMode = 'single' | 'multi' | 'ranked';
+export type PollMode = 'single' | 'multi' | 'ranked' | 'freeform';
 export type PollClosedReason = 'closed' | 'cancelled';
 
 type PrismaPollWithRelations = Prisma.PollGetPayload<{
@@ -19,11 +19,23 @@ type PrismaPollWithRelations = Prisma.PollGetPayload<{
   };
 }>;
 
-export type PollWithRelations = Omit<PrismaPollWithRelations, 'mode' | 'votes' | 'closedReason' | 'durationMinutes'> & {
+type PollOptionRecord = Omit<PrismaPollWithRelations['options'][number], 'isOther'> & {
+  isOther?: boolean;
+};
+
+type PollVoteRecord = Omit<PrismaPollWithRelations['votes'][number], 'optionId' | 'rank' | 'responseText'> & {
+  optionId?: string | null;
+  rank?: number | null;
+  responseText?: string | null;
+};
+
+export type PollWithRelations = Omit<PrismaPollWithRelations, 'mode' | 'votes' | 'closedReason' | 'durationMinutes' | 'options' | 'allowOtherOption'> & {
   mode: PollMode;
   closedReason: PollClosedReason | null;
   durationMinutes: number;
-  votes: Array<PrismaPollWithRelations['votes'][number] & { rank: number | null }>;
+  allowOtherOption?: boolean;
+  options: PollOptionRecord[];
+  votes: PollVoteRecord[];
 };
 
 export type PollCreationInput = {
@@ -39,6 +51,7 @@ export type PollCreationInput = {
   }>;
   anonymous: boolean;
   hideResultsUntilClosed: boolean;
+  allowOtherOption: boolean;
   quorumPercent?: number | null;
   allowedRoleIds: string[];
   blockedRoleIds: string[];
@@ -58,6 +71,7 @@ export type PollDraft = {
   choiceEmojis: Array<string | null>;
   anonymous: boolean;
   hideResultsUntilClosed: boolean;
+  allowOtherOption: boolean;
   quorumPercent: number | null;
   allowedRoleIds: string[];
   blockedRoleIds: string[];
@@ -79,6 +93,20 @@ export type StandardPollComputedResults = {
     id: string;
     label: string;
     emoji: string | null;
+    votes: number;
+    percentage: number;
+  }>;
+};
+
+export type FreeformPollComputedResults = {
+  kind: 'freeform';
+  totalVotes: number;
+  totalVoters: number;
+  uniqueResponses: number;
+  choices: Array<{
+    id: string;
+    label: string;
+    emoji: null;
     votes: number;
     percentage: number;
   }>;
@@ -115,7 +143,7 @@ export type RankedPollComputedResults = {
   }>;
 };
 
-export type PollComputedResults = StandardPollComputedResults | RankedPollComputedResults;
+export type PollComputedResults = StandardPollComputedResults | RankedPollComputedResults | FreeformPollComputedResults;
 
 export type StandardPollOutcome = {
   kind: 'standard';
@@ -133,7 +161,13 @@ export type RankedPollOutcome = {
   exhaustedVotes: number;
 };
 
-export type PollOutcome = StandardPollOutcome | RankedPollOutcome;
+export type FreeformPollOutcome = {
+  kind: 'freeform';
+  status: 'responses-collected' | 'quorum-failed';
+  uniqueResponses: number;
+};
+
+export type PollOutcome = StandardPollOutcome | RankedPollOutcome | FreeformPollOutcome;
 
 export type PollElectorateEvaluation = {
   hasElectorateRules: boolean;
