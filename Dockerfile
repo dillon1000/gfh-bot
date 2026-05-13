@@ -16,6 +16,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
   pnpm install --frozen-lockfile
 
 COPY prisma ./prisma
+COPY prisma.config.ts ./
 RUN pnpm prisma generate
 
 FROM deps AS build
@@ -41,6 +42,7 @@ RUN groupadd --system app && useradd --system --gid app --create-home app
 COPY --from=deps /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml /app/.npmrc ./
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/prisma ./prisma
+COPY --from=deps /app/prisma.config.ts ./
 COPY --from=build /app/assets ./assets
 COPY --from=build /app/dist ./dist
 
