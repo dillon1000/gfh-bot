@@ -101,10 +101,11 @@ export const getProtectableLongPositions = (
   }
 
   const protectionMap = getLossProtectionMap(market.lossProtections ?? []);
+  const outcomeMap = new Map(market.outcomes.map((entry) => [entry.id, entry]));
   return market.positions
     .filter((position) => position.userId === userId && position.side === 'long' && position.shares > 1e-6)
     .map((position) => {
-      const outcome = market.outcomes.find((entry) => entry.id === position.outcomeId);
+      const outcome = outcomeMap.get(position.outcomeId);
       if (!outcome || outcome.settlementValue !== null) {
         return null;
       }

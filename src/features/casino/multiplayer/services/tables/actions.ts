@@ -12,6 +12,7 @@ import type {
 	CasinoTableSummary,
 	MultiplayerBlackjackPlayerState,
 	MultiplayerBlackjackState,
+	MultiplayerHoldemPlayerState,
 	MultiplayerHoldemState,
 } from "@/features/casino/core/types.js";
 import {
@@ -77,10 +78,14 @@ const performCasinoTableActionInternal = async (
 					throw new Error("It is not your turn at that blackjack table.");
 				}
 
-				const players = state.players.map((player) => ({ ...player }));
-				const current = players.find(
-					(player) => player.userId === input.userId,
-				)!;
+				let current!: MultiplayerBlackjackPlayerState;
+				const players = state.players.map((player) => {
+					const clone = { ...player };
+					if (clone.userId === input.userId) {
+						current = clone;
+					}
+					return clone;
+				});
 				let deck = [...state.deck];
 				if (input.action === "blackjack_hit") {
 					const drawn = drawCard(deck);
@@ -206,10 +211,14 @@ const performCasinoTableActionInternal = async (
 					throw new Error("It is not your turn at that Hold'em table.");
 				}
 
-				const players = state.players.map((player) => ({ ...player }));
-				const current = players.find(
-					(player) => player.userId === input.userId,
-				)!;
+				let current!: MultiplayerHoldemPlayerState;
+				const players = state.players.map((player) => {
+					const clone = { ...player };
+					if (clone.userId === input.userId) {
+						current = clone;
+					}
+					return clone;
+				});
 				const amountToCall = Math.max(
 					0,
 					formatRoundMoney(state.currentBet - current.committedThisRound),

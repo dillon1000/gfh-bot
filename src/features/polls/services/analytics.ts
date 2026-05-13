@@ -37,6 +37,12 @@ type TurnoutDetails = {
 
 type TurnoutResolver = (poll: PollWithRelations) => Promise<TurnoutDetails>;
 
+type PollWithVoterStats = {
+  poll: PollWithRelations;
+  voterIds: string[];
+  voterCount: number;
+};
+
 const pollAnalyticsInclude = {
   options: {
     orderBy: {
@@ -62,9 +68,6 @@ const byRecentCreatedAt = <T extends { createdAt: Date }>(left: T, right: T): nu
 
 const getDistinctVoterIds = (poll: Pick<PollWithRelations, 'votes'>): string[] =>
   [...new Set(poll.votes.map((vote) => vote.userId))];
-
-const getDistinctVoterCount = (poll: Pick<PollWithRelations, 'votes'>): number =>
-  getDistinctVoterIds(poll).length;
 
 const buildFilters = (
   options: PollAnalyticsOptions,
@@ -94,18 +97,18 @@ const buildVisibilityEntry = (
 });
 
 const buildTurnoutByPoll = async (
-  polls: PollWithRelations[],
+  pollsWithStats: PollWithVoterStats[],
   limit: number,
   turnoutResolver: TurnoutResolver,
 ): Promise<PollAnalyticsTurnoutEntry[]> => {
-  const topPolls = [...polls]
+  const topPolls = [...pollsWithStats]
     .sort((left, right) =>
-      byDescendingNumber(left, right, getDistinctVoterCount)
-      || byRecentCreatedAt(left, right)
-      || left.question.localeCompare(right.question))
+      byDescendingNumber(left, right, (entry) => entry.voterCount)
+      || byRecentCreatedAt(left.poll, right.poll)
+      || left.poll.question.localeCompare(right.poll.question))
     .slice(0, limit);
 
-  return Promise.all(topPolls.map(async (poll) => {
+  return Promise.all(topPolls.map(async ({ poll, voterCount }) => {
     const turnoutDetails = poll.quorumPercent !== null
       ? await turnoutResolver(poll)
       : { turnoutPercent: null, eligibleVoterCount: null };
@@ -115,7 +118,7 @@ const buildTurnoutByPoll = async (
       question: poll.question,
       channelId: poll.channelId,
       createdAt: poll.createdAt,
-      voterCount: getDistinctVoterCount(poll),
+      voterCount,
       turnoutPercent: turnoutDetails.turnoutPercent,
       eligibleVoterCount: turnoutDetails.eligibleVoterCount,
       anonymous: poll.anonymous,
@@ -123,69 +126,69 @@ const buildTurnoutByPoll = async (
   }));
 };
 
-const buildMostActiveVoters = (
-  polls: PollWithRelations[],
+const buildVoterAndChannelActivity = (
+  pollsWithStats: PollWithVoterStats[],
   limit: number,
-): PollAnalyticsVoterEntry[] => {
+): {
+  voters: PollAnalyticsVoterEntry[];
+  channels: PollAnalyticsChannelEntry[];
+} => {
   const participationCounts = new Map<string, number>();
-
-  for (const poll of polls) {
-    for (const userId of getDistinctVoterIds(poll)) {
-      participationCounts.set(userId, (participationCounts.get(userId) ?? 0) + 1);
-    }
-  }
-
-  return [...participationCounts.entries()]
-    .map(([userId, pollsParticipated]) => ({ userId, pollsParticipated }))
-    .sort((left, right) =>
-      byDescendingNumber(left, right, (entry) => entry.pollsParticipated)
-      || left.userId.localeCompare(right.userId))
-    .slice(0, limit);
-};
-
-const buildChannelActivity = (
-  polls: PollWithRelations[],
-  limit: number,
-): PollAnalyticsChannelEntry[] => {
   const channelStats = new Map<string, PollAnalyticsChannelEntry>();
 
-  for (const poll of polls) {
+  for (const { poll, voterIds, voterCount } of pollsWithStats) {
+    for (const userId of voterIds) {
+      participationCounts.set(userId, (participationCounts.get(userId) ?? 0) + 1);
+    }
+
     const entry = channelStats.get(poll.channelId) ?? {
       channelId: poll.channelId,
       pollCount: 0,
       participationCount: 0,
     };
-
     entry.pollCount += 1;
-    entry.participationCount += getDistinctVoterCount(poll);
+    entry.participationCount += voterCount;
     channelStats.set(poll.channelId, entry);
   }
 
-  return [...channelStats.values()]
+  const voters = [...participationCounts.entries()]
+    .map(([userId, pollsParticipated]) => ({ userId, pollsParticipated }))
+    .sort((left, right) =>
+      byDescendingNumber(left, right, (entry) => entry.pollsParticipated)
+      || left.userId.localeCompare(right.userId))
+    .slice(0, limit);
+
+  const channels = [...channelStats.values()]
     .sort((left, right) =>
       byDescendingNumber(left, right, (entry) => entry.pollCount)
       || byDescendingNumber(left, right, (entry) => entry.participationCount)
       || left.channelId.localeCompare(right.channelId))
     .slice(0, limit);
+
+  return { voters, channels };
 };
 
 const buildVisibilityBreakdown = (
-  polls: PollWithRelations[],
+  pollsWithStats: PollWithVoterStats[],
 ): PollAnalyticsSnapshot['visibilityBreakdown'] => {
-  const anonymousPolls = polls.filter((poll) => poll.anonymous);
-  const namedPolls = polls.filter((poll) => !poll.anonymous);
+  let anonymousCount = 0;
+  let anonymousParticipation = 0;
+  let namedCount = 0;
+  let namedParticipation = 0;
+
+  for (const { poll, voterCount } of pollsWithStats) {
+    if (poll.anonymous) {
+      anonymousCount += 1;
+      anonymousParticipation += voterCount;
+    } else {
+      namedCount += 1;
+      namedParticipation += voterCount;
+    }
+  }
 
   return {
-    anonymous: buildVisibilityEntry(
-      anonymousPolls.length,
-      anonymousPolls.reduce((total, poll) => total + getDistinctVoterCount(poll), 0),
-      polls.length,
-    ),
-    named: buildVisibilityEntry(
-      namedPolls.length,
-      namedPolls.reduce((total, poll) => total + getDistinctVoterCount(poll), 0),
-      polls.length,
-    ),
+    anonymous: buildVisibilityEntry(anonymousCount, anonymousParticipation, pollsWithStats.length),
+    named: buildVisibilityEntry(namedCount, namedParticipation, pollsWithStats.length),
   };
 };
 
@@ -212,22 +215,30 @@ export const buildPollAnalyticsSnapshotFromPolls = async (
   },
 ): Promise<PollAnalyticsSnapshot> => {
   const filters = buildFilters(options);
+  const sinceTime = filters.since.getTime();
+  const channelFilter = filters.channelId;
   const filteredPolls = polls.filter((poll) =>
     poll.guildId === filters.guildId
-    && poll.createdAt.getTime() >= filters.since.getTime()
-    && (!filters.channelId || poll.channelId === filters.channelId));
+    && poll.createdAt.getTime() >= sinceTime
+    && (!channelFilter || poll.channelId === channelFilter));
+  const pollsWithStats: PollWithVoterStats[] = filteredPolls.map((poll) => {
+    const voterIds = getDistinctVoterIds(poll);
+    return { poll, voterIds, voterCount: voterIds.length };
+  });
   const turnoutResolver = options.turnoutResolver ?? (async () => ({
     turnoutPercent: null,
     eligibleVoterCount: null,
   }));
 
+  const { voters, channels } = buildVoterAndChannelActivity(pollsWithStats, filters.limit);
+
   return {
     filters,
-    totalPolls: filteredPolls.length,
-    turnoutByPoll: await buildTurnoutByPoll(filteredPolls, filters.limit, turnoutResolver),
-    mostActiveVoters: buildMostActiveVoters(filteredPolls, filters.limit),
-    channelActivity: buildChannelActivity(filteredPolls, filters.limit),
-    visibilityBreakdown: buildVisibilityBreakdown(filteredPolls),
+    totalPolls: pollsWithStats.length,
+    turnoutByPoll: await buildTurnoutByPoll(pollsWithStats, filters.limit, turnoutResolver),
+    mostActiveVoters: voters,
+    channelActivity: channels,
+    visibilityBreakdown: buildVisibilityBreakdown(pollsWithStats),
   };
 };
 
