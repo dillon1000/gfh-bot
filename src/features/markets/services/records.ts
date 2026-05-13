@@ -1,6 +1,6 @@
-import { prisma } from "../../../lib/prisma.js";
-import { parseMarketLookup } from "../parsing/market.js";
-import { computeCombinationCount } from "../core/math.js";
+import { prisma } from "@/lib/prisma.js";
+import { parseMarketLookup } from "@/features/markets/parsing/market.js";
+import { computeCombinationCount } from "@/features/markets/core/math.js";
 import {
 	assertMarketCanAddOutcomes,
 	assertMarketEditable,
@@ -10,13 +10,13 @@ import {
 	maxCompetitiveWinnerSubsets,
 	maxLiquidityParameter,
 	marketInclude,
-} from "../core/shared.js";
+} from "@/features/markets/core/shared.js";
 import type {
 	MarketCreationInput,
 	MarketStatus,
 	MarketTraderSummary,
 	MarketWithRelations,
-} from "../core/types.js";
+} from "@/features/markets/core/types.js";
 
 const validateCompetitiveWinnerCount = (input: {
 	winnerCount: number;

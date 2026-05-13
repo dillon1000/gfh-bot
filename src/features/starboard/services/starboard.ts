@@ -1,4 +1,4 @@
-import type { GuildConfig, StarboardEntry } from '@prisma/client';
+import type { GuildConfig, StarboardEntry } from '@/generated/prisma/client.js';
 import {
   EmbedBuilder,
   type Client,
@@ -9,7 +9,7 @@ import {
   type User,
 } from 'discord.js';
 
-import { logger } from '../../../app/logger.js';
+import { logger } from '@/app/logger.js';
 import {
   deserializeStoredEmoji,
   formatStoredEmoji,
@@ -17,11 +17,11 @@ import {
   normalizeEmojiListInput,
   reactionMatchesAnyEmoji,
   serializeNormalizedEmoji,
-} from '../../../lib/emoji.js';
-import { withRedisLock } from '../../../lib/locks.js';
-import { prisma } from '../../../lib/prisma.js';
-import { redis } from '../../../lib/redis.js';
-import { isStarboardPromotionEligible } from '../core/rules.js';
+} from '@/lib/emoji.js';
+import { withRedisLock } from '@/lib/locks.js';
+import { prisma } from '@/lib/prisma.js';
+import { redis } from '@/lib/redis.js';
+import { isStarboardPromotionEligible } from '@/features/starboard/core/rules.js';
 
 type ActiveGuildConfig = GuildConfig & {
   starboardEnabled: true;

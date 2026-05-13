@@ -198,10 +198,10 @@ vi.mock("../src/features/markets/services/lifecycle.js", () => ({
 	clearMarketLifecycle: vi.fn(),
 }));
 
-import { handleMarketButton } from "../src/features/markets/handlers/interactions/buttons.js";
-import { handleMarketCommand } from "../src/features/markets/handlers/interactions/commands.js";
-import { handleMarketModal } from "../src/features/markets/handlers/interactions/modals.js";
-import { handleMarketSelect } from "../src/features/markets/handlers/interactions/selects.js";
+import { handleMarketButton } from "@/features/markets/handlers/interactions/buttons.js";
+import { handleMarketCommand } from "@/features/markets/handlers/interactions/commands.js";
+import { handleMarketModal } from "@/features/markets/handlers/interactions/modals.js";
+import { handleMarketSelect } from "@/features/markets/handlers/interactions/selects.js";
 
 const defaultAdminUserIds = ["user_1"];
 

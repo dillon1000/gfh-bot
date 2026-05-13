@@ -1,8 +1,19 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 
-import { createLazyProxy } from './lazy.js';
+import { PrismaClient } from '@/generated/prisma/client.js';
 
-const prismaState = createLazyProxy(() => new PrismaClient());
+import { createLazyProxy } from '@/lib/lazy.js';
+
+const prismaState = createLazyProxy(() => {
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+  });
+
+  return new PrismaClient({
+    adapter: new PrismaPg(pool),
+  });
+});
 
 export const getPrisma = (): PrismaClient => prismaState.getInstance();
 

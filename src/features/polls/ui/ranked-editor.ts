@@ -1,9 +1,9 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 
-import { pollRankAddCustomId, pollRankClearCustomId, pollRankSubmitCustomId, pollRankUndoCustomId } from './custom-ids.js';
-import { getPollChoiceComponentEmoji, getPollChoiceEmojiDisplay } from './present.js';
-import { chunkButtons, isPollClosedOrExpired } from './render-helpers.js';
-import type { PollWithRelations } from '../core/types.js';
+import { pollRankAddCustomId, pollRankClearCustomId, pollRankSubmitCustomId, pollRankUndoCustomId } from '@/features/polls/ui/custom-ids.js';
+import { getPollChoiceComponentEmoji, getPollChoiceEmojiDisplay } from '@/features/polls/ui/present.js';
+import { chunkButtons, isPollClosedOrExpired } from '@/features/polls/ui/render-helpers.js';
+import type { PollWithRelations } from '@/features/polls/core/types.js';
 
 export const buildRankedChoiceEditor = (
   poll: PollWithRelations,

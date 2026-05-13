@@ -73,7 +73,7 @@ vi.mock('../src/features/markets/ui/visualize.js', () => ({
   buildMarketDiagram,
 }));
 
-import { hydrateMarketMessage, refreshMarketMessage, sendMarketGraceNotice } from '../src/features/markets/services/lifecycle.js';
+import { hydrateMarketMessage, refreshMarketMessage, sendMarketGraceNotice } from '@/features/markets/services/lifecycle.js';
 
 const market = {
   id: 'market_1',

@@ -1,4 +1,4 @@
-import type { PlayingCard, PlayingCardRank, PlayingCardSuit } from './types.js';
+import type { PlayingCard, PlayingCardRank, PlayingCardSuit } from '@/features/casino/core/types.js';
 
 export type RandomNumberGenerator = () => number;
 

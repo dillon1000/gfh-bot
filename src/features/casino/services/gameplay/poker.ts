@@ -5,21 +5,21 @@ import {
   getDefaultRng,
   shuffleDeck,
   type RandomNumberGenerator,
-} from '../../core/deck.js';
+} from '@/features/casino/core/deck.js';
 import {
   comparePokerHands,
   drawTiebreakCards,
   evaluateFiveCardHand,
   getBotDiscardIndexes,
   replaceCardsAtIndexes,
-} from '../../core/poker.js';
+} from '@/features/casino/core/poker.js';
 import type {
   PersistedCasinoRound,
   PokerHandCategory,
   PokerRound,
   PokerSession,
-} from '../../core/types.js';
-import { assertCanAffordWager, formatRoundMoney, persistRound } from './shared.js';
+} from '@/features/casino/core/types.js';
+import { assertCanAffordWager, formatRoundMoney, persistRound } from '@/features/casino/services/gameplay/shared.js';
 
 const pokerBonusMultipliers: Record<PokerHandCategory, number> = {
   'high-card': 0,

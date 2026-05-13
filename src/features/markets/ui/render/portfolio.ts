@@ -4,12 +4,12 @@ import {
   StringSelectMenuBuilder,
 } from 'discord.js';
 
-import { marketPortfolioSelectCustomId } from '../custom-ids.js';
-import type { MarketAccountWithOpenPositions } from '../../core/types.js';
+import { marketPortfolioSelectCustomId } from '@/features/markets/ui/custom-ids.js';
+import type { MarketAccountWithOpenPositions } from '@/features/markets/core/types.js';
 import {
   formatMoney,
   truncateLabel,
-} from './shared.js';
+} from '@/features/markets/ui/render/shared.js';
 
 export const buildPortfolioEmbed = (
   userId: string,

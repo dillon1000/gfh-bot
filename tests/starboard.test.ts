@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { describeStarboardStatus } from '../src/features/starboard/services/starboard.js';
-import { isStarboardPromotionEligible } from '../src/features/starboard/core/rules.js';
+import { describeStarboardStatus } from '@/features/starboard/services/starboard.js';
+import { isStarboardPromotionEligible } from '@/features/starboard/core/rules.js';
 import {
   deserializeStoredEmoji,
   normalizeEmojiInput,
@@ -9,7 +9,7 @@ import {
   reactionMatchesAnyEmoji,
   reactionMatchesEmoji,
   serializeNormalizedEmoji,
-} from '../src/lib/emoji.js';
+} from '@/lib/emoji.js';
 
 describe('normalizeEmojiInput', () => {
   it('parses custom emoji syntax', () => {

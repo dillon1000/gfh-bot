@@ -7,13 +7,13 @@ import type {
 	MarketPositionSide,
 	MarketTradeSide,
 	Prisma,
-} from "@prisma/client";
+} from "@/generated/prisma/client.js";
 import { PermissionFlagsBits, type PermissionsBitField } from "discord.js";
 
 import {
 	defaultDailyTopUpFloor,
 	startingBankroll as sharedStartingBankroll,
-} from "../../../lib/economy.js";
+} from "@/lib/economy.js";
 import {
 	computeBinaryLmsrProbability,
 	computeBinarySellPayout,
@@ -21,8 +21,8 @@ import {
 	computeTopKMarginals,
 	computeTopKSellPayout,
 	computeSellPayout,
-} from "./math.js";
-import type { MarketStatus, MarketWithRelations } from "./types.js";
+} from "@/features/markets/core/math.js";
+import type { MarketStatus, MarketWithRelations } from "@/features/markets/core/types.js";
 
 export const startingBankroll = sharedStartingBankroll;
 export const dailyTopUpFloor = defaultDailyTopUpFloor;

@@ -3,7 +3,7 @@ import process from 'node:process';
 
 import { EmbedBuilder, MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 
-import { env } from '../../../app/config.js';
+import { env } from '@/app/config.js';
 
 const regionLabel = 'Hillsboro, Oregon';
 

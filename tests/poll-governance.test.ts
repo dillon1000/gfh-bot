@@ -1,17 +1,17 @@
 import { Collection, type Client, type Guild, type GuildMember } from 'discord.js';
 import { describe, expect, it, vi } from 'vitest';
 
-import { buildPollExportCsv } from '../src/features/polls/core/export.js';
-import { buildPollMessageEmbed, buildPollResultsEmbed } from '../src/features/polls/ui/poll-embeds.js';
-import { computePollResults } from '../src/features/polls/core/results.js';
+import { buildPollExportCsv } from '@/features/polls/core/export.js';
+import { buildPollMessageEmbed, buildPollResultsEmbed } from '@/features/polls/ui/poll-embeds.js';
+import { computePollResults } from '@/features/polls/core/results.js';
 import {
   evaluatePollAgainstElectorate,
   evaluatePollForResults,
   isElectorateMemberEligible,
   validatePollGovernanceConfig,
   type PollElectorateMember,
-} from '../src/features/polls/services/governance.js';
-import type { PollWithRelations } from '../src/features/polls/core/types.js';
+} from '@/features/polls/services/governance.js';
+import type { PollWithRelations } from '@/features/polls/core/types.js';
 
 const governedPoll = {
   id: 'poll_governed_1',

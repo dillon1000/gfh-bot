@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatDiscordRelativeTimestamp } from '../src/lib/discord-timestamp.js';
+import { formatDiscordRelativeTimestamp } from '@/lib/discord-timestamp.js';
 
 describe('discord timestamp helpers', () => {
   it('formats ISO strings as Discord relative timestamps', () => {

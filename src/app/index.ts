@@ -1,37 +1,37 @@
 import { Events, GatewayIntentBits, Partials, Client } from 'discord.js';
 
-import { logger } from './logger.js';
-import { applyConfiguredPresence } from './presence.js';
-import { env } from './config.js';
-import { registerInteractionRouter } from '../discord/router.js';
-import { replayUndeliveredAuditLogEntries } from '../features/audit-log/services/events/delivery.js';
-import { registerAuditLogEventHandlers } from '../features/audit-log/services/events/register.js';
-import { startCasinoBotWorker } from '../features/casino/multiplayer/bots/workers/bots.js';
-import { syncOpenCasinoTableJobs } from '../features/casino/multiplayer/services/scheduler.js';
-import { startCasinoTableIdleCloseWorker, startCasinoTableTimeoutWorker } from '../features/casino/multiplayer/workers/tables.js';
-import { recoverExpiredMarketGraceNotices, recoverExpiredMarkets } from '../features/markets/services/lifecycle.js';
-import { syncOpenMarketJobs } from '../features/markets/services/scheduler.js';
-import { startMarketCloseWorker, startMarketGraceWorker, startMarketLiquidityWorker, startMarketRefreshWorker } from '../features/markets/workers/market.js';
-import { recoverExpiredPolls, recoverMissedPollReminders } from '../features/polls/services/lifecycle.js';
-import { syncOpenPollCloseJobs, syncOpenPollReminderJobs } from '../features/polls/services/repository.js';
-import { startPollReminderWorker, startPollWorker } from '../features/polls/workers/polls.js';
-import { syncReactionRolePanels } from '../features/reaction-roles/services/panels.js';
+import { logger } from '@/app/logger.js';
+import { applyConfiguredPresence } from '@/app/presence.js';
+import { env } from '@/app/config.js';
+import { registerInteractionRouter } from '@/discord/router.js';
+import { replayUndeliveredAuditLogEntries } from '@/features/audit-log/services/events/delivery.js';
+import { registerAuditLogEventHandlers } from '@/features/audit-log/services/events/register.js';
+import { startCasinoBotWorker } from '@/features/casino/multiplayer/bots/workers/bots.js';
+import { syncOpenCasinoTableJobs } from '@/features/casino/multiplayer/services/scheduler.js';
+import { startCasinoTableIdleCloseWorker, startCasinoTableTimeoutWorker } from '@/features/casino/multiplayer/workers/tables.js';
+import { recoverExpiredMarketGraceNotices, recoverExpiredMarkets } from '@/features/markets/services/lifecycle.js';
+import { syncOpenMarketJobs } from '@/features/markets/services/scheduler.js';
+import { startMarketCloseWorker, startMarketGraceWorker, startMarketLiquidityWorker, startMarketRefreshWorker } from '@/features/markets/workers/market.js';
+import { recoverExpiredPolls, recoverMissedPollReminders } from '@/features/polls/services/lifecycle.js';
+import { syncOpenPollCloseJobs, syncOpenPollReminderJobs } from '@/features/polls/services/repository.js';
+import { startPollReminderWorker, startPollWorker } from '@/features/polls/workers/polls.js';
+import { syncReactionRolePanels } from '@/features/reaction-roles/services/panels.js';
 import {
   expireStaleRemovalVoteRequests,
   recoverDueRemovalVoteStarts,
   syncWaitingRemovalVoteStartJobs,
-} from '../features/removals/services/removals/schedule.js';
-import { startRemovalVoteWorker } from '../features/removals/workers/removals.js';
+} from '@/features/removals/services/removals/schedule.js';
+import { startRemovalVoteWorker } from '@/features/removals/workers/removals.js';
 import {
   recordStarboardReactionAdd,
   recordStarboardReactionRemove,
   removeStarboardEntryForSourceMessage,
   syncStarboardForReaction,
-} from '../features/starboard/services/starboard.js';
-import { disconnectPrisma } from '../lib/prisma.js';
-import { closeAllQueues } from '../lib/queue.js';
-import { quitRedis } from '../lib/redis.js';
-import { installShutdownHooks, registerShutdownHandler } from '../lib/shutdown.js';
+} from '@/features/starboard/services/starboard.js';
+import { disconnectPrisma } from '@/lib/prisma.js';
+import { closeAllQueues } from '@/lib/queue.js';
+import { quitRedis } from '@/lib/redis.js';
+import { installShutdownHooks, registerShutdownHandler } from '@/lib/shutdown.js';
 
 type StartupTask = {
   name: string;

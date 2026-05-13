@@ -1,11 +1,11 @@
 import { MessageFlags, type Client, type ModalSubmitInteraction } from 'discord.js';
 
-import { buildCasinoStatusEmbed } from '../../ui/render.js';
-import { performCasinoTableAction } from '../../multiplayer/services/tables/actions.js';
+import { buildCasinoStatusEmbed } from '@/features/casino/ui/render.js';
+import { performCasinoTableAction } from '@/features/casino/multiplayer/services/tables/actions.js';
 import {
   syncCasinoTableMessage,
   syncCasinoTableRuntime,
-} from './table-runtime.js';
+} from '@/features/casino/handlers/interactions/table-runtime.js';
 
 export const handleCasinoModal = async (
   client: Client,

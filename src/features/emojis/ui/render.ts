@@ -10,8 +10,8 @@ import {
   type APIModalInteractionResponseCallbackData,
 } from 'discord.js';
 
-import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
-import type { EmojiDraft } from '../state/drafts.js';
+import { buildFeedbackEmbed } from '@/lib/feedback-embeds.js';
+import type { EmojiDraft } from '@/features/emojis/state/drafts.js';
 
 export const emojiBuilderButtonCustomId = (
   action: 'image' | 'name' | 'publish' | 'cancel',

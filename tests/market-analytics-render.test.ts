@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildLeaderboardEmbed,
   buildMarketForecastLeaderboardEmbed,
-} from '../src/features/markets/ui/render/analytics.js';
+} from '@/features/markets/ui/render/analytics.js';
 
 describe('market analytics render', () => {
   it('splits the bankroll leaderboard into pages', () => {

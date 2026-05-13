@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import type { MarketWithRelations } from '../src/features/markets/core/types.js';
+import type { MarketWithRelations } from '@/features/markets/core/types.js';
 import {
   buildMarketChartModel,
   bucketTradeVolumes,
   resolveMarketDiagramEndTime,
-} from '../src/features/markets/ui/visualize.js';
+} from '@/features/markets/ui/visualize.js';
 
 const baseMarket = {
   id: 'market_1',

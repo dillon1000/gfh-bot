@@ -9,9 +9,9 @@ import {
   TextInputStyle,
 } from 'discord.js';
 
-import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
-import type { ReactionRoleDraft } from '../state/drafts.js';
-import type { ReactionRolePanelWithOptions } from '../core/types.js';
+import { buildFeedbackEmbed } from '@/lib/feedback-embeds.js';
+import type { ReactionRoleDraft } from '@/features/reaction-roles/state/drafts.js';
+import type { ReactionRolePanelWithOptions } from '@/features/reaction-roles/core/types.js';
 
 export const reactionRoleSelectCustomId = (panelId: string): string => `reaction-role:select:${panelId}`;
 export const reactionRoleClearCustomId = (panelId: string): string => `reaction-role:clear:${panelId}`;

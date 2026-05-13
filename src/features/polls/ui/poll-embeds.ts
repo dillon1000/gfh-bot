@@ -1,9 +1,9 @@
-import type { PollVoteEvent } from '@prisma/client';
+import type { PollVoteEvent } from '@/generated/prisma/client.js';
 import { EmbedBuilder } from 'discord.js';
 
-import { getPollChoiceEmojiDisplay, renderPollBar } from './present.js';
-import { POLL_CANCELLED_STATUS_DETAIL } from '../state/poll-state.js';
-import { createFallbackPollSnapshot } from '../services/governance.js';
+import { getPollChoiceEmojiDisplay, renderPollBar } from '@/features/polls/ui/present.js';
+import { POLL_CANCELLED_STATUS_DETAIL } from '@/features/polls/state/poll-state.js';
+import { createFallbackPollSnapshot } from '@/features/polls/services/governance.js';
 import {
   buildRoundEliminationLabel,
   clampFieldValue,
@@ -16,8 +16,8 @@ import {
   isPollClosedOrExpired,
   renderChoiceLine,
   shouldRevealRankedResults,
-} from './render-helpers.js';
-import type { EvaluatedPollSnapshot, PollComputedResults, PollWithRelations } from '../core/types.js';
+} from '@/features/polls/ui/render-helpers.js';
+import type { EvaluatedPollSnapshot, PollComputedResults, PollWithRelations } from '@/features/polls/core/types.js';
 
 const buildVoterMentionsByChoice = (
   poll: PollWithRelations,

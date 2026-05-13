@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildReactionRoleBuilderPreview } from '../src/features/reaction-roles/ui/render.js';
+import { buildReactionRoleBuilderPreview } from '@/features/reaction-roles/ui/render.js';
 
 describe('buildReactionRoleBuilderPreview', () => {
   it('shows exclusive mode and roles in the draft preview', () => {

@@ -1,7 +1,7 @@
-import type { MarketPositionSide, MarketTradeSide } from "@prisma/client";
+import type { MarketPositionSide, MarketTradeSide } from "@/generated/prisma/client.js";
 
-import { runSerializableTransaction } from "../../../../lib/run-serializable-transaction.js";
-import { ensureMarketAccountTx } from "../account.js";
+import { runSerializableTransaction } from "@/lib/run-serializable-transaction.js";
+import { ensureMarketAccountTx } from "@/features/markets/services/account.js";
 import {
 	assertMarketOpen,
 	assertOutcomeTradable,
@@ -18,7 +18,7 @@ import {
 	replaceOutcomeState,
 	roundCurrency,
 	upsertPosition,
-} from "../../core/shared.js";
+} from "@/features/markets/core/shared.js";
 import {
 	computeBinaryBuyCost,
 	computeBinaryLmsrProbability,
@@ -38,10 +38,10 @@ import {
 	solveTopKShortSharesForAmount,
 	solveTopKSellSharesForAmount,
 	solveShortSharesForAmount,
-} from "../../core/math.js";
-import type { MarketTradeResult } from "../../core/types.js";
-import { assertPositiveTradeAmount } from "./shared.js";
-import { syncLossProtectionForSellTx } from "./protection.js";
+} from "@/features/markets/core/math.js";
+import type { MarketTradeResult } from "@/features/markets/core/types.js";
+import { assertPositiveTradeAmount } from "@/features/markets/services/trading/shared.js";
+import { syncLossProtectionForSellTx } from "@/features/markets/services/trading/protection.js";
 
 export const executeMarketTrade = async (input: {
 	marketId: string;
@@ -111,7 +111,7 @@ export const executeMarketTrade = async (input: {
 		let cashAmount = input.amount;
 		let grossCashAmount = input.amount;
 		let netCashAmount = input.amount;
-		let feeCharged = 0;
+		const feeCharged = 0;
 		let positionSide: MarketPositionSide = "long";
 		const protection = getLossProtection(
 			getLossProtectionMap(market.lossProtections ?? []),

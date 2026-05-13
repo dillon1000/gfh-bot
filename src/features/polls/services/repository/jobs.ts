@@ -1,7 +1,7 @@
-import type { Poll, PollReminder } from '@prisma/client';
+import type { Poll, PollReminder } from '@/generated/prisma/client.js';
 
-import { pollCloseQueue, pollReminderQueue } from '../../../../lib/queue.js';
-import { prisma } from '../../../../lib/prisma.js';
+import { pollCloseQueue, pollReminderQueue } from '@/lib/queue.js';
+import { prisma } from '@/lib/prisma.js';
 
 const minuteMs = 60_000;
 

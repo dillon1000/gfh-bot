@@ -1,7 +1,7 @@
-import { prisma } from '../../../../lib/prisma.js';
-import { getEffectiveEconomyAccountPreview } from '../../../../lib/economy.js';
-import type { CasinoStatsSummary } from '../../core/types.js';
-import { formatRoundMoney } from './shared.js';
+import { prisma } from '@/lib/prisma.js';
+import { getEffectiveEconomyAccountPreview } from '@/lib/economy.js';
+import type { CasinoStatsSummary } from '@/features/casino/core/types.js';
+import { formatRoundMoney } from '@/features/casino/services/gameplay/shared.js';
 
 export const getCasinoStatsSummary = async (
   guildId: string,

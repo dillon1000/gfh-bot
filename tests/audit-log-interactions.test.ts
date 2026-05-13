@@ -27,7 +27,7 @@ vi.mock('../src/features/audit-log/services/events/delivery.js', () => ({
   recordAuditLogEvent,
 }));
 
-import { handleAuditLogCommand } from '../src/features/audit-log/handlers/commands.js';
+import { handleAuditLogCommand } from '@/features/audit-log/handlers/commands.js';
 
 const createInteraction = (subcommand: 'setup' | 'status' | 'disable') => ({
   inGuild: () => true,

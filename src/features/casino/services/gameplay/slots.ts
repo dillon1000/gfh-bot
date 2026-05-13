@@ -1,6 +1,6 @@
-import { getDefaultRng, type RandomNumberGenerator } from '../../core/deck.js';
-import type { PersistedCasinoRound, RtdRound, SlotsSpin } from '../../core/types.js';
-import { assertCanAffordWager, formatRoundMoney, persistRound } from './shared.js';
+import { getDefaultRng, type RandomNumberGenerator } from '@/features/casino/core/deck.js';
+import type { PersistedCasinoRound, RtdRound, SlotsSpin } from '@/features/casino/core/types.js';
+import { assertCanAffordWager, formatRoundMoney, persistRound } from '@/features/casino/services/gameplay/shared.js';
 
 const slotSymbols = [
   { symbol: 'Cherry', weight: 32, multipliers: { 3: 1.5, 4: 3, 5: 6 } },

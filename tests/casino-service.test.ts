@@ -38,7 +38,7 @@ vi.mock('../src/lib/prisma.js', () => ({
 }));
 
 vi.mock('../src/lib/economy.js', async () => {
-  const actual = await vi.importActual<typeof import('../src/lib/economy.js')>('../src/lib/economy.js');
+  const actual = await vi.importActual<typeof import('@/lib/economy.js')>('../src/lib/economy.js');
   return {
     ...actual,
     ensureEconomyAccountTx,
@@ -46,12 +46,12 @@ vi.mock('../src/lib/economy.js', async () => {
   };
 });
 
-let drawPoker: typeof import('../src/features/casino/services/gameplay.js').drawPoker;
-let getCasinoStatsSummary: typeof import('../src/features/casino/services/gameplay.js').getCasinoStatsSummary;
-let hitBlackjack: typeof import('../src/features/casino/services/gameplay.js').hitBlackjack;
-let playRtd: typeof import('../src/features/casino/services/gameplay.js').playRtd;
-let playSlots: typeof import('../src/features/casino/services/gameplay.js').playSlots;
-let standBlackjack: typeof import('../src/features/casino/services/gameplay.js').standBlackjack;
+let drawPoker: typeof import('@/features/casino/services/gameplay.js').drawPoker;
+let getCasinoStatsSummary: typeof import('@/features/casino/services/gameplay.js').getCasinoStatsSummary;
+let hitBlackjack: typeof import('@/features/casino/services/gameplay.js').hitBlackjack;
+let playRtd: typeof import('@/features/casino/services/gameplay.js').playRtd;
+let playSlots: typeof import('@/features/casino/services/gameplay.js').playSlots;
+let standBlackjack: typeof import('@/features/casino/services/gameplay.js').standBlackjack;
 
 const baseAccount = {
   id: 'account_1',
@@ -74,7 +74,7 @@ describe('casino service', () => {
       playRtd,
       playSlots,
       standBlackjack,
-    } = await import('../src/features/casino/services/gameplay.js'));
+    } = await import('@/features/casino/services/gameplay.js'));
   });
 
   beforeEach(() => {

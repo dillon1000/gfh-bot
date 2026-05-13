@@ -8,8 +8,8 @@ import {
   type ModalSubmitInteraction,
 } from 'discord.js';
 
-import { redis } from '../../../lib/redis.js';
-import { deletePollDraft, getPollDraft, savePollDraft } from '../state/drafts.js';
+import { redis } from '@/lib/redis.js';
+import { deletePollDraft, getPollDraft, savePollDraft } from '@/features/polls/state/drafts.js';
 import {
   defaultReminderOffsetsMinutes,
   parseChoiceEmojisCsv,
@@ -23,14 +23,14 @@ import {
   parseReminderOffsets,
   parseReminderRoleTarget,
   resolvePassRule,
-} from '../parsing/parser.js';
-import { normalizeQuestionFromMessage, resolvePollThreadName } from '../ui/present.js';
-import { pollBuilderButtonCustomId, pollBuilderModalCustomId } from '../ui/custom-ids.js';
-import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
-import { buildPollBuilderModal, buildPollBuilderPreview } from '../ui/poll-builder-render.js';
-import { validatePollGovernanceConfig } from '../services/governance.js';
-import { hydratePollMessage } from '../services/lifecycle.js';
-import { createPollRecord, deletePollRecord } from '../services/repository.js';
+} from '@/features/polls/parsing/parser.js';
+import { normalizeQuestionFromMessage, resolvePollThreadName } from '@/features/polls/ui/present.js';
+import { pollBuilderButtonCustomId, pollBuilderModalCustomId } from '@/features/polls/ui/custom-ids.js';
+import { buildFeedbackEmbed } from '@/lib/feedback-embeds.js';
+import { buildPollBuilderModal, buildPollBuilderPreview } from '@/features/polls/ui/poll-builder-render.js';
+import { validatePollGovernanceConfig } from '@/features/polls/services/governance.js';
+import { hydratePollMessage } from '@/features/polls/services/lifecycle.js';
+import { createPollRecord, deletePollRecord } from '@/features/polls/services/repository.js';
 
 type PublishDraft = {
   question: string;

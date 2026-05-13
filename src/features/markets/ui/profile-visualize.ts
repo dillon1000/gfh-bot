@@ -20,8 +20,8 @@ import {
   scaleTime,
 } from 'd3';
 
-import type { MarketForecastProfileDetails } from '../core/types.js';
-import { formatBrier, formatMoney } from './render/shared.js';
+import type { MarketForecastProfileDetails } from '@/features/markets/core/types.js';
+import { formatBrier, formatMoney } from '@/features/markets/ui/render/shared.js';
 
 const width = 1320;
 const height = 1280;

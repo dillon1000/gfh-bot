@@ -37,11 +37,11 @@ vi.mock('../src/features/casino/multiplayer/services/tables/queries.js', () => (
   getCasinoTable,
 }));
 
-let performCasinoBotTurn: typeof import('../src/features/casino/multiplayer/bots/services/actions.js').performCasinoBotTurn;
+let performCasinoBotTurn: typeof import('@/features/casino/multiplayer/bots/services/actions.js').performCasinoBotTurn;
 
 describe('casino bot actions', () => {
   beforeAll(async () => {
-    ({ performCasinoBotTurn } = await import('../src/features/casino/multiplayer/bots/services/actions.js'));
+    ({ performCasinoBotTurn } = await import('@/features/casino/multiplayer/bots/services/actions.js'));
   });
 
   beforeEach(() => {

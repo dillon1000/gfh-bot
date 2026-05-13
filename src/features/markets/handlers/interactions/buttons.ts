@@ -1,32 +1,32 @@
 import { MessageFlags, type ButtonInteraction } from "discord.js";
 
-import { redis } from "../../../../lib/redis.js";
+import { redis } from "@/lib/redis.js";
 import {
 	buildMarketCancelModal,
 	buildMarketSessionAmountModal,
 	buildMarketTradeModal,
 	buildMarketTradeSelector,
-} from "../../ui/render/trades.js";
-import { buildMarketStatusEmbed } from "../../ui/render/market.js";
-import { buildPortfolioMessage } from "../../ui/render/portfolio.js";
-import { buildMarketResolveModal } from "../../ui/render/trades.js";
+} from "@/features/markets/ui/render/trades.js";
+import { buildMarketStatusEmbed } from "@/features/markets/ui/render/market.js";
+import { buildPortfolioMessage } from "@/features/markets/ui/render/portfolio.js";
+import { buildMarketResolveModal } from "@/features/markets/ui/render/trades.js";
 import {
 	deleteMarketTradeQuoteSession,
 	getMarketTradeQuoteSession,
-} from "../../state/quote-session-store.js";
+} from "@/features/markets/state/quote-session-store.js";
 import {
 	buildMarketViewResponse,
 	refreshMarketMessage,
-} from "../../services/lifecycle.js";
-import { getMarketAccountSummary } from "../../services/account.js";
-import { getMarketById } from "../../services/records.js";
-import { scheduleMarketRefresh } from "../../services/scheduler.js";
-import { executeMarketTrade } from "../../services/trading/execution.js";
-import { purchaseLossProtection } from "../../services/trading/protection.js";
+} from "@/features/markets/services/lifecycle.js";
+import { getMarketAccountSummary } from "@/features/markets/services/account.js";
+import { getMarketById } from "@/features/markets/services/records.js";
+import { scheduleMarketRefresh } from "@/features/markets/services/scheduler.js";
+import { executeMarketTrade } from "@/features/markets/services/trading/execution.js";
+import { purchaseLossProtection } from "@/features/markets/services/trading/protection.js";
 import {
 	buildProtectionEntryMessage,
 	createLossProtectionQuotePreview,
-} from "./protection.js";
+} from "@/features/markets/handlers/interactions/protection.js";
 import {
 	buildExpiredMarketInteractionResponse,
 	buildRootMarketInteractionSessionResponse,
@@ -34,7 +34,7 @@ import {
 	deleteRootMarketInteractionSession,
 	getRootMarketInteractionSession,
 	refreshRootMarketInteractionSessionPreview,
-} from "./session.js";
+} from "@/features/markets/handlers/interactions/session.js";
 import {
 	buildTradeExecutionDescription,
 	parseMarketSessionActionCustomId,
@@ -50,7 +50,7 @@ import {
 	parseQuoteSessionId,
 	parseSimpleMarketId,
 	parseTradeCustomId,
-} from "./shared.js";
+} from "@/features/markets/handlers/interactions/shared.js";
 
 const updateInteractionFromSessionPreview = async (
 	interaction: ButtonInteraction,

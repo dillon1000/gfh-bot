@@ -1,9 +1,9 @@
-import { CasinoGameKind, Prisma } from '@prisma/client';
+import { CasinoGameKind, type Prisma } from '@/generated/prisma/client.js';
 
-import { ensureEconomyAccountTx } from '../../../../../lib/economy.js';
-import { getBlackjackTotal, isSoftBlackjackTotal } from '../../../core/cards.js';
-import { dealCards, drawCard } from '../../../core/deck.js';
-import { compareHandScores, evaluateBestHoldemHand } from '../../../core/poker.js';
+import { ensureEconomyAccountTx } from '@/lib/economy.js';
+import { getBlackjackTotal, isSoftBlackjackTotal } from '@/features/casino/core/cards.js';
+import { dealCards, drawCard } from '@/features/casino/core/deck.js';
+import { compareHandScores, evaluateBestHoldemHand } from '@/features/casino/core/poker.js';
 import type {
   CasinoTableSummary,
   BlackjackRound,
@@ -12,8 +12,8 @@ import type {
   MultiplayerBlackjackState,
   MultiplayerHoldemPlayerState,
   MultiplayerHoldemState,
-} from '../../../core/types.js';
-import type { CasinoTableRecord } from './shared.js';
+} from '@/features/casino/core/types.js';
+import type { CasinoTableRecord } from '@/features/casino/multiplayer/services/tables/shared.js';
 import {
   appendCasinoRoundTx,
   defaultHoldemBigBlind,
@@ -24,8 +24,8 @@ import {
   setActionDeadline,
   syncHoldemSeatsTx,
   type TableActionInput,
-} from './shared.js';
-import { buildSafeHoldemBotFallbackAction } from '../../bots/services/fallback.js';
+} from '@/features/casino/multiplayer/services/tables/shared.js';
+import { buildSafeHoldemBotFallbackAction } from '@/features/casino/multiplayer/bots/services/fallback.js';
 
 export const finishBlackjackState = async (
   tx: Prisma.TransactionClient,

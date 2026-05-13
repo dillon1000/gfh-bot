@@ -4,9 +4,9 @@ import type {
 	MarketForecastProfile,
 	MarketForecastProfileRecentRecord,
 	MarketForecastProfileTrendPoint,
-} from "../../core/types.js";
-import { roundProbability } from "../../core/shared.js";
-import { prisma } from "../../../../lib/prisma.js";
+} from "@/features/markets/core/types.js";
+import { roundProbability } from "@/features/markets/core/shared.js";
+import { prisma } from "@/lib/prisma.js";
 import {
 	buildCalibrationBucketLabel,
 	computeBestStreak,
@@ -14,8 +14,8 @@ import {
 	getPredictedOutcomeProbability,
 	thirtyDayWindowMs,
 	type HydratedForecastRecord,
-} from "./shared.js";
-import { getForecastRecordsForGuild } from "./records.js";
+} from "@/features/markets/services/forecast/shared.js";
+import { getForecastRecordsForGuild } from "@/features/markets/services/forecast/records.js";
 
 const filterForecastRecords = (
 	records: HydratedForecastRecord[],

@@ -3,15 +3,15 @@ import {
 	type ChatInputCommandInteraction,
 } from "discord.js";
 
-import { env } from "../../../../app/config.js";
-import { executeMarketTrade } from "../../services/trading/execution.js";
-import { isCompetitiveMultiWinnerMarketMode } from "../../core/shared.js";
+import { env } from "@/app/config.js";
+import type { executeMarketTrade } from "@/features/markets/services/trading/execution.js";
+import { isCompetitiveMultiWinnerMarketMode } from "@/features/markets/core/shared.js";
 import {
 	parseFlexibleTradeAmount,
 	parseTradeAmount,
-} from "../../parsing/market.js";
+} from "@/features/markets/parsing/market.js";
 
-import type { MarketTradeQuoteAction } from "../../core/types.js";
+import type { MarketTradeQuoteAction } from "@/features/markets/core/types.js";
 
 export type TradeAction = MarketTradeQuoteAction;
 

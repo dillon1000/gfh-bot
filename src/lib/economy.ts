@@ -1,6 +1,6 @@
-import { type GuildConfig, type MarketAccount, Prisma } from "@prisma/client";
+import type { GuildConfig, MarketAccount, Prisma } from "@/generated/prisma/client.js";
 
-import { prisma } from "./prisma.js";
+import { prisma } from "@/lib/prisma.js";
 
 export type EffectiveEconomyAccount = {
 	bankroll: number;

@@ -1,8 +1,8 @@
-import type { Market } from '@prisma/client';
+import type { Market } from '@/generated/prisma/client.js';
 
-import { marketCloseQueue, marketGraceQueue, marketLiquidityQueue, marketRefreshQueue } from '../../../lib/queue.js';
-import { prisma } from '../../../lib/prisma.js';
-import { getNextLiquidityInjectionAt, getQueueJobId, refreshDelayMs } from '../core/shared.js';
+import { marketCloseQueue, marketGraceQueue, marketLiquidityQueue, marketRefreshQueue } from '@/lib/queue.js';
+import { prisma } from '@/lib/prisma.js';
+import { getNextLiquidityInjectionAt, getQueueJobId, refreshDelayMs } from '@/features/markets/core/shared.js';
 
 export const removeScheduledMarketClose = async (marketId: string): Promise<void> => {
   const job = await marketCloseQueue.getJob(getQueueJobId(marketId));

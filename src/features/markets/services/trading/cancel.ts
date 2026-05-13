@@ -1,19 +1,19 @@
 import type { PermissionsBitField } from "discord.js";
 
-import { prisma } from "../../../../lib/prisma.js";
-import { ensureMarketAccountTx } from "../account.js";
+import { prisma } from "@/lib/prisma.js";
+import { ensureMarketAccountTx } from "@/features/markets/services/account.js";
 import {
 	assertCanCancelMarket,
 	clearMarketExposureTx,
 	getMarketForUpdate,
 	marketInclude,
 	roundCurrency,
-} from "../../core/shared.js";
+} from "@/features/markets/core/shared.js";
 import type {
 	MarketCancellationRefund,
 	MarketWithRelations,
-} from "../../core/types.js";
-import { groupPositionsByUser } from "./shared.js";
+} from "@/features/markets/core/types.js";
+import { groupPositionsByUser } from "@/features/markets/services/trading/shared.js";
 
 export const cancelMarket = async (input: {
 	marketId: string;

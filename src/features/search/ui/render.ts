@@ -1,13 +1,13 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 
-import { formatDiscordRelativeTimestamp } from '../../../lib/discord-timestamp.js';
-import { searchMaxOffset } from '../core/constants.js';
+import { formatDiscordRelativeTimestamp } from '@/lib/discord-timestamp.js';
+import { searchMaxOffset } from '@/features/search/core/constants.js';
 import type {
   GuildMessageSearchFilters,
   GuildMessageSearchMessage,
   GuildMessageSearchPage,
   RenderedSearchResult,
-} from '../core/types.js';
+} from '@/features/search/core/types.js';
 
 const embedColor = 0x5eead4;
 const searchPaginationPrefix = 'search:page:';

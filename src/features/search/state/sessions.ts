@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Redis } from 'ioredis';
 
-import type { SearchSession } from '../core/types.js';
+import type { SearchSession } from '@/features/search/core/types.js';
 
 const ttlSeconds = 60 * 10;
 const getSessionKey = (sessionId: string): string => `search-session:${sessionId}`;

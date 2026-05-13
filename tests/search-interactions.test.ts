@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { searchMaxOffset } from '../src/features/search/core/constants.js';
+import { searchMaxOffset } from '@/features/search/core/constants.js';
 
 const {
   env,
@@ -69,7 +69,7 @@ vi.mock('../src/features/audit-log/services/events/delivery.js', () => ({
 import {
   handleSearchCommand,
   handleSearchPaginationButton,
-} from '../src/features/search/handlers/interactions.js';
+} from '@/features/search/handlers/interactions.js';
 
 const createBaseGuild = () => ({
   members: {

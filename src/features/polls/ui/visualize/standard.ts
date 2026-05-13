@@ -24,7 +24,7 @@ import type {
   PollComputedResults,
   PollOutcome,
   PollWithRelations,
-} from '../../core/types.js';
+} from '@/features/polls/core/types.js';
 import {
   danger,
   formatPercent,
@@ -32,7 +32,7 @@ import {
   success,
   truncate,
   warning,
-} from './shared.js';
+} from '@/features/polls/ui/visualize/shared.js';
 
 const width = 1200;
 const height = 760;

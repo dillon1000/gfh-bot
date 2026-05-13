@@ -4,38 +4,38 @@ import {
 	type ModalSubmitInteraction,
 } from "discord.js";
 
-import { buildMarketStatusEmbed } from "../../ui/render/market.js";
+import { buildMarketStatusEmbed } from "@/features/markets/ui/render/market.js";
 import {
 	announceMarketUpdate,
 	clearMarketLifecycle,
 	notifyMarketCancelled,
 	notifyMarketResolved,
 	refreshMarketMessage,
-} from "../../services/lifecycle.js";
-import { getMarketById } from "../../services/records.js";
-import { scheduleMarketRefresh } from "../../services/scheduler.js";
-import { cancelMarket } from "../../services/trading/cancel.js";
-import { resolveMarket } from "../../services/trading/resolution.js";
+} from "@/features/markets/services/lifecycle.js";
+import { getMarketById } from "@/features/markets/services/records.js";
+import { scheduleMarketRefresh } from "@/features/markets/services/scheduler.js";
+import { cancelMarket } from "@/features/markets/services/trading/cancel.js";
+import { resolveMarket } from "@/features/markets/services/trading/resolution.js";
 import {
 	parseOutcomeSelection,
 	parseOutcomeSelections,
-} from "../../parsing/market.js";
+} from "@/features/markets/parsing/market.js";
 import {
 	isCompetitiveMultiWinnerMarketMode,
 	resolveMarketWinnerCount,
-} from "../../core/shared.js";
-import { createTradeQuotePreview } from "./quotes.js";
+} from "@/features/markets/core/shared.js";
+import { createTradeQuotePreview } from "@/features/markets/handlers/interactions/quotes.js";
 import {
 	buildRootMarketInteractionSessionResponse,
 	getRootMarketInteractionSession,
 	refreshRootMarketInteractionSessionPreview,
-} from "./session.js";
+} from "@/features/markets/handlers/interactions/session.js";
 import {
 	parseMarketSessionId,
 	parseSimpleMarketId,
 	parseTradeModalCustomId,
 	validateEvidenceUrl,
-} from "./shared.js";
+} from "@/features/markets/handlers/interactions/shared.js";
 
 export const handleMarketModal = async (
 	client: Client,

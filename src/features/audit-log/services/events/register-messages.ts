@@ -14,22 +14,22 @@ import {
   type User,
 } from 'discord.js';
 
-import { getAuditLogConfig } from '../config.js';
-import { isAuditLogChannelId, resolveBucketChannelId } from './normalize.js';
-import { recordAuditLogEvent } from './delivery.js';
-import { registerAuditHandler } from './register-shared.js';
+import { getAuditLogConfig } from '@/features/audit-log/services/config.js';
+import { isAuditLogChannelId, resolveBucketChannelId } from '@/features/audit-log/services/events/normalize.js';
+import { recordAuditLogEvent } from '@/features/audit-log/services/events/delivery.js';
+import { registerAuditHandler } from '@/features/audit-log/services/events/register-shared.js';
 import {
   summarizeChannel,
   summarizeMessage,
   summarizeReaction,
   summarizeTyping,
   summarizeUser,
-} from './summarize.js';
+} from '@/features/audit-log/services/events/summarize.js';
 import {
   getMessageSnapshot,
   resolvePreviousMessageSnapshot,
   upsertMessageSnapshot,
-} from './snapshots.js';
+} from '@/features/audit-log/services/events/snapshots.js';
 
 const recordMessageSnapshotAndEvent = async (
   client: Client,

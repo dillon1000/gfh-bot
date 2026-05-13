@@ -1,4 +1,4 @@
-import type { PollWithRelations } from '../core/types.js';
+import type { PollWithRelations } from '@/features/polls/core/types.js';
 
 const minuteMs = 60_000;
 

@@ -1,16 +1,16 @@
 import { Client, GatewayIntentBits, Partials } from 'discord.js';
 
-import { env } from './config.js';
-import { prisma } from '../lib/prisma.js';
+import { env } from '@/app/config.js';
+import { prisma } from '@/lib/prisma.js';
 import {
   getStarboardConfig,
   isAnyEmojiStarboardMode,
   getConfiguredStarboardEmojis,
-} from '../features/starboard/services/starboard.js';
+} from '@/features/starboard/services/starboard.js';
 import {
   deserializeStoredEmoji,
   reactionMatchesAnyEmoji,
-} from '../lib/emoji.js';
+} from '@/lib/emoji.js';
 
 type ParsedArgs = {
   apply: boolean;

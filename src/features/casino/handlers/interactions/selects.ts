@@ -1,20 +1,20 @@
 import { MessageFlags, type StringSelectMenuInteraction } from 'discord.js';
 
-import { redis } from '../../../../lib/redis.js';
+import { redis } from '@/lib/redis.js';
 import {
   buildCasinoStatusEmbed,
   buildPokerPrompt,
-} from '../../ui/render.js';
-import { updatePokerDiscardSelection } from '../../services/gameplay.js';
+} from '@/features/casino/ui/render.js';
+import { updatePokerDiscardSelection } from '@/features/casino/services/gameplay.js';
 import {
   getCasinoSession,
   saveCasinoSession,
-} from '../../state/sessions.js';
+} from '@/features/casino/state/sessions.js';
 import {
   assertSessionOwner,
   getGuildIdFromInteraction,
   parseOwnerCustomId,
-} from './shared.js';
+} from '@/features/casino/handlers/interactions/shared.js';
 
 export const handleCasinoSelect = async (
   interaction: StringSelectMenuInteraction,

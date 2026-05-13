@@ -1,6 +1,6 @@
-import { createFallbackPollSnapshot } from '../services/governance.js';
-import { getRankedBallots } from './results.js';
-import type { EvaluatedPollSnapshot, PollWithRelations } from './types.js';
+import { createFallbackPollSnapshot } from '@/features/polls/services/governance.js';
+import { getRankedBallots } from '@/features/polls/core/results.js';
+import type { EvaluatedPollSnapshot, PollWithRelations } from '@/features/polls/core/types.js';
 
 const escapeCsv = (value: string): string => `"${value.replaceAll('"', '""')}"`;
 

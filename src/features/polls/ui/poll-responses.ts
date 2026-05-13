@@ -1,19 +1,19 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, type AttachmentBuilder } from 'discord.js';
 
-import { logger } from '../../../app/logger.js';
-import { buildPollResultDiagram } from './visualize.js';
+import { logger } from '@/app/logger.js';
+import { buildPollResultDiagram } from '@/features/polls/ui/visualize.js';
 import {
   pollChoiceCustomId,
   pollRankOpenCustomId,
   pollResponseButtonCustomId,
   pollResultsCustomId,
   pollVoteCustomId,
-} from './custom-ids.js';
-import { buildPollMessageEmbed, buildPollResultsEmbed } from './poll-embeds.js';
-import { getPollChoiceComponentEmoji } from './present.js';
-import { chunkButtons, isPollClosedOrExpired } from './render-helpers.js';
-import { createFallbackPollSnapshot } from '../services/governance.js';
-import type { EvaluatedPollSnapshot, PollComputedResults, PollWithRelations } from '../core/types.js';
+} from '@/features/polls/ui/custom-ids.js';
+import { buildPollMessageEmbed, buildPollResultsEmbed } from '@/features/polls/ui/poll-embeds.js';
+import { getPollChoiceComponentEmoji } from '@/features/polls/ui/present.js';
+import { chunkButtons, isPollClosedOrExpired } from '@/features/polls/ui/render-helpers.js';
+import { createFallbackPollSnapshot } from '@/features/polls/services/governance.js';
+import type { EvaluatedPollSnapshot, PollComputedResults, PollWithRelations } from '@/features/polls/core/types.js';
 
 const shouldAttachPollDiagram = (
   poll: Pick<PollWithRelations, 'mode' | 'closedAt' | 'closesAt' | 'hideResultsUntilClosed'>,

@@ -1,13 +1,13 @@
-import type { Poll, PollReminder, PollMode as PrismaPollMode, Prisma } from '@prisma/client';
+import type { Poll, PollReminder, PollMode as PrismaPollMode, Prisma } from '@/generated/prisma/client.js';
 
-import { env } from '../../../app/config.js';
-import { assertWithinRateLimit } from '../../../lib/rate-limit.js';
-import { prisma } from '../../../lib/prisma.js';
-import { redis } from '../../../lib/redis.js';
-import { durationMsToMinutes, getPollDurationMinutes } from '../state/poll-state.js';
-import { parsePollLookup } from '../parsing/query.js';
-import { assertChoicesCompatibleWithOtherOption } from '../parsing/parser.js';
-import type { PollCreationInput, PollWithRelations } from '../core/types.js';
+import { env } from '@/app/config.js';
+import { assertWithinRateLimit } from '@/lib/rate-limit.js';
+import { prisma } from '@/lib/prisma.js';
+import { redis } from '@/lib/redis.js';
+import { durationMsToMinutes, getPollDurationMinutes } from '@/features/polls/state/poll-state.js';
+import { parsePollLookup } from '@/features/polls/parsing/query.js';
+import { assertChoicesCompatibleWithOtherOption } from '@/features/polls/parsing/parser.js';
+import type { PollCreationInput, PollWithRelations } from '@/features/polls/core/types.js';
 import {
   buildPollReminderRecords,
   removeScheduledPollClose,
@@ -18,7 +18,7 @@ import {
   schedulePollReminders,
   syncOpenPollCloseJobs,
   syncOpenPollReminderJobs,
-} from './repository/jobs.js';
+} from '@/features/polls/services/repository/jobs.js';
 
 export {
   buildPollReminderRecords,
@@ -30,7 +30,7 @@ export {
   schedulePollReminders,
   syncOpenPollCloseJobs,
   syncOpenPollReminderJobs,
-} from './repository/jobs.js';
+} from '@/features/polls/services/repository/jobs.js';
 
 export const pollInclude = {
   options: {

@@ -1,19 +1,19 @@
 import {
 	CasinoTableActionKind,
 	CasinoTableStatus,
-	Prisma,
-} from "@prisma/client";
+	type Prisma,
+} from "@/generated/prisma/client.js";
 
-import { ensureEconomyAccountTx } from "../../../../../lib/economy.js";
-import { runSerializableTransaction } from "../../../../../lib/run-serializable-transaction.js";
-import { getBlackjackTotal } from "../../../core/cards.js";
-import { drawCard } from "../../../core/deck.js";
+import { ensureEconomyAccountTx } from "@/lib/economy.js";
+import { runSerializableTransaction } from "@/lib/run-serializable-transaction.js";
+import { getBlackjackTotal } from "@/features/casino/core/cards.js";
+import { drawCard } from "@/features/casino/core/deck.js";
 import type {
 	CasinoTableSummary,
 	MultiplayerBlackjackPlayerState,
 	MultiplayerBlackjackState,
 	MultiplayerHoldemState,
-} from "../../../core/types.js";
+} from "@/features/casino/core/types.js";
 import {
 	defaultBlackjackWager,
 	defaultHoldemBigBlind,
@@ -26,15 +26,15 @@ import {
 	toTableSummary,
 	withTableLock,
 	casinoTableInclude,
-} from "./shared.js";
-import type { TableActionInput } from "./shared.js";
+} from "@/features/casino/multiplayer/services/tables/shared.js";
+import type { TableActionInput } from "@/features/casino/multiplayer/services/tables/shared.js";
 import {
 	advanceCasinoTableTimeout as advanceTimeoutInternal,
 	finishBlackjackState,
 	maybeAdvanceHoldemStreet,
 	resolveNextBlackjackActor,
 	settleCompletedHoldemState,
-} from "./settlement.js";
+} from "@/features/casino/multiplayer/services/tables/settlement.js";
 
 const performCasinoTableActionInternal = async (
 	input: TableActionInput,
@@ -378,12 +378,12 @@ export const advanceCasinoTableTimeout = async (
 	advanceTimeoutInternal(
 		performCasinoTableTimeoutAction,
 		async (id) => {
-			const { getCasinoTable } = await import("./queries.js");
+			const { getCasinoTable } = await import("@/features/casino/multiplayer/services/tables/queries.js");
 			return getCasinoTable(id);
 		},
 		async (id) => {
 			const { chooseCasinoBotAction } = await import(
-				"../../bots/services/decision.js"
+				"@/features/casino/multiplayer/bots/services/decision.js"
 			);
 			return chooseCasinoBotAction(id);
 		},

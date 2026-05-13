@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { PollWithRelations } from '../src/features/polls/core/types.js';
+import type { PollWithRelations } from '@/features/polls/core/types.js';
 
 const {
   state,
@@ -186,7 +186,7 @@ import {
   editPollBeforeFirstVote,
   extendPollRecord,
   reopenPollRecord,
-} from '../src/features/polls/services/repository.js';
+} from '@/features/polls/services/repository.js';
 
 const encodeJobId = (id: string): string => Buffer.from(id).toString('base64url');
 

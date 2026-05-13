@@ -205,7 +205,7 @@ vi.mock('../src/features/starboard/handlers/commands.js', () => ({
   handleStarboardCommand: handlers.handleStarboardCommand,
 }));
 
-import { registerInteractionRouter } from '../src/discord/router.js';
+import { registerInteractionRouter } from '@/discord/router.js';
 
 const createStringSelectInteraction = (customId: string) => ({
   customId,

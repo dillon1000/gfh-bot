@@ -6,8 +6,8 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 
-import { logger } from '../../../app/logger.js';
-import { buildMarketStatusEmbed } from '../ui/render/market.js';
+import { logger } from '@/app/logger.js';
+import { buildMarketStatusEmbed } from '@/features/markets/ui/render/market.js';
 
 export const handleMarketInteractionError = async (
   interaction:

@@ -1,13 +1,13 @@
-import { type CasinoGameKind, type CasinoRoundResult, Prisma } from '@prisma/client';
+import type { CasinoGameKind, CasinoRoundResult, Prisma } from '@/generated/prisma/client.js';
 
-import { prisma } from '../../../../lib/prisma.js';
-import { runSerializableTransaction } from '../../../../lib/run-serializable-transaction.js';
+import { prisma } from '@/lib/prisma.js';
+import { runSerializableTransaction } from '@/lib/run-serializable-transaction.js';
 import {
   ensureEconomyAccountTx,
   getEffectiveEconomyAccountPreview,
   roundCurrency,
-} from '../../../../lib/economy.js';
-import type { PersistedCasinoRound } from '../../core/types.js';
+} from '@/lib/economy.js';
+import type { PersistedCasinoRound } from '@/features/casino/core/types.js';
 
 type PersistRoundInput = {
   guildId: string;

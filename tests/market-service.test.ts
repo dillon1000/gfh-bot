@@ -93,22 +93,22 @@ vi.mock("../src/lib/queue.js", () => ({
 	},
 }));
 
-let cancelMarket: typeof import("../src/features/markets/services/trading/cancel.js").cancelMarket;
-let calculateLossProtectionQuote: typeof import("../src/features/markets/services/trading/protection.js").calculateLossProtectionQuote;
-let calculateMarketTradeQuote: typeof import("../src/features/markets/services/trading/quotes.js").calculateMarketTradeQuote;
-let executeMarketTrade: typeof import("../src/features/markets/services/trading/execution.js").executeMarketTrade;
-let grantMarketBankroll: typeof import("../src/features/markets/services/account.js").grantMarketBankroll;
-let getMarketForecastLeaderboard: typeof import("../src/features/markets/services/forecast/queries.js").getMarketForecastLeaderboard;
-let getMarketForecastProfile: typeof import("../src/features/markets/services/forecast/queries.js").getMarketForecastProfile;
-let getMarketForecastProfileDetails: typeof import("../src/features/markets/services/forecast/queries.js").getMarketForecastProfileDetails;
-let injectMarketLiquidity: typeof import("../src/features/markets/services/liquidity.js").injectMarketLiquidity;
-let appendMarketOutcomes: typeof import("../src/features/markets/services/records.js").appendMarketOutcomes;
-let editMarketRecord: typeof import("../src/features/markets/services/records.js").editMarketRecord;
-let purchaseLossProtection: typeof import("../src/features/markets/services/trading/protection.js").purchaseLossProtection;
-let resolveMarket: typeof import("../src/features/markets/services/trading/resolution.js").resolveMarket;
-let resolveMarketOutcome: typeof import("../src/features/markets/services/trading/resolution.js").resolveMarketOutcome;
-let summarizeMarketTraders: typeof import("../src/features/markets/services/records.js").summarizeMarketTraders;
-let syncLossProtectionForSellTx: typeof import("../src/features/markets/services/trading/protection.js").syncLossProtectionForSellTx;
+let cancelMarket: typeof import("@/features/markets/services/trading/cancel.js").cancelMarket;
+let calculateLossProtectionQuote: typeof import("@/features/markets/services/trading/protection.js").calculateLossProtectionQuote;
+let calculateMarketTradeQuote: typeof import("@/features/markets/services/trading/quotes.js").calculateMarketTradeQuote;
+let executeMarketTrade: typeof import("@/features/markets/services/trading/execution.js").executeMarketTrade;
+let grantMarketBankroll: typeof import("@/features/markets/services/account.js").grantMarketBankroll;
+let getMarketForecastLeaderboard: typeof import("@/features/markets/services/forecast/queries.js").getMarketForecastLeaderboard;
+let getMarketForecastProfile: typeof import("@/features/markets/services/forecast/queries.js").getMarketForecastProfile;
+let getMarketForecastProfileDetails: typeof import("@/features/markets/services/forecast/queries.js").getMarketForecastProfileDetails;
+let injectMarketLiquidity: typeof import("@/features/markets/services/liquidity.js").injectMarketLiquidity;
+let appendMarketOutcomes: typeof import("@/features/markets/services/records.js").appendMarketOutcomes;
+let editMarketRecord: typeof import("@/features/markets/services/records.js").editMarketRecord;
+let purchaseLossProtection: typeof import("@/features/markets/services/trading/protection.js").purchaseLossProtection;
+let resolveMarket: typeof import("@/features/markets/services/trading/resolution.js").resolveMarket;
+let resolveMarketOutcome: typeof import("@/features/markets/services/trading/resolution.js").resolveMarketOutcome;
+let summarizeMarketTraders: typeof import("@/features/markets/services/records.js").summarizeMarketTraders;
+let syncLossProtectionForSellTx: typeof import("@/features/markets/services/trading/protection.js").syncLossProtectionForSellTx;
 
 const baseAccount = {
 	id: "account_1",
@@ -285,35 +285,35 @@ const runTransaction = (): void => {
 describe("market service", () => {
 	beforeAll(async () => {
 		({ cancelMarket } = await import(
-			"../src/features/markets/services/trading/cancel.js"
+			"@/features/markets/services/trading/cancel.js"
 		));
 		({
 			calculateLossProtectionQuote,
 			purchaseLossProtection,
 			syncLossProtectionForSellTx,
-		} = await import("../src/features/markets/services/trading/protection.js"));
+		} = await import("@/features/markets/services/trading/protection.js"));
 		({ calculateMarketTradeQuote } = await import(
-			"../src/features/markets/services/trading/quotes.js"
+			"@/features/markets/services/trading/quotes.js"
 		));
 		({ executeMarketTrade } = await import(
-			"../src/features/markets/services/trading/execution.js"
+			"@/features/markets/services/trading/execution.js"
 		));
 		({ resolveMarket, resolveMarketOutcome } = await import(
-			"../src/features/markets/services/trading/resolution.js"
+			"@/features/markets/services/trading/resolution.js"
 		));
 		({
 			getMarketForecastLeaderboard,
 			getMarketForecastProfile,
 			getMarketForecastProfileDetails,
-		} = await import("../src/features/markets/services/forecast/queries.js"));
+		} = await import("@/features/markets/services/forecast/queries.js"));
 		({ grantMarketBankroll } = await import(
-			"../src/features/markets/services/account.js"
+			"@/features/markets/services/account.js"
 		));
 		({ injectMarketLiquidity } = await import(
-			"../src/features/markets/services/liquidity.js"
+			"@/features/markets/services/liquidity.js"
 		));
 		({ appendMarketOutcomes, editMarketRecord, summarizeMarketTraders } =
-			await import("../src/features/markets/services/records.js"));
+			await import("@/features/markets/services/records.js"));
 	});
 
 	beforeEach(() => {

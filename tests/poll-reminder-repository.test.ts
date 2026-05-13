@@ -38,7 +38,7 @@ vi.mock('../src/features/polls/parsing/query.js', () => ({
   parsePollLookup: vi.fn(),
 }));
 
-import { buildPollReminderRecords, schedulePollReminder } from '../src/features/polls/services/repository.js';
+import { buildPollReminderRecords, schedulePollReminder } from '@/features/polls/services/repository.js';
 
 const encodeJobId = (id: string): string => Buffer.from(id).toString('base64url');
 

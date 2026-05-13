@@ -7,9 +7,9 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 
-import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
-import { deleteReactionRoleDraft, getReactionRoleDraft, saveReactionRoleDraft } from '../state/drafts.js';
-import { parseRoleTargets } from '../parsing/parser.js';
+import { buildFeedbackEmbed } from '@/lib/feedback-embeds.js';
+import { deleteReactionRoleDraft, getReactionRoleDraft, saveReactionRoleDraft } from '@/features/reaction-roles/state/drafts.js';
+import { parseRoleTargets } from '@/features/reaction-roles/parsing/parser.js';
 import {
   buildReactionRolePanelMessage,
   buildReactionRoleBuilderModal,
@@ -21,7 +21,7 @@ import {
   reactionRoleClearCustomId,
   reactionRoleManageCustomId,
   reactionRoleSelectCustomId,
-} from '../ui/render.js';
+} from '@/features/reaction-roles/ui/render.js';
 import {
   applyReactionRoleSelection,
   clearReactionRoleSelection,
@@ -34,8 +34,8 @@ import {
   listReactionRolePanels,
   publishReactionRolePanel,
   validateReactionRoleTargets,
-} from '../services/panels.js';
-import { redis } from '../../../lib/redis.js';
+} from '@/features/reaction-roles/services/panels.js';
+import { redis } from '@/lib/redis.js';
 
 const publishReactionRoleDraft = async (
   client: Client,

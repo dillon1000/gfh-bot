@@ -3,27 +3,27 @@ import {
   CasinoSeatStatus,
   CasinoTableActionKind,
   CasinoTableStatus,
-  Prisma,
-} from '@prisma/client';
+  type Prisma,
+} from '@/generated/prisma/client.js';
 
-import { ensureEconomyAccountTx } from '../../../../../lib/economy.js';
-import { runSerializableTransaction } from '../../../../../lib/run-serializable-transaction.js';
-import { getBlackjackTotal } from '../../../core/cards.js';
+import { ensureEconomyAccountTx } from '@/lib/economy.js';
+import { runSerializableTransaction } from '@/lib/run-serializable-transaction.js';
+import { getBlackjackTotal } from '@/features/casino/core/cards.js';
 import {
   createDeck,
   dealCards,
   getDefaultRng,
   shuffleDeck,
   type RandomNumberGenerator,
-} from '../../../core/deck.js';
+} from '@/features/casino/core/deck.js';
 import type {
   CasinoTableSummary,
   MultiplayerBlackjackPlayerState,
   MultiplayerBlackjackState,
   MultiplayerHoldemPlayerState,
   MultiplayerHoldemState,
-} from '../../../core/types.js';
-import { awardHoldemPot, finishBlackjackState } from './settlement.js';
+} from '@/features/casino/core/types.js';
+import { awardHoldemPot, finishBlackjackState } from '@/features/casino/multiplayer/services/tables/settlement.js';
 import {
   casinoTableInclude,
   defaultBlackjackWager,
@@ -38,7 +38,7 @@ import {
   syncHoldemSeatsTx,
   toTableSummary,
   withTableLock,
-} from './shared.js';
+} from '@/features/casino/multiplayer/services/tables/shared.js';
 
 const finalizeBlackjackStart = async (
   tx: Prisma.TransactionClient,

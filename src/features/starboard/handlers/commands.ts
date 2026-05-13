@@ -4,8 +4,8 @@ import {
   type ChatInputCommandInteraction,
 } from 'discord.js';
 
-import { starboardCommand } from '../commands/definition.js';
-import { parseChannelIdBlacklist } from '../parsing/parser.js';
+import { starboardCommand } from '@/features/starboard/commands/definition.js';
+import { parseChannelIdBlacklist } from '@/features/starboard/parsing/parser.js';
 import {
   describeStarboardStatus,
   disableStarboard,
@@ -14,9 +14,9 @@ import {
   getStarboardEmojiReactorLeaderboard,
   getStarboardPostLeaderboard,
   setStarboardConfig,
-} from '../services/starboard.js';
-import { normalizeEmojiInput } from '../../../lib/emoji.js';
-import { recordAuditLogEvent } from '../../audit-log/services/events/delivery.js';
+} from '@/features/starboard/services/starboard.js';
+import { normalizeEmojiInput } from '@/lib/emoji.js';
+import { recordAuditLogEvent } from '@/features/audit-log/services/events/delivery.js';
 
 const buildStarboardStatusEmbed = (description: string): EmbedBuilder =>
   new EmbedBuilder()

@@ -1,13 +1,13 @@
-import { redis } from "../../../../lib/redis.js";
-import { buildMarketTradeQuoteMessage } from "../../ui/render/trades.js";
+import { redis } from "@/lib/redis.js";
+import { buildMarketTradeQuoteMessage } from "@/features/markets/ui/render/trades.js";
 import {
 	createMarketTradeQuoteSessionId,
 	saveMarketTradeQuoteSession,
-} from "../../state/quote-session-store.js";
-import { calculateMarketTradeQuote } from "../../services/trading/quotes.js";
-import { getMarketById } from "../../services/records.js";
-import { parseTradeInputAmount } from "./shared.js";
-import type { MarketTradeQuoteAction } from "../../core/types.js";
+} from "@/features/markets/state/quote-session-store.js";
+import { calculateMarketTradeQuote } from "@/features/markets/services/trading/quotes.js";
+import { getMarketById } from "@/features/markets/services/records.js";
+import { parseTradeInputAmount } from "@/features/markets/handlers/interactions/shared.js";
+import type { MarketTradeQuoteAction } from "@/features/markets/core/types.js";
 
 export const createTradeQuotePreview = async (input: {
 	marketId: string;

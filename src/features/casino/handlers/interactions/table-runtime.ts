@@ -1,15 +1,15 @@
 import { ChannelType, type Client } from 'discord.js';
 
-import type { CasinoTableSummary } from '../../core/types.js';
-import { buildCasinoStatusEmbed } from '../../ui/render.js';
-import { syncCasinoTableJobs } from '../../multiplayer/services/scheduler.js';
-import { buildCasinoTableMessage } from '../../multiplayer/ui/render.js';
+import type { CasinoTableSummary } from '@/features/casino/core/types.js';
+import { buildCasinoStatusEmbed } from '@/features/casino/ui/render.js';
+import { syncCasinoTableJobs } from '@/features/casino/multiplayer/services/scheduler.js';
+import { buildCasinoTableMessage } from '@/features/casino/multiplayer/ui/render.js';
 import {
   attachCasinoTableMessage,
   attachCasinoTableThread,
   getCasinoTable,
-} from '../../multiplayer/services/tables/queries.js';
-import { isThreadLikeChannel } from './shared.js';
+} from '@/features/casino/multiplayer/services/tables/queries.js';
+import { isThreadLikeChannel } from '@/features/casino/handlers/interactions/shared.js';
 
 const seatedSeats = (table: CasinoTableSummary): CasinoTableSummary['seats'] =>
   table.seats

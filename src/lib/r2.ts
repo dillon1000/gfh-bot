@@ -1,7 +1,7 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-import { env } from '../app/config.js';
+import { env } from '@/app/config.js';
 
 const hasR2Config = Boolean(
   env.R2_ACCOUNT_ID &&

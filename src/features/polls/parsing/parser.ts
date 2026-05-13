@@ -1,13 +1,13 @@
-import { env } from '../../../app/config.js';
+import { env } from '@/app/config.js';
 import {
   assertCloseTimeWindow,
   durationInputPattern,
   getAbsoluteCloseHelp,
   parseAbsoluteCloseAt,
-} from '../../../lib/close-time.js';
-import { parseDurationToMs } from '../../../lib/duration.js';
-import { normalizeEmojiInput } from '../../../lib/emoji.js';
-import type { PollMode } from '../core/types.js';
+} from '@/lib/close-time.js';
+import { parseDurationToMs } from '@/lib/duration.js';
+import { normalizeEmojiInput } from '@/lib/emoji.js';
+import type { PollMode } from '@/features/polls/core/types.js';
 
 const minChoices = 2;
 const maxChoices = 10;

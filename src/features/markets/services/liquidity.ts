@@ -1,4 +1,4 @@
-import { runSerializableTransaction } from '../../../lib/run-serializable-transaction.js';
+import { runSerializableTransaction } from '@/lib/run-serializable-transaction.js';
 import {
   computeLiquidityRebaseBonus,
   getActiveOutcomeIndexes,
@@ -8,8 +8,8 @@ import {
   marketInclude,
   replaceOutcomeState,
   roundCurrency,
-} from '../core/shared.js';
-import type { MarketWithRelations } from '../core/types.js';
+} from '@/features/markets/core/shared.js';
+import type { MarketWithRelations } from '@/features/markets/core/types.js';
 
 export const injectMarketLiquidity = async (
   marketId: string,

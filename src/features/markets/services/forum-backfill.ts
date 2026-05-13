@@ -1,11 +1,11 @@
 import type { Client } from 'discord.js';
 
-import { logger } from '../../../app/logger.js';
-import { prisma } from '../../../lib/prisma.js';
-import { marketInclude } from '../core/shared.js';
-import { buildMarketStatusEmbed } from '../ui/render/market.js';
-import { createMarketForumPost } from './lifecycle.js';
-import { attachMarketPublication } from './records.js';
+import { logger } from '@/app/logger.js';
+import { prisma } from '@/lib/prisma.js';
+import { marketInclude } from '@/features/markets/core/shared.js';
+import { buildMarketStatusEmbed } from '@/features/markets/ui/render/market.js';
+import { createMarketForumPost } from '@/features/markets/services/lifecycle.js';
+import { attachMarketPublication } from '@/features/markets/services/records.js';
 
 export type MarketForumBackfillOptions = {
   apply: boolean;

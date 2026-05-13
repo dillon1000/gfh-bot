@@ -10,7 +10,7 @@ import type {
 	MarketPositionSide,
 	MarketPosition,
 	MarketTrade,
-} from "@prisma/client";
+} from "@/generated/prisma/client.js";
 
 export type MarketWithRelations = Omit<
 	Market,

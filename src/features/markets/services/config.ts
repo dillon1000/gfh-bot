@@ -1,6 +1,6 @@
-import type { GuildConfig } from '@prisma/client';
+import type { GuildConfig } from '@/generated/prisma/client.js';
 
-import { prisma } from '../../../lib/prisma.js';
+import { prisma } from '@/lib/prisma.js';
 
 export type MarketConfig = {
   enabled: boolean;
