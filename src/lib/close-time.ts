@@ -124,7 +124,7 @@ const parseWithChrono = (
 
 const hasRelativeTag = (
 	parsed: NonNullable<ReturnType<typeof parseWithChrono>>,
-): boolean => [...parsed.start["_tags"]].some((tag) =>
+): boolean => [...parsed.start.tags()].some((tag) =>
 	tag.startsWith("result/relativeDate"),
 );
 
@@ -156,13 +156,13 @@ export const parseAbsoluteCloseAt = (
 
 	const parsedDateTime = DateTime.fromObject(
 		{
-			year: chronoResult.start.get("year"),
-			month: chronoResult.start.get("month"),
-			day: chronoResult.start.get("day"),
-			hour: chronoResult.start.get("hour"),
-			minute: chronoResult.start.get("minute"),
-			second: chronoResult.start.get("second"),
-			millisecond: chronoResult.start.get("millisecond"),
+			year: chronoResult.start.get("year") ?? undefined,
+			month: chronoResult.start.get("month") ?? undefined,
+			day: chronoResult.start.get("day") ?? undefined,
+			hour: chronoResult.start.get("hour") ?? undefined,
+			minute: chronoResult.start.get("minute") ?? undefined,
+			second: chronoResult.start.get("second") ?? undefined,
+			millisecond: chronoResult.start.get("millisecond") ?? undefined,
 		},
 		{
 			zone: options.defaultTimeZone,
