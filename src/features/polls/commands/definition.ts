@@ -270,7 +270,7 @@ export const pollRationaleCommand = new SlashCommandBuilder()
   .addStringOption((option) =>
     option
       .setName('reason')
-      .setDescription('Your reason for voting the way you did (max 280 chars). Anonymous, not even the poll creator can reveal your identity.')
+      .setDescription('Your reason in one line (max 280 chars). Stored anonymously.')
       .setRequired(true)
       .setMaxLength(280),
   );
