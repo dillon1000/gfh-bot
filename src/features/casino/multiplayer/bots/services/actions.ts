@@ -1,10 +1,10 @@
 import type { Client } from "discord.js";
 
-import { logger } from "../../../../../app/logger.js";
-import { buildSafeHoldemBotFallbackAction } from "./fallback.js";
-import { chooseCasinoBotAction } from "./decision.js";
-import { getCasinoTable } from "../../services/tables/queries.js";
-import { performCasinoTableAction } from "../../services/tables/actions.js";
+import { logger } from "@/app/logger.js";
+import { buildSafeHoldemBotFallbackAction } from "@/features/casino/multiplayer/bots/services/fallback.js";
+import { chooseCasinoBotAction } from "@/features/casino/multiplayer/bots/services/decision.js";
+import { getCasinoTable } from "@/features/casino/multiplayer/services/tables/queries.js";
+import { performCasinoTableAction } from "@/features/casino/multiplayer/services/tables/actions.js";
 
 export const performCasinoBotTurn = async (
 	_client: Client,

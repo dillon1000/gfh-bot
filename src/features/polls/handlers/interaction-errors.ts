@@ -7,8 +7,8 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 
-import { logger } from '../../../app/logger.js';
-import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
+import { logger } from '@/app/logger.js';
+import { buildFeedbackEmbed } from '@/lib/feedback-embeds.js';
 
 export const handlePollInteractionError = async (
   interaction:

@@ -7,50 +7,50 @@ import {
   type ButtonInteraction,
 } from 'discord.js';
 
-import { redis } from '../../../../lib/redis.js';
-import { casinoTableHoldemRaiseModalCustomId } from '../../ui/custom-ids.js';
+import { redis } from '@/lib/redis.js';
+import { casinoTableHoldemRaiseModalCustomId } from '@/features/casino/ui/custom-ids.js';
 import {
   buildBlackjackPrompt,
   buildBlackjackResultEmbed,
   buildCasinoStatusEmbed,
   buildPokerResultEmbed,
-} from '../../ui/render.js';
+} from '@/features/casino/ui/render.js';
 import {
   drawPoker,
   hitBlackjack,
   standBlackjack,
-} from '../../services/gameplay.js';
+} from '@/features/casino/services/gameplay.js';
 import {
   deleteCasinoSession,
   getCasinoSession,
   saveCasinoSession,
-} from '../../state/sessions.js';
+} from '@/features/casino/state/sessions.js';
 import {
   buildCasinoTableMessage,
   buildCasinoTablePrivateEmbed,
-} from '../../multiplayer/ui/render.js';
+} from '@/features/casino/multiplayer/ui/render.js';
 import {
   getCasinoTablePrivateView,
-} from '../../multiplayer/services/tables/queries.js';
+} from '@/features/casino/multiplayer/services/tables/queries.js';
 import {
   joinCasinoTable,
   leaveCasinoTable,
-} from '../../multiplayer/services/tables/seating.js';
-import { closeCasinoTable } from '../../multiplayer/services/tables/admin.js';
-import { startCasinoTable } from '../../multiplayer/services/tables/start.js';
-import { performCasinoTableAction } from '../../multiplayer/services/tables/actions.js';
+} from '@/features/casino/multiplayer/services/tables/seating.js';
+import { closeCasinoTable } from '@/features/casino/multiplayer/services/tables/admin.js';
+import { startCasinoTable } from '@/features/casino/multiplayer/services/tables/start.js';
+import { performCasinoTableAction } from '@/features/casino/multiplayer/services/tables/actions.js';
 import {
   assertSessionOwner,
   getGuildIdFromInteraction,
   parseOwnerCustomId,
-} from './shared.js';
+} from '@/features/casino/handlers/interactions/shared.js';
 import {
   ensureCasinoTableMessage,
   finalizeClosedCasinoTableThread,
   syncCasinoTableRuntime,
   syncCasinoTableThreadName,
-} from './table-runtime.js';
-import type { CasinoTableSummary } from '../../core/types.js';
+} from '@/features/casino/handlers/interactions/table-runtime.js';
+import type { CasinoTableSummary } from '@/features/casino/core/types.js';
 
 const replyWithExpiredGame = async (
   interaction: ButtonInteraction,

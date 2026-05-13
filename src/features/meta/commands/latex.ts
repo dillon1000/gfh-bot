@@ -13,7 +13,7 @@ import { liteAdaptor } from 'mathjax-full/js/adaptors/liteAdaptor.js';
 import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html.js';
 import { AllPackages } from 'mathjax-full/js/input/tex/AllPackages.js';
 
-import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
+import { buildFeedbackEmbed } from '@/lib/feedback-embeds.js';
 
 const adaptor = liteAdaptor();
 RegisterHTMLHandler(adaptor);

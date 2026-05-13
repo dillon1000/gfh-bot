@@ -5,9 +5,9 @@ import {
   TextInputStyle,
 } from 'discord.js';
 
-import { formatDurationFromMinutes } from '../../../lib/duration.js';
-import { pollManageModalCustomId } from './custom-ids.js';
-import type { PollWithRelations } from '../core/types.js';
+import { formatDurationFromMinutes } from '@/lib/duration.js';
+import { pollManageModalCustomId } from '@/features/polls/ui/custom-ids.js';
+import type { PollWithRelations } from '@/features/polls/core/types.js';
 
 export const buildPollEditModal = (
   poll: Pick<PollWithRelations, 'id' | 'question' | 'options' | 'mode'>,

@@ -1,8 +1,8 @@
-import type { MarketLossProtection, Prisma } from '@prisma/client';
+import type { MarketLossProtection, Prisma } from '@/generated/prisma/client.js';
 
-import { runSerializableTransaction } from '../../../../lib/run-serializable-transaction.js';
-import { ensureMarketAccountTx } from '../account.js';
-import { getMarketById } from '../records.js';
+import { runSerializableTransaction } from '@/lib/run-serializable-transaction.js';
+import { ensureMarketAccountTx } from '@/features/markets/services/account.js';
+import { getMarketById } from '@/features/markets/services/records.js';
 import {
   assertMarketOpen,
   assertOutcomeTradable,
@@ -17,12 +17,12 @@ import {
   getPositionUninsuredCostBasis,
   marketInclude,
   roundCurrency,
-} from '../../core/shared.js';
+} from '@/features/markets/core/shared.js';
 import type {
   MarketLossProtectionPurchaseResult,
   MarketLossProtectionQuote,
   MarketWithRelations,
-} from '../../core/types.js';
+} from '@/features/markets/core/types.js';
 
 export const protectionCoverageOptions = [0.25, 0.5, 0.75, 1] as const;
 

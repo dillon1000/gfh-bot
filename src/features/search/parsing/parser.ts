@@ -1,5 +1,5 @@
-import type { GuildMessageSearchFilters, SearchEmbedType } from '../core/types.js';
-import { searchMaxChannelIds } from '../core/constants.js';
+import type { GuildMessageSearchFilters, SearchEmbedType } from '@/features/search/core/types.js';
+import { searchMaxChannelIds } from '@/features/search/core/constants.js';
 
 const snowflakePattern = /^\d{16,25}$/;
 const userMentionPattern = /^<@!?(?<id>\d{16,25})>$/;

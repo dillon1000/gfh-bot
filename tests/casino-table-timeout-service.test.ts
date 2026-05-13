@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { CasinoTableSummary, MultiplayerHoldemState } from '../src/features/casino/core/types.js';
-import { advanceCasinoTableTimeout } from '../src/features/casino/multiplayer/services/tables/settlement.js';
+import type { CasinoTableSummary, MultiplayerHoldemState } from '@/features/casino/core/types.js';
+import { advanceCasinoTableTimeout } from '@/features/casino/multiplayer/services/tables/settlement.js';
 
 const baseTime = new Date('2099-03-29T00:00:00.000Z');
 

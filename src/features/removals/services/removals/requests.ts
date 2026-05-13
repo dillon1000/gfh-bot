@@ -1,10 +1,10 @@
-import type { GuildConfig } from '@prisma/client';
+import type { GuildConfig } from '@/generated/prisma/client.js';
 
-import { withRedisLock } from '../../../../lib/locks.js';
-import { prisma } from '../../../../lib/prisma.js';
-import { redis } from '../../../../lib/redis.js';
-import { getPollById } from '../../../polls/services/repository.js';
-import type { RemovalEligibilityConfig, RemovalVoteRequestWithSupports } from '../../core/types.js';
+import { withRedisLock } from '@/lib/locks.js';
+import { prisma } from '@/lib/prisma.js';
+import { redis } from '@/lib/redis.js';
+import { getPollById } from '@/features/polls/services/repository.js';
+import type { RemovalEligibilityConfig, RemovalVoteRequestWithSupports } from '@/features/removals/core/types.js';
 import {
   expireIfStale,
   getActiveRequestForTarget,
@@ -17,7 +17,7 @@ import {
   supportThreshold,
   supportWindowMs,
   waitingPeriodMs,
-} from './shared.js';
+} from '@/features/removals/services/removals/shared.js';
 
 export const getRemovalRequestStatusDescription = (
   request: RemovalVoteRequestWithSupports,

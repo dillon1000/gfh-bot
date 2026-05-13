@@ -25,7 +25,7 @@ vi.mock('../src/features/polls/services/lifecycle.js', () => ({
   sendPollReminder: vi.fn(),
 }));
 
-import { resolveReminderJobReminderId } from '../src/features/polls/workers/polls.js';
+import { resolveReminderJobReminderId } from '@/features/polls/workers/polls.js';
 
 describe('resolveReminderJobReminderId', () => {
   beforeEach(() => {

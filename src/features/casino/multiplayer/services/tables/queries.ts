@@ -1,9 +1,9 @@
-import { CasinoGameKind, CasinoSeatStatus, CasinoTableActionKind, CasinoTableStatus, Prisma } from '@prisma/client';
+import { CasinoGameKind, CasinoSeatStatus, CasinoTableActionKind, CasinoTableStatus, Prisma } from '@/generated/prisma/client.js';
 
-import { ensureEconomyAccountTx } from '../../../../../lib/economy.js';
-import { prisma } from '../../../../../lib/prisma.js';
-import { runSerializableTransaction } from '../../../../../lib/run-serializable-transaction.js';
-import type { CasinoTableSummary, CasinoTableView, PlayingCard } from '../../../core/types.js';
+import { ensureEconomyAccountTx } from '@/lib/economy.js';
+import { prisma } from '@/lib/prisma.js';
+import { runSerializableTransaction } from '@/lib/run-serializable-transaction.js';
+import type { CasinoTableSummary, CasinoTableView, PlayingCard } from '@/features/casino/core/types.js';
 import {
   actionTimeoutSeconds,
   assertCanJoinBlackjackTable,
@@ -23,8 +23,8 @@ import {
   recordTableActionTx,
   toSeatSummary,
   toTableSummary,
-} from './shared.js';
-import type { CreateTableInput } from './shared.js';
+} from '@/features/casino/multiplayer/services/tables/shared.js';
+import type { CreateTableInput } from '@/features/casino/multiplayer/services/tables/shared.js';
 
 export const getCasinoTable = async (tableId: string): Promise<CasinoTableSummary | null> => {
   const table = await getTableByIdInternal(tableId);

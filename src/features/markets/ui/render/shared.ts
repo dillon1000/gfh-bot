@@ -4,11 +4,11 @@ import {
 	computeMarketSummary,
 	getMarketStatus,
 	resolveMarketWinnerCount,
-} from "../../core/shared.js";
+} from "@/features/markets/core/shared.js";
 import type {
 	MarketTradeQuoteAction,
 	MarketWithRelations,
-} from "../../core/types.js";
+} from "@/features/markets/core/types.js";
 
 export const formatMoney = (value: number): string => `${value.toFixed(2)} pts`;
 export const formatPercent = (value: number): string =>

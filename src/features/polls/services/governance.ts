@@ -1,13 +1,13 @@
 import { PermissionFlagsBits, type Client, type Collection, type Guild, type GuildBasedChannel, type GuildMember } from 'discord.js';
 
-import { computePollOutcome, computePollResults } from '../core/results.js';
+import { computePollOutcome, computePollResults } from '@/features/polls/core/results.js';
 import type {
   EvaluatedPollSnapshot,
   PollCreationInput,
   PollElectorateEvaluation,
   PollOutcome,
   PollWithRelations,
-} from '../core/types.js';
+} from '@/features/polls/core/types.js';
 
 type PollGovernanceFields = Pick<
   PollWithRelations,

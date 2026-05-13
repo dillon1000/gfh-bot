@@ -1,8 +1,8 @@
 import type { Message, PartialMessage } from 'discord.js';
 
-import { prisma } from '../../../../lib/prisma.js';
-import { toPrismaJson } from './normalize.js';
-import { summarizeMessage } from './summarize.js';
+import { prisma } from '@/lib/prisma.js';
+import { toPrismaJson } from '@/features/audit-log/services/events/normalize.js';
+import { summarizeMessage } from '@/features/audit-log/services/events/summarize.js';
 
 export const upsertMessageSnapshot = async (
   message: Message | PartialMessage,

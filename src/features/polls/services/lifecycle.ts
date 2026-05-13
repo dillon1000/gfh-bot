@@ -1,15 +1,15 @@
-import type { Poll, PollVoteEvent } from '@prisma/client';
+import type { Poll, PollVoteEvent } from '@/generated/prisma/client.js';
 import { EmbedBuilder, type Client } from 'discord.js';
 
-import { logger } from '../../../app/logger.js';
-import { formatDurationFromMinutes } from '../../../lib/duration.js';
-import { withRedisLock } from '../../../lib/locks.js';
-import { prisma } from '../../../lib/prisma.js';
-import { redis } from '../../../lib/redis.js';
-import { isR2Configured, uploadCsvToR2 } from '../../../lib/r2.js';
-import { buildPollExportCsv } from '../core/export.js';
-import { buildLivePollMessagePayload } from '../ui/poll-responses.js';
-import { createFallbackPollSnapshot, evaluatePollForResults } from './governance.js';
+import { logger } from '@/app/logger.js';
+import { formatDurationFromMinutes } from '@/lib/duration.js';
+import { withRedisLock } from '@/lib/locks.js';
+import { prisma } from '@/lib/prisma.js';
+import { redis } from '@/lib/redis.js';
+import { isR2Configured, uploadCsvToR2 } from '@/lib/r2.js';
+import { buildPollExportCsv } from '@/features/polls/core/export.js';
+import { buildLivePollMessagePayload } from '@/features/polls/ui/poll-responses.js';
+import { createFallbackPollSnapshot, evaluatePollForResults } from '@/features/polls/services/governance.js';
 import {
   attachPollMessage,
   attachPollThread,
@@ -18,10 +18,10 @@ import {
   pollInclude,
   schedulePollClose,
   schedulePollReminders,
-} from './repository.js';
-import { closePoll } from './voting.js';
-import type { EvaluatedPollSnapshot, PollOutcome, PollWithRelations } from '../core/types.js';
-import { buildPollResultDiagram } from '../ui/visualize.js';
+} from '@/features/polls/services/repository.js';
+import { closePoll } from '@/features/polls/services/voting.js';
+import type { EvaluatedPollSnapshot, PollOutcome, PollWithRelations } from '@/features/polls/core/types.js';
+import { buildPollResultDiagram } from '@/features/polls/ui/visualize.js';
 
 const evaluatePollSnapshotForLifecycle = async (
   client: Client,

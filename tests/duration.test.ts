@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatDurationFromMinutes, parseDurationToMs } from '../src/lib/duration.js';
+import { formatDurationFromMinutes, parseDurationToMs } from '@/lib/duration.js';
 
 describe('parseDurationToMs', () => {
   it('parses hours correctly', () => {

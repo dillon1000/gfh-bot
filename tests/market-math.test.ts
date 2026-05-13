@@ -13,8 +13,8 @@ import {
 	solveShortSharesForAmount,
 	solveTopKBuySharesForAmount,
 	solveTopKShortSharesForAmount,
-} from "../src/features/markets/core/math.js";
-import { getMarketProbabilities } from "../src/features/markets/core/shared.js";
+} from "@/features/markets/core/math.js";
+import { getMarketProbabilities } from "@/features/markets/core/shared.js";
 
 describe("market math", () => {
 	it("keeps probabilities normalized", () => {

@@ -1,16 +1,16 @@
 import { Worker } from 'bullmq';
 import type { Client } from 'discord.js';
 
-import { logger } from '../../../../app/logger.js';
+import { logger } from '@/app/logger.js';
 import {
   casinoTableIdleCloseQueueName,
   casinoTableTimeoutQueueName,
-} from '../../../../lib/queue.js';
-import { getBullConnectionOptions } from '../../../../lib/redis.js';
+} from '@/lib/queue.js';
+import { getBullConnectionOptions } from '@/lib/redis.js';
 import {
   handleCasinoTableIdleClose,
   handleCasinoTableTimeout,
-} from '../../handlers/interactions/jobs.js';
+} from '@/features/casino/handlers/interactions/jobs.js';
 
 export const startCasinoTableTimeoutWorker = (client: Client): Worker<{ tableId: string }, void, 'timeout'> => {
   const worker = new Worker<{ tableId: string }, void, 'timeout'>(

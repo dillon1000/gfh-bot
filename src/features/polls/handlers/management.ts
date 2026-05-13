@@ -7,20 +7,20 @@ import {
   type ModalSubmitInteraction,
 } from 'discord.js';
 
-import { formatDurationFromMinutes, parseDurationToMs } from '../../../lib/duration.js';
-import { redis } from '../../../lib/redis.js';
-import { savePollDraft } from '../state/drafts.js';
+import { formatDurationFromMinutes, parseDurationToMs } from '@/lib/duration.js';
+import { redis } from '@/lib/redis.js';
+import { savePollDraft } from '@/features/polls/state/drafts.js';
 import {
   buildPollCancelModal,
   buildPollEditModal,
   buildPollExtendModal,
   buildPollReopenModal,
-} from '../ui/management-render.js';
-import { parseChoicesCsv, sanitizeQuestion } from '../parsing/parser.js';
-import { getPollDurationMinutes } from '../state/poll-state.js';
-import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
-import { buildPollBuilderPreview } from '../ui/poll-builder-render.js';
-import { refreshPollMessage, isPollManager } from '../services/lifecycle.js';
+} from '@/features/polls/ui/management-render.js';
+import { parseChoicesCsv, sanitizeQuestion } from '@/features/polls/parsing/parser.js';
+import { getPollDurationMinutes } from '@/features/polls/state/poll-state.js';
+import { buildFeedbackEmbed } from '@/lib/feedback-embeds.js';
+import { buildPollBuilderPreview } from '@/features/polls/ui/poll-builder-render.js';
+import { refreshPollMessage, isPollManager } from '@/features/polls/services/lifecycle.js';
 import {
   cancelPollRecord,
   editPollBeforeFirstVote,
@@ -29,8 +29,8 @@ import {
   getPollByMessageId,
   getPollByQuery,
   reopenPollRecord,
-} from '../services/repository.js';
-import type { PollDraft, PollWithRelations } from '../core/types.js';
+} from '@/features/polls/services/repository.js';
+import type { PollDraft, PollWithRelations } from '@/features/polls/core/types.js';
 
 const assertPollManagementAccess = (
   poll: Pick<PollWithRelations, 'authorId'>,

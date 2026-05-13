@@ -5,7 +5,7 @@ import type {
   CasinoTableActionKind,
   CasinoTableStatus,
   CasinoUserStat,
-} from '@prisma/client';
+} from '@/generated/prisma/client.js';
 
 export type CasinoConfig = {
   enabled: boolean;

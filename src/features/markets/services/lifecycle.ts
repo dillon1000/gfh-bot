@@ -5,32 +5,32 @@ import {
 	type Message,
 } from "discord.js";
 
-import { logger } from "../../../app/logger.js";
-import { prisma } from "../../../lib/prisma.js";
+import { logger } from "@/app/logger.js";
+import { prisma } from "@/lib/prisma.js";
 import {
 	buildMarketDetailsEmbed,
 	buildMarketEmbed,
 	buildMarketMessage,
 	buildMarketResolvePrompt,
 	buildMarketStatusEmbed,
-} from "../ui/render/market.js";
-import { attachMarketPublication, getMarketById } from "./records.js";
+} from "@/features/markets/ui/render/market.js";
+import { attachMarketPublication, getMarketById } from "@/features/markets/services/records.js";
 import {
 	clearMarketJobs,
 	scheduleMarketClose,
 	scheduleMarketGrace,
 	scheduleMarketLiquidity,
-} from "./scheduler.js";
-import { injectMarketLiquidity } from "./liquidity.js";
-import { closeMarketTrading } from "./trading/close.js";
-import type { MarketWithRelations } from "../core/types.js";
-import type { MarketResolutionResult } from "../core/types.js";
-import type { MarketCancellationRefund } from "../core/types.js";
-import { buildMarketDiagram } from "../ui/visualize.js";
+} from "@/features/markets/services/scheduler.js";
+import { injectMarketLiquidity } from "@/features/markets/services/liquidity.js";
+import { closeMarketTrading } from "@/features/markets/services/trading/close.js";
+import type { MarketWithRelations } from "@/features/markets/core/types.js";
+import type { MarketResolutionResult } from "@/features/markets/core/types.js";
+import type { MarketCancellationRefund } from "@/features/markets/core/types.js";
+import { buildMarketDiagram } from "@/features/markets/ui/visualize.js";
 import {
 	isCompetitiveMultiWinnerMarketMode,
 	resolveMarketWinnerCount,
-} from "../core/shared.js";
+} from "@/features/markets/core/shared.js";
 
 const buildMarketMessagePayload = async (
 	market: MarketWithRelations,

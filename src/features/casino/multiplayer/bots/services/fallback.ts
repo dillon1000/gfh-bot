@@ -1,5 +1,5 @@
-import type { CasinoTableSummary } from '../../../core/types.js';
-import type { TableActionInput } from '../../services/tables/shared.js';
+import type { CasinoTableSummary } from '@/features/casino/core/types.js';
+import type { TableActionInput } from '@/features/casino/multiplayer/services/tables/shared.js';
 
 export const buildSafeHoldemBotFallbackAction = (
   table: CasinoTableSummary,

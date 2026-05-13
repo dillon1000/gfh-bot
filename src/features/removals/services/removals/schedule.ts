@@ -1,13 +1,13 @@
-import { type Client } from "discord.js";
+import type { Client } from "discord.js";
 
-import { prisma } from "../../../../lib/prisma.js";
-import { attemptRemovalVoteStart } from "./start.js";
+import { prisma } from "@/lib/prisma.js";
+import { attemptRemovalVoteStart } from "@/features/removals/services/removals/start.js";
 import {
 	removeScheduledRemovalVoteStart,
 	scheduleRemovalVoteStart,
-} from "./shared.js";
+} from "@/features/removals/services/removals/shared.js";
 
-export { removeScheduledRemovalVoteStart } from "./shared.js";
+export { removeScheduledRemovalVoteStart } from "@/features/removals/services/removals/shared.js";
 
 export const syncWaitingRemovalVoteStartJobs = async (): Promise<void> => {
 	const now = new Date();

@@ -1,22 +1,22 @@
 import type { StringSelectMenuInteraction } from "discord.js";
 
-import { buildMarketTradeModal } from "../../ui/render/trades.js";
-import { getMarketById } from "../../services/records.js";
-import { marketPortfolioSelectCustomId } from "../../ui/custom-ids.js";
+import { buildMarketTradeModal } from "@/features/markets/ui/render/trades.js";
+import { getMarketById } from "@/features/markets/services/records.js";
+import { marketPortfolioSelectCustomId } from "@/features/markets/ui/custom-ids.js";
 import {
 	buildExpiredMarketInteractionResponse,
 	buildRootMarketInteractionSessionResponse,
 	getRootMarketInteractionSession,
 	refreshRootMarketInteractionSessionPreview,
 	saveRootMarketInteractionSession,
-} from "./session.js";
+} from "@/features/markets/handlers/interactions/session.js";
 import {
 	parseMarketSessionId,
 	parsePortfolioSelectionValue,
 	parseSimpleMarketId,
 	parseTradeSelectCustomId,
-} from "./shared.js";
-import { buildProtectionEntryMessage } from "./protection.js";
+} from "@/features/markets/handlers/interactions/shared.js";
+import { buildProtectionEntryMessage } from "@/features/markets/handlers/interactions/protection.js";
 
 export const handleMarketSelect = async (
 	interaction: StringSelectMenuInteraction,

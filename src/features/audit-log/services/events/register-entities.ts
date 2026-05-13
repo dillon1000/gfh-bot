@@ -13,8 +13,8 @@ import {
   type VoiceState,
 } from 'discord.js';
 
-import { recordAuditLogEvent } from './delivery.js';
-import { registerAuditHandler } from './register-shared.js';
+import { recordAuditLogEvent } from '@/features/audit-log/services/events/delivery.js';
+import { registerAuditHandler } from '@/features/audit-log/services/events/register-shared.js';
 import {
   buildVoiceStateDiff,
   summarizeEmoji,
@@ -26,7 +26,7 @@ import {
   summarizeSticker,
   summarizeUser,
   summarizeVoiceState,
-} from './summarize.js';
+} from '@/features/audit-log/services/events/summarize.js';
 
 export const registerEntityAuditLogEventHandlers = (client: Client): void => {
   registerAuditHandler<[Role]>(client, Events.GuildRoleCreate, async (role) => {

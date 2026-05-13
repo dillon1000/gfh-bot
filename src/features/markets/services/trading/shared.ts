@@ -1,4 +1,4 @@
-import { type MarketPosition } from "@prisma/client";
+import type { MarketPosition } from "@/generated/prisma/client.js";
 
 export type CalculateMarketTradeQuoteInput =
 	| {

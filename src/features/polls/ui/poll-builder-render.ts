@@ -8,11 +8,11 @@ import {
   TextInputStyle,
 } from 'discord.js';
 
-import { formatDurationFromMinutes } from '../../../lib/duration.js';
-import { pollBuilderButtonCustomId, pollBuilderModalCustomId, type PollBuilderModalField } from './custom-ids.js';
-import { getPollChoiceEmojiDisplay, resolvePollThreadName } from './present.js';
-import { getDraftSummary, getModeLabel } from './render-helpers.js';
-import type { PollDraft } from '../core/types.js';
+import { formatDurationFromMinutes } from '@/lib/duration.js';
+import { pollBuilderButtonCustomId, pollBuilderModalCustomId, type PollBuilderModalField } from '@/features/polls/ui/custom-ids.js';
+import { getPollChoiceEmojiDisplay, resolvePollThreadName } from '@/features/polls/ui/present.js';
+import { getDraftSummary, getModeLabel } from '@/features/polls/ui/render-helpers.js';
+import type { PollDraft } from '@/features/polls/core/types.js';
 
 export const buildPollBuilderPreview = (
   draft: PollDraft,

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseMarketCloseAt, parseMarketCloseDuration } from '../src/features/markets/parsing/close.js';
+import { parseMarketCloseAt, parseMarketCloseDuration } from '@/features/markets/parsing/close.js';
 import {
   parseAdditionalMarketOutcomes,
   parseFlexibleTradeAmount,
   parseTradeAmount,
-} from '../src/features/markets/parsing/market.js';
+} from '@/features/markets/parsing/market.js';
 
 describe('market parser', () => {
   it('uses market-specific validation for short durations', () => {

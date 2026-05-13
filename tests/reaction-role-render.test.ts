@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildReactionRoleSelectionMessage } from '../src/features/reaction-roles/ui/render.js';
-import type { ReactionRolePanelWithOptions } from '../src/features/reaction-roles/core/types.js';
+import { buildReactionRoleSelectionMessage } from '@/features/reaction-roles/ui/render.js';
+import type { ReactionRolePanelWithOptions } from '@/features/reaction-roles/core/types.js';
 
 const panel: ReactionRolePanelWithOptions = {
   id: 'panel_1',

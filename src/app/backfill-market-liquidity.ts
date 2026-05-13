@@ -1,6 +1,6 @@
-import { disconnectPrisma, prisma } from '../lib/prisma.js';
-import { getLiquidityTargetForEpoch } from '../features/markets/core/shared.js';
-import { injectMarketLiquidity } from '../features/markets/services/liquidity.js';
+import { disconnectPrisma, prisma } from '@/lib/prisma.js';
+import { getLiquidityTargetForEpoch } from '@/features/markets/core/shared.js';
+import { injectMarketLiquidity } from '@/features/markets/services/liquidity.js';
 
 const args = new Set(process.argv.slice(2));
 const dryRun = args.has('--dry-run');

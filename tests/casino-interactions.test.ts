@@ -43,7 +43,7 @@ vi.mock('../src/lib/redis.js', () => ({
 }));
 
 vi.mock('../src/lib/economy.js', async () => {
-  const actual = await vi.importActual<typeof import('../src/lib/economy.js')>('../src/lib/economy.js');
+  const actual = await vi.importActual<typeof import('@/lib/economy.js')>('../src/lib/economy.js');
   return {
     ...actual,
     getEffectiveEconomyAccountPreview,
@@ -78,9 +78,9 @@ vi.mock('../src/features/casino/state/sessions.js', () => ({
   deleteCasinoSession,
 }));
 
-import { handleCasinoButton } from '../src/features/casino/handlers/interactions/buttons.js';
-import { handleCasinoCommand } from '../src/features/casino/handlers/interactions/commands.js';
-import { handleCasinoSelect } from '../src/features/casino/handlers/interactions/selects.js';
+import { handleCasinoButton } from '@/features/casino/handlers/interactions/buttons.js';
+import { handleCasinoCommand } from '@/features/casino/handlers/interactions/commands.js';
+import { handleCasinoSelect } from '@/features/casino/handlers/interactions/selects.js';
 
 const createCommandInteraction = (options: {
   subcommand: string;

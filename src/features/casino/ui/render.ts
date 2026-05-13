@@ -6,14 +6,14 @@ import {
   StringSelectMenuBuilder,
 } from 'discord.js';
 
-import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
+import { buildFeedbackEmbed } from '@/lib/feedback-embeds.js';
 import {
   casinoBlackjackHitButtonCustomId,
   casinoBlackjackStandButtonCustomId,
   casinoPokerDiscardSelectCustomId,
   casinoPokerDrawButtonCustomId,
-} from './custom-ids.js';
-import { getBlackjackTotal } from '../core/cards.js';
+} from '@/features/casino/ui/custom-ids.js';
+import { getBlackjackTotal } from '@/features/casino/core/cards.js';
 import type {
   BlackjackRound,
   BlackjackSession,
@@ -24,7 +24,7 @@ import type {
   PokerSession,
   RtdRound,
   SlotsSpin,
-} from '../core/types.js';
+} from '@/features/casino/core/types.js';
 
 const formatMoney = (value: number): string => `${value.toFixed(2)} pts`;
 

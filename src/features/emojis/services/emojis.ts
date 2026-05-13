@@ -1,8 +1,8 @@
 import { PermissionFlagsBits, type Attachment, type Guild, type GuildMember, type PermissionsBitField } from 'discord.js';
 
-import { logger } from '../../../app/logger.js';
-import type { EmojiDraft } from '../state/drafts.js';
-import { inferEmojiMimeType, normalizeEmojiName, suggestEmojiNameFromFileName } from '../core/validate.js';
+import { logger } from '@/app/logger.js';
+import type { EmojiDraft } from '@/features/emojis/state/drafts.js';
+import { inferEmojiMimeType, normalizeEmojiName, suggestEmojiNameFromFileName } from '@/features/emojis/core/validate.js';
 
 const emojiUploadLimitBytes = 256 * 1024;
 

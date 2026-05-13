@@ -24,8 +24,8 @@ import {
 	computeMarketSummary,
 	getMarketProbabilities,
 	getMarketStatus,
-} from "../core/shared.js";
-import type { MarketWithRelations } from "../core/types.js";
+} from "@/features/markets/core/shared.js";
+import type { MarketWithRelations } from "@/features/markets/core/types.js";
 
 const width = 1200;
 const height = 760;

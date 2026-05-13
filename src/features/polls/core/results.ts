@@ -7,7 +7,7 @@ import type {
   RankedPollComputedResults,
   RankedPollRound,
   StandardPollComputedResults,
-} from './types.js';
+} from '@/features/polls/core/types.js';
 
 type RankedBallot = {
   userId: string;

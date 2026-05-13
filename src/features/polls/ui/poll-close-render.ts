@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 
-import { pollCloseModalCustomId } from './custom-ids.js';
+import { pollCloseModalCustomId } from '@/features/polls/ui/custom-ids.js';
 
 export const buildPollCloseModal = (pollId: string, question: string): ModalBuilder => {
   const input = new TextInputBuilder()

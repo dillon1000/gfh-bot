@@ -1,9 +1,9 @@
 import type { Client } from 'discord.js';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '@/generated/prisma/client.js';
 
-import { logger } from '../../../app/logger.js';
-import { prisma } from '../../../lib/prisma.js';
-import { evaluatePollForResults } from './governance.js';
+import { logger } from '@/app/logger.js';
+import { prisma } from '@/lib/prisma.js';
+import { evaluatePollForResults } from '@/features/polls/services/governance.js';
 import type {
   PollAnalyticsChannelEntry,
   PollAnalyticsFilters,
@@ -12,7 +12,7 @@ import type {
   PollAnalyticsVisibilityEntry,
   PollAnalyticsVoterEntry,
   PollWithRelations,
-} from '../core/types.js';
+} from '@/features/polls/core/types.js';
 
 const defaultDays = 30;
 const minDays = 1;

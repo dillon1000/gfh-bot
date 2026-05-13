@@ -2,9 +2,9 @@ import {
   casinoTableBotActionQueue,
   casinoTableIdleCloseQueue,
   casinoTableTimeoutQueue,
-} from '../../../../lib/queue.js';
-import type { CasinoTableSummary, MultiplayerBlackjackState, MultiplayerHoldemState } from '../../core/types.js';
-import { listTimedCasinoTables } from './tables/queries.js';
+} from '@/lib/queue.js';
+import type { CasinoTableSummary, MultiplayerBlackjackState, MultiplayerHoldemState } from '@/features/casino/core/types.js';
+import { listTimedCasinoTables } from '@/features/casino/multiplayer/services/tables/queries.js';
 
 const minimumBotActionDelayMs = 1_000;
 const botActionDelayRangeMs = 1_500;

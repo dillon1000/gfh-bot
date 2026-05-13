@@ -1,6 +1,6 @@
 import { MessageFlags, type ChatInputCommandInteraction, type Client } from 'discord.js';
 
-import { getEffectiveEconomyAccountPreview } from '../../../../lib/economy.js';
+import { getEffectiveEconomyAccountPreview } from '@/lib/economy.js';
 import {
   buildCasinoBalanceEmbed,
   buildCasinoStatsEmbed,
@@ -10,40 +10,40 @@ import {
   buildPokerPrompt,
   buildRtdResultEmbed,
   buildSlotsResultEmbed,
-} from '../../ui/render.js';
+} from '@/features/casino/ui/render.js';
 import {
   describeCasinoConfig,
   disableCasinoConfig,
   getCasinoConfig,
   setCasinoConfig,
-} from '../../services/config.js';
+} from '@/features/casino/services/config.js';
 import {
   getCasinoStatsSummary,
   playRtd,
   playSlots,
   startBlackjack,
   startPoker,
-} from '../../services/gameplay.js';
-import { saveCasinoSession } from '../../state/sessions.js';
-import { redis } from '../../../../lib/redis.js';
+} from '@/features/casino/services/gameplay.js';
+import { saveCasinoSession } from '@/features/casino/state/sessions.js';
+import { redis } from '@/lib/redis.js';
 import {
   buildCasinoTableListEmbed,
   buildCasinoTablePrivateEmbed,
-} from '../../multiplayer/ui/render.js';
+} from '@/features/casino/multiplayer/ui/render.js';
 import {
   createCasinoTable,
   getCasinoTablePrivateView,
   listCasinoTables,
-} from '../../multiplayer/services/tables/queries.js';
+} from '@/features/casino/multiplayer/services/tables/queries.js';
 import {
   joinCasinoTable,
   leaveCasinoTable,
   setCasinoTableBotCount,
-} from '../../multiplayer/services/tables/seating.js';
+} from '@/features/casino/multiplayer/services/tables/seating.js';
 import {
   closeCasinoTable,
-} from '../../multiplayer/services/tables/admin.js';
-import { startCasinoTable } from '../../multiplayer/services/tables/start.js';
+} from '@/features/casino/multiplayer/services/tables/admin.js';
+import { startCasinoTable } from '@/features/casino/multiplayer/services/tables/start.js';
 import {
   assertCasinoChannel,
   assertCasinoEnabled,
@@ -52,14 +52,14 @@ import {
   assertNoActiveSession,
   getRequiredWager,
   resolveTableIdFromInteraction,
-} from './shared.js';
+} from '@/features/casino/handlers/interactions/shared.js';
 import {
   ensureCasinoTableMessage,
   finalizeClosedCasinoTableThread,
   syncCasinoTableMessage,
   syncCasinoTableRuntime,
   syncCasinoTableThreadName,
-} from './table-runtime.js';
+} from '@/features/casino/handlers/interactions/table-runtime.js';
 
 const handleTableCreateCommand = async (
   client: Client,

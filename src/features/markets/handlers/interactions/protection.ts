@@ -1,19 +1,19 @@
-import { redis } from '../../../../lib/redis.js';
-import type { MarketWithRelations } from '../../core/types.js';
+import { redis } from '@/lib/redis.js';
+import type { MarketWithRelations } from '@/features/markets/core/types.js';
 import {
   createMarketTradeQuoteSessionId,
   saveMarketTradeQuoteSession,
-} from '../../state/quote-session-store.js';
+} from '@/features/markets/state/quote-session-store.js';
 import {
   calculateLossProtectionQuote,
   getProtectableLongPositions,
-} from '../../services/trading/protection.js';
+} from '@/features/markets/services/trading/protection.js';
 import {
   buildLossProtectionCoverageMessage,
   buildLossProtectionPositionSelector,
   buildLossProtectionQuoteMessage,
-} from '../../ui/render/trades.js';
-import { buildMarketStatusEmbed } from '../../ui/render/market.js';
+} from '@/features/markets/ui/render/trades.js';
+import { buildMarketStatusEmbed } from '@/features/markets/ui/render/market.js';
 
 export const createLossProtectionQuotePreview = async (input: {
   marketId: string;

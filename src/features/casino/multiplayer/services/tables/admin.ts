@@ -2,11 +2,11 @@ import {
   CasinoSeatStatus,
   CasinoTableActionKind,
   CasinoTableStatus,
-} from '@prisma/client';
+} from '@/generated/prisma/client.js';
 
-import { ensureEconomyAccountTx } from '../../../../../lib/economy.js';
-import { runSerializableTransaction } from '../../../../../lib/run-serializable-transaction.js';
-import type { CasinoTableSummary } from '../../../core/types.js';
+import { ensureEconomyAccountTx } from '@/lib/economy.js';
+import { runSerializableTransaction } from '@/lib/run-serializable-transaction.js';
+import type { CasinoTableSummary } from '@/features/casino/core/types.js';
 import {
   casinoTableInclude,
   formatRoundMoney,
@@ -14,7 +14,7 @@ import {
   recordTableActionTx,
   toTableSummary,
   withTableLock,
-} from './shared.js';
+} from '@/features/casino/multiplayer/services/tables/shared.js';
 
 export const closeCasinoTable = async (
   tableId: string,

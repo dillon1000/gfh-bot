@@ -1,13 +1,13 @@
 import { AttachmentBuilder } from 'discord.js';
 import sharp from 'sharp';
 
-import { createFallbackPollSnapshot } from '../services/governance.js';
-import type { EvaluatedPollSnapshot, PollComputedResults, PollWithRelations } from '../core/types.js';
-import type { DiagramPayload } from './visualize/shared.js';
-import { buildRankedPollSvg } from './visualize/ranked.js';
-import { buildStandardPollPng } from './visualize/standard.js';
+import { createFallbackPollSnapshot } from '@/features/polls/services/governance.js';
+import type { EvaluatedPollSnapshot, PollComputedResults, PollWithRelations } from '@/features/polls/core/types.js';
+import type { DiagramPayload } from '@/features/polls/ui/visualize/shared.js';
+import { buildRankedPollSvg } from '@/features/polls/ui/visualize/ranked.js';
+import { buildStandardPollPng } from '@/features/polls/ui/visualize/standard.js';
 
-export { getStandardPollSummary } from './visualize/standard.js';
+export { getStandardPollSummary } from '@/features/polls/ui/visualize/standard.js';
 
 export async function buildPollResultDiagram(
   snapshot: EvaluatedPollSnapshot,

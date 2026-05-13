@@ -5,8 +5,8 @@ import {
   type Client,
 } from 'discord.js';
 
-import { getPollAnalyticsSnapshot } from '../services/analytics.js';
-import { buildPollAnalyticsEmbed } from '../ui/analytics-render.js';
+import { getPollAnalyticsSnapshot } from '@/features/polls/services/analytics.js';
+import { buildPollAnalyticsEmbed } from '@/features/polls/ui/analytics-render.js';
 
 export const handlePollAnalyticsCommand = async (
   client: Client,

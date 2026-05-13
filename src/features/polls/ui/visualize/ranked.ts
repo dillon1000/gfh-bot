@@ -1,7 +1,7 @@
 import { linkHorizontal } from 'd3';
 
-import { getRankedBallots } from '../../core/results.js';
-import type { PollComputedResults, PollOutcome, PollWithRelations } from '../../core/types.js';
+import { getRankedBallots } from '@/features/polls/core/results.js';
+import type { PollComputedResults, PollOutcome, PollWithRelations } from '@/features/polls/core/types.js';
 import {
   buildSvgShell,
   createColorScale,
@@ -13,7 +13,7 @@ import {
   type RankedBox,
   renderText,
   truncate,
-} from './shared.js';
+} from '@/features/polls/ui/visualize/shared.js';
 
 const buildRankedAssignments = (
   poll: PollWithRelations,

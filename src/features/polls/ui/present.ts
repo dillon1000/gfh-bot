@@ -1,4 +1,4 @@
-import { normalizeEmojiInput } from '../../../lib/emoji.js';
+import { normalizeEmojiInput } from '@/lib/emoji.js';
 
 const defaultPollChoiceEmojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'] as const;
 

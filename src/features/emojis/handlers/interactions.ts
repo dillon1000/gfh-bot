@@ -7,8 +7,8 @@ import {
   type ModalSubmitInteraction,
 } from 'discord.js';
 
-import { redis } from '../../../lib/redis.js';
-import { deleteEmojiDraft, getEmojiDraft, saveEmojiDraft } from '../state/drafts.js';
+import { redis } from '@/lib/redis.js';
+import { deleteEmojiDraft, getEmojiDraft, saveEmojiDraft } from '@/features/emojis/state/drafts.js';
 import {
   buildEmojiBuilderPreview,
   buildEmojiNameModal,
@@ -16,14 +16,14 @@ import {
   buildEmojiUploadModal,
   emojiBuilderButtonCustomId,
   emojiBuilderModalCustomId,
-} from '../ui/render.js';
+} from '@/features/emojis/ui/render.js';
 import {
   applyEmojiAttachmentToDraft,
   handleEmojiBuilderError,
   publishEmojiDraft,
   suggestEmojiNameForDraft,
-} from '../services/emojis.js';
-import { normalizeEmojiName } from '../core/validate.js';
+} from '@/features/emojis/services/emojis.js';
+import { normalizeEmojiName } from '@/features/emojis/core/validate.js';
 
 const seedDraftFromCommand = async (
   interaction: ChatInputCommandInteraction,

@@ -15,7 +15,7 @@ import {
   parseReminderRoleTarget,
   resolvePassRule,
   sanitizeFreeformResponse,
-} from '../src/features/polls/parsing/parser.js';
+} from '@/features/polls/parsing/parser.js';
 
 describe('parseChoicesCsv', () => {
   it('parses comma-separated choices', () => {

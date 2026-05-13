@@ -5,7 +5,7 @@ import {
 	EmbedBuilder,
 } from "discord.js";
 
-import { buildFeedbackEmbed } from "../../../../lib/feedback-embeds.js";
+import { buildFeedbackEmbed } from "@/lib/feedback-embeds.js";
 import {
 	marketCancelButtonCustomId,
 	marketDetailsButtonCustomId,
@@ -13,15 +13,15 @@ import {
 	marketRefreshButtonCustomId,
 	marketResolveButtonCustomId,
 	marketTradeButtonCustomId,
-} from "../custom-ids.js";
-import { formatProbabilityPercent } from "../../core/math.js";
-import type { MarketWithRelations } from "../../core/types.js";
+} from "@/features/markets/ui/custom-ids.js";
+import { formatProbabilityPercent } from "@/features/markets/core/math.js";
+import type { MarketWithRelations } from "@/features/markets/core/types.js";
 import {
 	getMarketSummary,
 	resolveMarketWinnerCount,
 	getOutcomeButtonStyle,
 	getStatusColor,
-} from "./shared.js";
+} from "@/features/markets/ui/render/shared.js";
 
 const getContractModeLabel = (market: MarketWithRelations): string => {
 	if (market.contractMode === "independent_binary_set") {

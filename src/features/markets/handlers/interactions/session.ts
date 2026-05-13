@@ -1,27 +1,27 @@
-import { redis } from "../../../../lib/redis.js";
+import { redis } from "@/lib/redis.js";
 import {
 	getLossProtection,
 	getLossProtectionMap,
 	getPositionCoverageRatio,
 	roundCurrency,
-} from "../../core/shared.js";
+} from "@/features/markets/core/shared.js";
 import type {
 	MarketInteractionSession,
 	MarketInteractionSessionAction,
 	MarketWithRelations,
-} from "../../core/types.js";
-import { getMarketById } from "../../services/records.js";
-import { calculateLossProtectionQuote } from "../../services/trading/protection.js";
-import { calculateMarketTradeQuote } from "../../services/trading/quotes.js";
+} from "@/features/markets/core/types.js";
+import { getMarketById } from "@/features/markets/services/records.js";
+import { calculateLossProtectionQuote } from "@/features/markets/services/trading/protection.js";
+import { calculateMarketTradeQuote } from "@/features/markets/services/trading/quotes.js";
 import {
 	createMarketInteractionSessionId,
 	deleteMarketInteractionSession,
 	getMarketInteractionSession,
 	saveMarketInteractionSession,
-} from "../../state/interaction-session-store.js";
-import { buildMarketStatusEmbed } from "../../ui/render/market.js";
-import { buildMarketInteractionSessionMessage } from "../../ui/render/trades.js";
-import { parseTradeInputAmount } from "./shared.js";
+} from "@/features/markets/state/interaction-session-store.js";
+import { buildMarketStatusEmbed } from "@/features/markets/ui/render/market.js";
+import { buildMarketInteractionSessionMessage } from "@/features/markets/ui/render/trades.js";
+import { parseTradeInputAmount } from "@/features/markets/handlers/interactions/shared.js";
 
 const sessionTtlMs = 10 * 60 * 1_000;
 

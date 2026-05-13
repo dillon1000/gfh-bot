@@ -8,3 +8,4 @@ prisma/dev.db
 .VSCodeCounter/
 /tmp/
 /output/
+/src/generated/

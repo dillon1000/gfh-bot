@@ -37,7 +37,7 @@ vi.mock('../src/features/audit-log/services/events/delivery.js', () => ({
   recordAuditLogEvent,
 }));
 
-import { handleRemoveCommand } from '../src/features/removals/handlers/interactions.js';
+import { handleRemoveCommand } from '@/features/removals/handlers/interactions.js';
 
 const createInteraction = (options: {
   subcommand: 'request' | 'second' | 'status' | 'configure';

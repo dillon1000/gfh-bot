@@ -1,14 +1,14 @@
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@/generated/prisma/client.js";
 
-import { logger } from "../../../../app/logger.js";
-import { prisma } from "../../../../lib/prisma.js";
-import { getMarketForUpdate, marketInclude } from "../../core/shared.js";
-import type { MarketWithRelations } from "../../core/types.js";
+import { logger } from "@/app/logger.js";
+import { prisma } from "@/lib/prisma.js";
+import { getMarketForUpdate, marketInclude } from "@/features/markets/core/shared.js";
+import type { MarketWithRelations } from "@/features/markets/core/types.js";
 import {
 	buildForecastRecordsForMarket,
 	hydrateForecastRecord,
 	type HydratedForecastRecord,
-} from "./shared.js";
+} from "@/features/markets/services/forecast/shared.js";
 
 const forecastBackfillCooldownMs = 5 * 60 * 1_000;
 const forecastBackfillState = new Map<

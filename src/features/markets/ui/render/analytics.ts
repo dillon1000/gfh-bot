@@ -6,14 +6,14 @@ import type {
   MarketForecastProfile,
   MarketTraderSummary,
   MarketWithRelations,
-} from '../../core/types.js';
-import { buildMarketStatusEmbed } from './market.js';
+} from '@/features/markets/core/types.js';
+import { buildMarketStatusEmbed } from '@/features/markets/ui/render/market.js';
 import {
   formatBrier,
   formatMoney,
   formatPercent,
   getMarketSummary,
-} from './shared.js';
+} from '@/features/markets/ui/render/shared.js';
 
 export const buildMarketListEmbed = (
   title: string,

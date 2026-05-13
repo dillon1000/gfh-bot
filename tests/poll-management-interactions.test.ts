@@ -53,13 +53,13 @@ vi.mock('../src/features/polls/services/lifecycle.js', () => ({
   getPollVoteAuditSnapshotByQuery: vi.fn(),
 }));
 
-import { handlePollCloseContext, handlePollCloseModal } from '../src/features/polls/handlers/query.js';
+import { handlePollCloseContext, handlePollCloseModal } from '@/features/polls/handlers/query.js';
 import {
   handlePollDuplicateContext,
   handlePollEditContext,
   handlePollManageModal,
-} from '../src/features/polls/handlers/management.js';
-import type { PollWithRelations } from '../src/features/polls/core/types.js';
+} from '@/features/polls/handlers/management.js';
+import type { PollWithRelations } from '@/features/polls/core/types.js';
 
 const basePoll: PollWithRelations = {
   id: 'poll_1',

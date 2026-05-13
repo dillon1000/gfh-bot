@@ -34,7 +34,7 @@ vi.mock('../src/features/markets/services/records.js', () => ({
   attachMarketPublication,
 }));
 
-import { backfillMarketForumPosts } from '../src/features/markets/services/forum-backfill.js';
+import { backfillMarketForumPosts } from '@/features/markets/services/forum-backfill.js';
 
 const baseMarket = {
   id: 'market_1',

@@ -1,7 +1,7 @@
 import {
   parseDiscordMessageLink,
   type DiscordEntityLookup,
-} from '../../../lib/discord-message-links.js';
+} from '@/lib/discord-message-links.js';
 
 export type ReactionRoleLookup = DiscordEntityLookup<'panel-id'>;
 

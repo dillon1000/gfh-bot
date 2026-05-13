@@ -4,11 +4,11 @@ import {
   CasinoTableActionKind,
   CasinoTableStatus,
   Prisma,
-} from '@prisma/client';
+} from '@/generated/prisma/client.js';
 
-import { ensureEconomyAccountTx } from '../../../../../lib/economy.js';
-import { runSerializableTransaction } from '../../../../../lib/run-serializable-transaction.js';
-import type { CasinoTableSummary } from '../../../core/types.js';
+import { ensureEconomyAccountTx } from '@/lib/economy.js';
+import { runSerializableTransaction } from '@/lib/run-serializable-transaction.js';
+import type { CasinoTableSummary } from '@/features/casino/core/types.js';
 import {
   assertCanJoinBlackjackTable,
   assertWholeNumberAmount,
@@ -30,8 +30,8 @@ import {
   toSeatSummary,
   toTableSummary,
   withTableLock,
-} from './shared.js';
-import type { JoinTableInput } from './shared.js';
+} from '@/features/casino/multiplayer/services/tables/shared.js';
+import type { JoinTableInput } from '@/features/casino/multiplayer/services/tables/shared.js';
 
 export const joinCasinoTable = async (input: JoinTableInput): Promise<CasinoTableSummary> =>
   withTableLock(input.tableId, async () =>

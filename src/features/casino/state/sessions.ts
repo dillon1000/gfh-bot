@@ -1,6 +1,6 @@
 import type { Redis } from 'ioredis';
 
-import type { CasinoSession } from '../core/types.js';
+import type { CasinoSession } from '@/features/casino/core/types.js';
 
 const ttlSeconds = 60 * 5;
 

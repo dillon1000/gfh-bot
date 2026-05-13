@@ -4,7 +4,7 @@ import type {
 	MarketOutcome,
 	MarketTrade,
 	Prisma,
-} from "@prisma/client";
+} from "@/generated/prisma/client.js";
 
 import {
 	clampSmall,
@@ -14,11 +14,11 @@ import {
 	getMarketProbabilities,
 	roundCurrency,
 	roundProbability,
-} from "../../core/shared.js";
+} from "@/features/markets/core/shared.js";
 import type {
 	MarketForecastVectorEntry,
 	MarketWithRelations,
-} from "../../core/types.js";
+} from "@/features/markets/core/types.js";
 
 export const thirtyDayWindowMs = 30 * 24 * 60 * 60 * 1_000;
 export const minimumForecastTradeCount = 2;

@@ -1,17 +1,17 @@
 import {
   CasinoGameKind,
-  CasinoRoundResult,
+  type CasinoRoundResult,
   CasinoSeatStatus,
-  CasinoTableActionKind,
+  type CasinoTableActionKind,
   Prisma,
-} from '@prisma/client';
+} from '@/generated/prisma/client.js';
 
-import { redis } from '../../../../../lib/redis.js';
-import { withRedisLock } from '../../../../../lib/locks.js';
-import { prisma } from '../../../../../lib/prisma.js';
-import { getEffectiveEconomyAccountPreview, roundCurrency } from '../../../../../lib/economy.js';
-import { createCasinoBotId, getFriendlyBotName } from '../../bots/core/names.js';
-import { createCasinoBotProfile } from '../../bots/core/profiles.js';
+import { redis } from '@/lib/redis.js';
+import { withRedisLock } from '@/lib/locks.js';
+import { prisma } from '@/lib/prisma.js';
+import { getEffectiveEconomyAccountPreview, roundCurrency } from '@/lib/economy.js';
+import { createCasinoBotId, getFriendlyBotName } from '@/features/casino/multiplayer/bots/core/names.js';
+import { createCasinoBotProfile } from '@/features/casino/multiplayer/bots/core/profiles.js';
 import type {
   BlackjackRound,
   CasinoBotProfile,
@@ -21,8 +21,8 @@ import type {
   MultiplayerBlackjackState,
   MultiplayerHoldemState,
   PlayingCard,
-} from '../../../core/types.js';
-import { getBlackjackTotal } from '../../../core/cards.js';
+} from '@/features/casino/core/types.js';
+import { getBlackjackTotal } from '@/features/casino/core/cards.js';
 
 export type CreateTableInput = {
   guildId: string;
