@@ -24,6 +24,8 @@
     "backfill:market-forum-posts:dist": "node dist/src/app/backfill-market-forum-posts.js",
     "backfill:starboard-reactions": "tsx src/app/backfill-starboard-reactions.ts",
     "backfill:starboard-reactions:dist": "node dist/src/app/backfill-starboard-reactions.js",
+    "backfill:poll-analytics": "tsx src/app/backfill-poll-analytics.ts",
+    "backfill:poll-analytics:dist": "node dist/src/app/backfill-poll-analytics.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",

@@ -41,3 +41,6 @@ export const pollCloseModalCustomId = (pollId: string): string => `poll:close-mo
 export const pollManageModalCustomId = (action: PollManageAction, pollId: string): string => `poll:manage-modal:${action}:${pollId}`;
 export const pollBuilderButtonCustomId = (action: PollBuilderAction): string => `poll-builder:${action}`;
 export const pollBuilderModalCustomId = (field: PollBuilderModalField): string => `poll-builder:modal:${field}`;
+export const pollRationaleUpvoteCustomId = (rationaleId: string): string => `poll:rationale-upvote:${rationaleId}`;
+export const pollRationaleOpenCustomId = (pollId: string): string => `poll:rationale-open:${pollId}`;
+export const pollRationaleModalCustomId = (pollId: string): string => `poll:rationale-modal:${pollId}`;

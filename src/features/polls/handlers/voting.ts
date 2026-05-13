@@ -15,6 +15,7 @@ import { deletePollRankDraft, getPollRankDraft, savePollRankDraft } from '@/feat
 import { buildFeedbackEmbed } from '@/lib/feedback-embeds.js';
 import { buildRankedChoiceEditor } from '@/features/polls/ui/ranked-editor.js';
 import { pollResponseModalCustomId } from '@/features/polls/ui/custom-ids.js';
+import { buildRationalePromptRow } from '@/features/polls/handlers/insights.js';
 import { assertUserCanVoteInPoll } from '@/features/polls/services/governance.js';
 import { refreshPollMessage } from '@/features/polls/services/lifecycle.js';
 import { getPollById } from '@/features/polls/services/repository.js';
@@ -59,6 +60,7 @@ export const handlePollVoteSelect = async (
 
   await interaction.editReply({
     embeds: [buildFeedbackEmbed('Vote Recorded', 'Your vote has been updated.')],
+    components: [buildRationalePromptRow(pollId)],
   });
 };
 
@@ -95,6 +97,7 @@ export const handlePollChoiceButton = async (
         nextOptionIds.length === 0 ? 'Your vote has been removed.' : 'Your vote has been updated.',
       ),
     ],
+    components: nextOptionIds.length === 0 ? [] : [buildRationalePromptRow(pollId)],
   });
 };
 
@@ -194,6 +197,7 @@ export const handlePollResponseModal = async (
         responseText ? 'Your response has been updated.' : 'Your response has been removed.',
       ),
     ],
+    components: responseText ? [buildRationalePromptRow(pollId)] : [],
   });
 };
 
@@ -346,6 +350,6 @@ export const handlePollRankSubmitButton = async (
   await refreshPollMessage(client, pollId);
   await interaction.update({
     embeds: [buildFeedbackEmbed('Ranked Ballot Recorded', 'Your ranked ballot has been updated.')],
-    components: [],
+    components: [buildRationalePromptRow(pollId)],
   });
 };

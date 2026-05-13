@@ -24,6 +24,13 @@ import {
   handlePollAnalyticsCommand,
 } from '@/features/polls/handlers/analytics.js';
 import {
+  handlePollInsightsCommand,
+  handlePollRationaleCommand,
+  handlePollRationaleModal,
+  handlePollRationaleOpenButton,
+  handlePollRationaleUpvoteButton,
+} from '@/features/polls/handlers/insights.js';
+import {
   handlePollBuilderButton,
   handlePollBuilderCommand,
   handlePollBuilderModal,
@@ -133,6 +140,12 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'poll-analytics':
             await handlePollAnalyticsCommand(client, interaction);
+            return;
+          case 'poll-insights':
+            await handlePollInsightsCommand(interaction);
+            return;
+          case 'poll-rationale':
+            await handlePollRationaleCommand(interaction);
             return;
           case 'starboard':
             await handleStarboardCommand(interaction);
@@ -272,6 +285,16 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
+        if (interaction.customId.startsWith('poll:rationale-upvote:')) {
+          await handlePollRationaleUpvoteButton(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:rationale-open:')) {
+          await handlePollRationaleOpenButton(interaction);
+          return;
+        }
+
         if (interaction.customId.startsWith('search:page:')) {
           await handleSearchPaginationButton(client, interaction);
           return;
@@ -334,6 +357,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('poll:response-modal:')) {
           await handlePollResponseModal(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:rationale-modal:')) {
+          await handlePollRationaleModal(interaction);
           return;
         }
 
