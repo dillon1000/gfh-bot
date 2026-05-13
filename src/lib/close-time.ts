@@ -96,7 +96,7 @@ const parseWithChrono = (
 		defaultTimeZone: string;
 		now?: Date;
 	},
-): Date | null => {
+): ReturnType<typeof casual.parse>[number] | null => {
 	const results = casual.parse(
 		value,
 		{
@@ -119,8 +119,14 @@ const parseWithChrono = (
 	}
 
 	const date = parsed.start.date();
-	return Number.isNaN(date.getTime()) ? null : date;
+	return Number.isNaN(date.getTime()) ? null : parsed;
 };
+
+const hasRelativeTag = (
+	parsed: NonNullable<ReturnType<typeof parseWithChrono>>,
+): boolean => [...parsed.start["_tags"]].some((tag) =>
+	tag.startsWith("result/relativeDate"),
+);
 
 export const parseAbsoluteCloseAt = (
 	value: string,
@@ -131,15 +137,14 @@ export const parseAbsoluteCloseAt = (
 	},
 ): Date => {
 	const normalized = normalizeWhitespace(value);
-	const chronoDate = parseWithChrono(normalized, options);
-	if (chronoDate) {
-		return chronoDate;
+	const { body, timezone } = splitExplicitTimezone(normalized);
+	const chronoResult = parseWithChrono(timezone ? body : normalized, options);
+	if (!chronoResult) {
+		throw new Error(`${options.errorPrefix} ${getAbsoluteCloseHelp()}`);
 	}
 
-	const { body, timezone } = splitExplicitTimezone(normalized);
-	const bodyDate = parseWithChrono(body, options);
-	if (!bodyDate) {
-		throw new Error(`${options.errorPrefix} ${getAbsoluteCloseHelp()}`);
+	if (!timezone && hasRelativeTag(chronoResult)) {
+		return chronoResult.start.date();
 	}
 
 	const zone = timezone
@@ -149,9 +154,20 @@ export const parseAbsoluteCloseAt = (
 		throw new Error(`${options.errorPrefix} ${getAbsoluteCloseHelp()}`);
 	}
 
-	const parsedDateTime = DateTime.fromJSDate(bodyDate, {
-		zone: options.defaultTimeZone,
-	});
+	const parsedDateTime = DateTime.fromObject(
+		{
+			year: chronoResult.start.get("year"),
+			month: chronoResult.start.get("month"),
+			day: chronoResult.start.get("day"),
+			hour: chronoResult.start.get("hour"),
+			minute: chronoResult.start.get("minute"),
+			second: chronoResult.start.get("second"),
+			millisecond: chronoResult.start.get("millisecond"),
+		},
+		{
+			zone: options.defaultTimeZone,
+		},
+	);
 	const dateTime = DateTime.fromObject(
 		{
 			year: parsedDateTime.year,
