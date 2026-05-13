@@ -1,5 +1,3 @@
-Loaded Prisma config from prisma.config.ts.
-
 -- CreateEnum
 CREATE TYPE "PollVoterArchetype" AS ENUM ('trendsetter', 'bellwether', 'contrarian', 'swing', 'loyalist', 'abstainer', 'newcomer');
 
