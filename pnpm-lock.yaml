@@ -29,6 +29,9 @@ importers:
       bullmq:
         specifier: ^5.56.1
         version: 5.71.0
+      chrono-node:
+        specifier: ^2.9.1
+        version: 2.9.1
       d3:
         specifier: ^7.9.0
         version: 7.9.0
@@ -41,6 +44,9 @@ importers:
       ioredis:
         specifier: ^5.8.1
         version: 5.10.1
+      luxon:
+        specifier: ^3.7.2
+        version: 3.7.2
       mathjax-full:
         specifier: ^3.2.2
         version: 3.2.2
@@ -63,6 +69,9 @@ importers:
       '@types/d3':
         specifier: ^7.4.3
         version: 7.4.3
+      '@types/luxon':
+        specifier: ^3.7.1
+        version: 3.7.1
       '@types/node':
         specifier: ^24.3.0
         version: 24.12.0
@@ -1235,6 +1244,9 @@ packages:
   '@types/geojson@7946.0.16':
     resolution: {integrity: sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg==}
 
+  '@types/luxon@3.7.1':
+    resolution: {integrity: sha512-H3iskjFIAn5SlJU7OuxUmTEpebK6TKB8rxZShDslBMZJ5u9S//KM1sbdAisiSrqwLQncVjnpi2OK2J51h+4lsg==}
+
   '@types/node@24.12.0':
     resolution: {integrity: sha512-GYDxsZi3ChgmckRT9HPU0WEhKLP08ev/Yfcq2AstjrDASOYCSXeyjDsHg4v5t4jOj7cyDX3vmprafKlWIG9MXQ==}
 
@@ -1315,6 +1327,10 @@ packages:
   chokidar@4.0.3:
     resolution: {integrity: sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA==}
     engines: {node: '>= 14.16.0'}
+
+  chrono-node@2.9.1:
+    resolution: {integrity: sha512-nqP8Zp11efCYQIESXPxeDM8ikzN5BDb3Zzou+a66fZq+X2hzKFdsNLQE2/uBAh//BZEMbaMo1eTnagK7hOenAg==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   citty@0.1.6:
     resolution: {integrity: sha512-tskPPKEs8D2KPafUypv2gxwJP8h/OaJmC82QQGGDQcHvXX43xF2VDACcJVmZ0EuSxkpO9Kc4MlrA3q0+FG58AQ==}
@@ -3366,6 +3382,8 @@ snapshots:
 
   '@types/geojson@7946.0.16': {}
 
+  '@types/luxon@3.7.1': {}
+
   '@types/node@24.12.0':
     dependencies:
       undici-types: 7.16.0
@@ -3468,6 +3486,8 @@ snapshots:
   chokidar@4.0.3:
     dependencies:
       readdirp: 4.1.2
+
+  chrono-node@2.9.1: {}
 
   citty@0.1.6:
     dependencies:

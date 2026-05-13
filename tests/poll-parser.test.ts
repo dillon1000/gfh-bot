@@ -9,6 +9,7 @@ import {
   parsePassChoiceIndex,
   parsePassThreshold,
   parsePollFormInput,
+  parsePollDurationMs,
   parseQuorumPercent,
   parseReminderOffsets,
   parseReminderRoleTarget,
@@ -90,6 +91,56 @@ describe('parsePollFormInput', () => {
         allowOtherOption: true,
       }),
     ).toThrow(/reserved/i);
+  });
+
+  it('parses an absolute poll close time in the configured default timezone', () => {
+    expect(
+      parsePollFormInput({
+        question: 'Should we ship?',
+        mode: 'single',
+        choices: 'Yes,No',
+        durationText: 'April 6 2026 10:00pm',
+        now: new Date('2026-03-30T12:00:00.000Z'),
+      }).durationMs,
+    ).toBe(7 * 24 * 60 * 60 * 1000 + 15 * 60 * 60 * 1000);
+  });
+});
+
+describe('parsePollDurationMs', () => {
+  it('parses natural relative phrases for poll close times', () => {
+    expect(
+      parsePollDurationMs(
+        'in 5 hours',
+        new Date('2026-03-30T12:00:00.000Z'),
+      ),
+    ).toBe(5 * 60 * 60 * 1000);
+  });
+
+  it('parses an explicit timezone for poll close times', () => {
+    expect(
+      parsePollDurationMs(
+        'April 6 2026 10:00pm CDT',
+        new Date('2026-03-30T12:00:00.000Z'),
+      ),
+    ).toBe(7 * 24 * 60 * 60 * 1000 + 15 * 60 * 60 * 1000);
+  });
+
+  it('parses slash-style datetimes with timezone abbreviations for poll close times', () => {
+    expect(
+      parsePollDurationMs(
+        '04/03/2026 4:30PM CDT',
+        new Date('2026-03-30T12:00:00.000Z'),
+      ),
+    ).toBe(4 * 24 * 60 * 60 * 1000 + 9.5 * 60 * 60 * 1000);
+  });
+
+  it('rejects poll close times beyond the 32 day limit', () => {
+    expect(() =>
+      parsePollDurationMs(
+        'May 10 2026 10:00pm CDT',
+        new Date('2026-03-30T12:00:00.000Z'),
+      ),
+    ).toThrow('Poll close time cannot exceed 32 days in the future.');
   });
 });
 

@@ -38,6 +38,33 @@ describe('market parser', () => {
     expect(closeAt.toISOString()).toBe('2026-04-07T03:00:00.000Z');
   });
 
+  it('parses an absolute datetime with an explicit IANA timezone', () => {
+    const closeAt = parseMarketCloseAt(
+      'April 6 2026 10:00pm America/Chicago',
+      new Date('2026-03-30T12:00:00.000Z'),
+    );
+
+    expect(closeAt.toISOString()).toBe('2026-04-07T03:00:00.000Z');
+  });
+
+  it('parses natural relative phrases', () => {
+    const closeAt = parseMarketCloseAt(
+      'in 5 hours',
+      new Date('2026-03-30T12:00:00.000Z'),
+    );
+
+    expect(closeAt.toISOString()).toBe('2026-03-30T17:00:00.000Z');
+  });
+
+  it('parses slash-style datetimes with timezone abbreviations', () => {
+    const closeAt = parseMarketCloseAt(
+      '04/03/2026 4:30PM CDT',
+      new Date('2026-03-30T12:00:00.000Z'),
+    );
+
+    expect(closeAt.toISOString()).toBe('2026-04-03T21:30:00.000Z');
+  });
+
   it('rejects absolute datetimes that are too soon', () => {
     expect(() => parseMarketCloseAt(
       'March 30 2026 7:04am CDT',
