@@ -102,6 +102,16 @@ enum CasinoSeatStatus {
   busted
 }
 
+enum PollVoterArchetype {
+  trendsetter
+  bellwether
+  contrarian
+  swing
+  loyalist
+  abstainer
+  newcomer
+}
+
 enum CasinoTableActionKind {
   create
   join
@@ -671,6 +681,88 @@ model GuildEventLogEntry {
   @@index([guildId, occurredAt])
   @@index([deliveryStatus, occurredAt])
   @@index([deliveryStatus, occurredAt, id])
+}
+
+model PollRationale {
+  id          String   @id @default(cuid())
+  pollId      String
+  optionId    String?
+  guildId     String
+  userIdHash  String
+  text        String
+  themeKey    String?
+  themeLabel  String?
+  upvotes     Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([pollId, userIdHash])
+  @@index([pollId, themeKey])
+  @@index([guildId, createdAt])
+}
+
+model PollRationaleVote {
+  id          String   @id @default(cuid())
+  rationaleId String
+  voterIdHash String
+  createdAt   DateTime @default(now())
+
+  @@unique([rationaleId, voterIdHash])
+  @@index([rationaleId])
+}
+
+model UserVotingProfile {
+  id                  String             @id @default(cuid())
+  guildId             String
+  userId              String
+  archetype           PollVoterArchetype @default(newcomer)
+  pollsEligible       Int                @default(0)
+  pollsVoted          Int                @default(0)
+  pollsAbstained      Int                @default(0)
+  voteChanges         Int                @default(0)
+  avgVoteFractionTime Float?
+  avgEarlyVoteShare   Float?
+  bellwetherScore     Float              @default(0)
+  agreedWithWinner    Int                @default(0)
+  contestedVotes      Int                @default(0)
+  rationaleCount      Int                @default(0)
+  lastComputedAt      DateTime           @default(now())
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@unique([guildId, userId])
+  @@index([guildId, archetype])
+  @@index([guildId, bellwetherScore])
+}
+
+model PollInfluenceSnapshot {
+  id                 String   @id @default(cuid())
+  pollId             String   @unique
+  guildId            String
+  lockInFraction     Float?
+  totalVoters        Int      @default(0)
+  finalWinningOptionId String?
+  earlyVoters        Json
+  voterTimeline      Json
+  computedAt         DateTime @default(now())
+
+  @@index([guildId, computedAt])
+}
+
+model GuildCoVoteEdge {
+  id            String   @id @default(cuid())
+  guildId       String
+  userIdA       String
+  userIdB       String
+  agreements    Int      @default(0)
+  disagreements Int      @default(0)
+  sharedPolls   Int      @default(0)
+  affinityScore Float    @default(0)
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  @@unique([guildId, userIdA, userIdB])
+  @@index([guildId, affinityScore])
 }
 
 model GuildMessageSnapshot {

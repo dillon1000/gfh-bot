@@ -258,6 +258,113 @@ export const pollAnalyticsCommand = new SlashCommandBuilder()
       .setMaxValue(10),
   );
 
+export const pollRationaleCommand = new SlashCommandBuilder()
+  .setName('poll-rationale')
+  .setDescription('Submit an anonymous one-line reason for your vote on a poll.')
+  .addStringOption((option) =>
+    option
+      .setName('query')
+      .setDescription('Discord message link, message ID, or poll ID')
+      .setRequired(true),
+  )
+  .addStringOption((option) =>
+    option
+      .setName('reason')
+      .setDescription('Your reason for voting the way you did (max 280 chars). Anonymous, not even the poll creator can reveal your identity.')
+      .setRequired(true)
+      .setMaxLength(280),
+  );
+
+export const pollInsightsCommand = new SlashCommandBuilder()
+  .setName('poll-insights')
+  .setDescription('Analytics for polls in this server.')
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('archetype')
+      .setDescription('Show a voting archetype (trendsetter, contrarian, swing, etc.)')
+      .addUserOption((option) =>
+        option
+          .setName('user')
+          .setDescription('User to inspect. Defaults to yourself.')
+          .setRequired(false),
+      ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('bellwethers')
+      .setDescription('Show members whose early votes correlate with the final winner.')
+      .addIntegerOption((option) =>
+        option
+          .setName('days')
+          .setDescription('Look back this many days')
+          .setRequired(false)
+          .setMinValue(7)
+          .setMaxValue(365),
+      ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('polarization')
+      .setDescription('Show how split this server (or a channel) is across polls.')
+      .addChannelOption((option) =>
+        option
+          .setName('channel')
+          .setDescription('Optional channel to limit results to')
+          .addChannelTypes(
+            ChannelType.GuildAnnouncement,
+            ChannelType.GuildText,
+            ChannelType.PublicThread,
+            ChannelType.PrivateThread,
+            ChannelType.AnnouncementThread,
+          )
+          .setRequired(false),
+      )
+      .addIntegerOption((option) =>
+        option
+          .setName('days')
+          .setDescription('Look back this many days')
+          .setRequired(false)
+          .setMinValue(7)
+          .setMaxValue(365),
+      ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('factions')
+      .setDescription('Show groups of members who tend to vote the same way.'),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('counterfactual')
+      .setDescription('Replay a poll with the top share of active voters removed.')
+      .addStringOption((option) =>
+        option
+          .setName('query')
+          .setDescription('Discord message link, message ID, or poll ID')
+          .setRequired(true),
+      )
+      .addIntegerOption((option) =>
+        option
+          .setName('top_percent')
+          .setDescription('Percent of most-active voters to exclude (default 20)')
+          .setRequired(false)
+          .setMinValue(5)
+          .setMaxValue(80),
+      ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('rationales')
+      .setDescription('Show clustered anonymous rationales for a poll.')
+      .addStringOption((option) =>
+        option
+          .setName('query')
+          .setDescription('Discord message link, message ID, or poll ID')
+          .setRequired(true),
+      ),
+  )
+  .setDefaultMemberPermissions(null);
+
 export const pollFromMessageCommand = {
   name: 'Create Poll From Message',
   type: ApplicationCommandType.Message,
