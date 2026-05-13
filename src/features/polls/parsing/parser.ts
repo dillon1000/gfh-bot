@@ -1,3 +1,10 @@
+import { env } from '../../../app/config.js';
+import {
+  assertCloseTimeWindow,
+  durationInputPattern,
+  getAbsoluteCloseHelp,
+  parseAbsoluteCloseAt,
+} from '../../../lib/close-time.js';
 import { parseDurationToMs } from '../../../lib/duration.js';
 import { normalizeEmojiInput } from '../../../lib/emoji.js';
 import type { PollMode } from '../core/types.js';
@@ -340,6 +347,34 @@ export const parseChoiceEmojisCsv = (
   });
 };
 
+export const parsePollDurationMs = (
+  value: string,
+  now = new Date(),
+): number => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new Error(`Poll close time cannot be empty. ${getAbsoluteCloseHelp()}`);
+  }
+
+  if (durationInputPattern.test(trimmed)) {
+    return parseDurationToMs(trimmed);
+  }
+
+  const closeAt = parseAbsoluteCloseAt(trimmed, {
+    defaultTimeZone: env.MARKET_DEFAULT_TIMEZONE,
+    errorPrefix: 'Could not parse poll close time.',
+    now,
+  });
+  assertCloseTimeWindow(closeAt, {
+    now,
+    minDurationMs: 5 * minuteMs,
+    maxDurationMs: 32 * 24 * 60 * minuteMs,
+    tooSoonMessage: 'Poll close time must be at least 5 minutes in the future.',
+    tooLateMessage: 'Poll close time cannot exceed 32 days in the future.',
+  });
+  return closeAt.getTime() - now.getTime();
+};
+
 export const parsePollFormInput = (input: {
   question: string;
   description?: string;
@@ -348,6 +383,7 @@ export const parsePollFormInput = (input: {
   choiceEmojis?: Array<string | null> | string | null;
   durationText: string;
   allowOtherOption?: boolean;
+  now?: Date;
 }): {
   question: string;
   description?: string;
@@ -367,7 +403,7 @@ export const parsePollFormInput = (input: {
     ? []
     : parseChoicesCsv(rawChoices);
   const choiceEmojis = parseChoiceEmojisCsv(input.choiceEmojis, choices.length);
-  const durationMs = parseDurationToMs(input.durationText);
+  const durationMs = parsePollDurationMs(input.durationText, input.now);
   const allowOtherOption = mode !== 'ranked' && mode !== 'freeform' && (input.allowOtherOption ?? false);
 
   assertChoicesCompatibleWithOtherOption(choices, allowOtherOption);

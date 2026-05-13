@@ -99,7 +99,7 @@ export const pollCommand = new SlashCommandBuilder()
   .addStringOption((option) =>
     option
       .setName('time')
-      .setDescription('Duration, for example 30m, 24h, or 1d 12h 15m')
+      .setDescription('Duration or close time, for example 24h or April 6 2026 10:00pm CDT')
       .setRequired(false),
   )
   .addStringOption((option) =>
