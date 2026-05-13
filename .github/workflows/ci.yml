@@ -17,17 +17,17 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10.27.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22.12.0
+          node-version: 24.15.0
           cache: pnpm
 
       - name: Install dependencies
@@ -42,7 +42,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18.3
         env:
           POSTGRES_DB: gfh_bot
           POSTGRES_USER: postgres
@@ -60,17 +60,17 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10.27.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22.12.0
+          node-version: 24.15.0
           cache: pnpm
 
       - name: Install dependencies
@@ -88,17 +88,17 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10.27.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22.12.0
+          node-version: 24.15.0
           cache: pnpm
 
       - name: Install dependencies

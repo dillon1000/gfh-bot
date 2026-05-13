@@ -112,6 +112,35 @@ Postgres and Redis stay on the internal Docker network by default and are not ex
 
 By default the `bot` service runs `ghcr.io/dillon1000/gfh-bot:latest`, published from GitHub Actions on pushes to `main`.
 
+### Upgrading Existing PostgreSQL 16 Hosts
+
+PostgreSQL 18's official Docker image changed `PGDATA` to a versioned path and moved the declared volume root from `/var/lib/postgresql/data` to `/var/lib/postgresql`. That means existing hosts already running `postgres:16-*` should do an explicit major-version upgrade instead of just pulling the new image over the old volume.
+
+Safest path:
+
+```bash
+# 1. Back up the current 16.x database before touching the container.
+docker compose exec postgres pg_dumpall -U postgres > gfh-bot-postgres16-backup.sql
+
+# 2. Stop the stack.
+docker compose down
+
+# 3. Remove the old Postgres data volume after the backup is safely stored.
+docker volume ls --format '{{.Name}}' | grep '_postgres_data$'
+docker volume rm <your_project>_postgres_data
+
+# 4. Start PostgreSQL 18 with a fresh volume.
+docker compose up -d postgres
+
+# 5. Restore the dump into PostgreSQL 18.
+cat gfh-bot-postgres16-backup.sql | docker compose exec -T postgres psql -U postgres
+
+# 6. Bring the bot back once the restore completes.
+docker compose up -d bot
+```
+
+If you need a lower-downtime path for a large database, use PostgreSQL's `pg_upgrade` flow instead. The official image now mounts `/var/lib/postgresql` specifically so major-version upgrades can use the faster linked upgrade layout.
+
 To enable automatic updates when a new registry image is published:
 
 ```bash

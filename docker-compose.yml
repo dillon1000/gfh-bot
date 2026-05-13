@@ -1,13 +1,15 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18.3-alpine
     restart: unless-stopped
+    shm_size: 256mb
     environment:
       POSTGRES_DB: gfh_bot
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/18/docker
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d gfh_bot"]
       interval: 5s
@@ -15,7 +17,7 @@ services:
       retries: 10
 
   redis:
-    image: redis:7-alpine
+    image: redis:8.6.3-alpine
     restart: unless-stopped
     volumes:
       - redis_data:/data
@@ -29,6 +31,7 @@ services:
     image: ${BOT_IMAGE:-ghcr.io/dillon1000/gfh-bot:latest}
     pull_policy: always
     restart: unless-stopped
+    init: true
     labels:
       com.centurylinklabs.watchtower.enable: "true"
     environment:
