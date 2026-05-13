@@ -10,22 +10,22 @@ import {
   type ModalSubmitInteraction,
 } from 'discord.js';
 
-import { redis } from '../../../lib/redis.js';
-import { deletePollRankDraft, getPollRankDraft, savePollRankDraft } from '../state/rank-drafts.js';
-import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
-import { buildRankedChoiceEditor } from '../ui/ranked-editor.js';
-import { pollResponseModalCustomId } from '../ui/custom-ids.js';
-import { assertUserCanVoteInPoll } from '../services/governance.js';
-import { refreshPollMessage } from '../services/lifecycle.js';
-import { getPollById } from '../services/repository.js';
+import { redis } from '@/lib/redis.js';
+import { deletePollRankDraft, getPollRankDraft, savePollRankDraft } from '@/features/polls/state/rank-drafts.js';
+import { buildFeedbackEmbed } from '@/lib/feedback-embeds.js';
+import { buildRankedChoiceEditor } from '@/features/polls/ui/ranked-editor.js';
+import { pollResponseModalCustomId } from '@/features/polls/ui/custom-ids.js';
+import { assertUserCanVoteInPoll } from '@/features/polls/services/governance.js';
+import { refreshPollMessage } from '@/features/polls/services/lifecycle.js';
+import { getPollById } from '@/features/polls/services/repository.js';
 import {
   clearPollVotes,
   getPollRankingForUser,
   getPollResponseForUser,
   setPollTextResponse,
   setPollVotes,
-} from '../services/voting.js';
-import { resolveSingleSelectVoteToggle } from '../core/vote-toggle.js';
+} from '@/features/polls/services/voting.js';
+import { resolveSingleSelectVoteToggle } from '@/features/polls/core/vote-toggle.js';
 
 export const handlePollVoteSelect = async (
   client: Client,

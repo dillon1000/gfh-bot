@@ -1,18 +1,18 @@
 import type { Client } from 'discord.js';
 
-import { performCasinoBotTurn } from '../../multiplayer/bots/services/actions.js';
+import { performCasinoBotTurn } from '@/features/casino/multiplayer/bots/services/actions.js';
 import {
   closeCasinoTableForNoHumanTimeout,
-} from '../../multiplayer/services/tables/admin.js';
+} from '@/features/casino/multiplayer/services/tables/admin.js';
 import {
   getCasinoTable,
-} from '../../multiplayer/services/tables/queries.js';
-import { advanceCasinoTableTimeout } from '../../multiplayer/services/tables/actions.js';
+} from '@/features/casino/multiplayer/services/tables/queries.js';
+import { advanceCasinoTableTimeout } from '@/features/casino/multiplayer/services/tables/actions.js';
 import {
   finalizeClosedCasinoTableThread,
   syncCasinoTableMessage,
   syncCasinoTableRuntime,
-} from './table-runtime.js';
+} from '@/features/casino/handlers/interactions/table-runtime.js';
 
 export const handleCasinoTableTimeout = async (
   client: Client,

@@ -1,14 +1,14 @@
-import { type Client } from "discord.js";
+import type { Client } from "discord.js";
 
-import { logger } from "../../../../app/logger.js";
-import { withRedisLock } from "../../../../lib/locks.js";
-import { prisma } from "../../../../lib/prisma.js";
-import { redis } from "../../../../lib/redis.js";
-import { hydratePollMessage } from "../../../polls/services/lifecycle.js";
+import { logger } from "@/app/logger.js";
+import { withRedisLock } from "@/lib/locks.js";
+import { prisma } from "@/lib/prisma.js";
+import { redis } from "@/lib/redis.js";
+import { hydratePollMessage } from "@/features/polls/services/lifecycle.js";
 import {
 	createPollRecord,
 	deletePollRecord,
-} from "../../../polls/services/repository.js";
+} from "@/features/polls/services/repository.js";
 import {
 	assertConfiguredMemberRole,
 	buildRemovalPollDescription,
@@ -20,7 +20,7 @@ import {
 	removalVoteRequestInclude,
 	resolvePollQuestion,
 	scheduleRemovalVoteStart,
-} from "./shared.js";
+} from "@/features/removals/services/removals/shared.js";
 
 export const startRemovalVote = async (
 	client: Client,

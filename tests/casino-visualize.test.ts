@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { resolveCardTableAssetPath } from '../src/features/casino/multiplayer/ui/visualize.js';
+import { resolveCardTableAssetPath } from '@/features/casino/multiplayer/ui/visualize.js';
 
 describe('casino table visualizer assets', () => {
   it('resolves card table assets from the workspace for dist builds', () => {

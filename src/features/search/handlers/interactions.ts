@@ -5,17 +5,17 @@ import {
   type Client,
 } from 'discord.js';
 
-import { logger } from '../../../app/logger.js';
-import { env } from '../../../app/config.js';
-import { assertWithinRateLimit } from '../../../lib/rate-limit.js';
-import { redis } from '../../../lib/redis.js';
-import { recordAuditLogEvent } from '../../audit-log/services/events/delivery.js';
-import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
+import { logger } from '@/app/logger.js';
+import { env } from '@/app/config.js';
+import { assertWithinRateLimit } from '@/lib/rate-limit.js';
+import { redis } from '@/lib/redis.js';
+import { recordAuditLogEvent } from '@/features/audit-log/services/events/delivery.js';
+import { buildFeedbackEmbed } from '@/lib/feedback-embeds.js';
 import {
   describeSearchConfig,
   getSearchConfig,
   setSearchIgnoredChannelIds,
-} from '../services/config.js';
+} from '@/features/search/services/config.js';
 import {
   parseAttachmentExtensions,
   parseAttachmentFilenames,
@@ -28,16 +28,16 @@ import {
   parseSearchEmbedTypes,
   parseSearchHasTypes,
   parseUserIds,
-} from '../parsing/parser.js';
-import { searchMaxOffset } from '../core/constants.js';
-import { buildSearchResultsResponse, parseSearchPaginationCustomId } from '../ui/render.js';
-import { createSearchSessionId, getSearchSession, saveSearchSession } from '../state/sessions.js';
-import { resolveSearchChannelIds, searchGuildMessages } from '../services/search.js';
+} from '@/features/search/parsing/parser.js';
+import { searchMaxOffset } from '@/features/search/core/constants.js';
+import { buildSearchResultsResponse, parseSearchPaginationCustomId } from '@/features/search/ui/render.js';
+import { createSearchSessionId, getSearchSession, saveSearchSession } from '@/features/search/state/sessions.js';
+import { resolveSearchChannelIds, searchGuildMessages } from '@/features/search/services/search.js';
 import type {
   GuildMessageSearchFilters,
   SearchSortBy,
   SearchSortOrder,
-} from '../core/types.js';
+} from '@/features/search/core/types.js';
 
 const isSearchConfigAdmin = (userId: string): boolean =>
   env.DISCORD_ADMIN_USER_IDS.includes(userId);

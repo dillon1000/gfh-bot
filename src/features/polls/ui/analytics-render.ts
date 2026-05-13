@@ -1,7 +1,7 @@
 import { EmbedBuilder } from 'discord.js';
 
-import { clampFieldValue } from './render-helpers.js';
-import type { PollAnalyticsSnapshot } from '../core/types.js';
+import { clampFieldValue } from '@/features/polls/ui/render-helpers.js';
+import type { PollAnalyticsSnapshot } from '@/features/polls/core/types.js';
 
 const truncateQuestion = (value: string, maxLength = 48): string =>
   value.length <= maxLength ? value : `${value.slice(0, Math.max(0, maxLength - 3))}...`;

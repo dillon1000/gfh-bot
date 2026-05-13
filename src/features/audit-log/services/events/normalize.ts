@@ -1,6 +1,6 @@
-import { Prisma } from '@prisma/client';
+import type { Prisma } from '@/generated/prisma/client.js';
 
-import { type AuditLogConfig } from '../config.js';
+import type { AuditLogConfig } from '@/features/audit-log/services/config.js';
 
 export type JsonPrimitive = null | boolean | number | string;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };

@@ -1,6 +1,6 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
 
-import { searchMaxOffset } from '../core/constants.js';
+import { searchMaxOffset } from '@/features/search/core/constants.js';
 
 export const searchCommand = new SlashCommandBuilder()
   .setName('search')

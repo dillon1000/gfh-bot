@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { MarketWithRelations } from "../src/features/markets/core/types.js";
+import type { MarketWithRelations } from "@/features/markets/core/types.js";
 
 vi.mock("../src/features/markets/core/shared.js", () => ({
 	getMarketStatus: vi.fn((market: MarketWithRelations) =>
@@ -35,9 +35,9 @@ vi.mock("../src/features/markets/core/shared.js", () => ({
 	})),
 }));
 
-import { buildMarketMessage } from "../src/features/markets/ui/render/market.js";
-import { buildPortfolioMessage } from "../src/features/markets/ui/render/portfolio.js";
-import { buildMarketOutcomeTradePrompt } from "../src/features/markets/ui/render/trades.js";
+import { buildMarketMessage } from "@/features/markets/ui/render/market.js";
+import { buildPortfolioMessage } from "@/features/markets/ui/render/portfolio.js";
+import { buildMarketOutcomeTradePrompt } from "@/features/markets/ui/render/trades.js";
 
 const market = {
 	id: "market_1",

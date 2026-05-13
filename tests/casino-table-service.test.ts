@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { CasinoTableSummary } from '../src/features/casino/core/types.js';
+import type { CasinoTableSummary } from '@/features/casino/core/types.js';
 
 const {
   dbState,
@@ -156,7 +156,7 @@ vi.mock('../src/lib/locks.js', () => ({
 }));
 
 vi.mock('../src/lib/economy.js', async () => {
-  const actual = await vi.importActual<typeof import('../src/lib/economy.js')>('../src/lib/economy.js');
+  const actual = await vi.importActual<typeof import('@/lib/economy.js')>('../src/lib/economy.js');
   return {
     ...actual,
     ensureEconomyAccountTx,
@@ -164,9 +164,9 @@ vi.mock('../src/lib/economy.js', async () => {
   };
 });
 
-let buildCasinoTableComponents: typeof import('../src/features/casino/multiplayer/ui/render.js').buildCasinoTableComponents;
-let performCasinoTableAction: typeof import('../src/features/casino/multiplayer/services/tables/actions.js').performCasinoTableAction;
-let startCasinoTable: typeof import('../src/features/casino/multiplayer/services/tables/start.js').startCasinoTable;
+let buildCasinoTableComponents: typeof import('@/features/casino/multiplayer/ui/render.js').buildCasinoTableComponents;
+let performCasinoTableAction: typeof import('@/features/casino/multiplayer/services/tables/actions.js').performCasinoTableAction;
+let startCasinoTable: typeof import('@/features/casino/multiplayer/services/tables/start.js').startCasinoTable;
 
 const baseDate = new Date('2099-03-29T00:00:00.000Z');
 
@@ -265,13 +265,13 @@ describe('casino table service', () => {
   beforeAll(async () => {
     ({
       buildCasinoTableComponents,
-    } = await import('../src/features/casino/multiplayer/ui/render.js'));
+    } = await import('@/features/casino/multiplayer/ui/render.js'));
     ({
       performCasinoTableAction,
-    } = await import('../src/features/casino/multiplayer/services/tables/actions.js'));
+    } = await import('@/features/casino/multiplayer/services/tables/actions.js'));
     ({
       startCasinoTable,
-    } = await import('../src/features/casino/multiplayer/services/tables/start.js'));
+    } = await import('@/features/casino/multiplayer/services/tables/start.js'));
   });
 
   beforeEach(() => {

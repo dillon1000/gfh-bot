@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { Redis } from "ioredis";
 
-import type { MarketInteractionSession } from "../core/types.js";
+import type { MarketInteractionSession } from "@/features/markets/core/types.js";
 
 const ttlSeconds = 60 * 10;
 const getSessionKey = (sessionId: string): string =>

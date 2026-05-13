@@ -87,7 +87,7 @@ vi.mock('../src/features/polls/ui/visualize.js', () => ({
   buildPollResultDiagram: vi.fn(),
 }));
 
-import { recoverMissedPollReminders, sendPollReminder } from '../src/features/polls/services/lifecycle.js';
+import { recoverMissedPollReminders, sendPollReminder } from '@/features/polls/services/lifecycle.js';
 
 describe('poll reminder lifecycle', () => {
   beforeEach(() => {

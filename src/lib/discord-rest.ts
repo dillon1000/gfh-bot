@@ -1,4 +1,4 @@
-import { env } from '../app/config.js';
+import { env } from '@/app/config.js';
 
 const discordApiBaseUrl = 'https://discord.com/api/v10';
 

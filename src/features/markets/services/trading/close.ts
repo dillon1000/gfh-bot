@@ -1,10 +1,10 @@
-import { prisma } from '../../../../lib/prisma.js';
+import { prisma } from '@/lib/prisma.js';
 import {
   getMarketForUpdate,
   marketInclude,
   resolutionGraceMs,
-} from '../../core/shared.js';
-import type { MarketWithRelations } from '../../core/types.js';
+} from '@/features/markets/core/shared.js';
+import type { MarketWithRelations } from '@/features/markets/core/types.js';
 
 export const closeMarketTrading = async (
   marketId: string,

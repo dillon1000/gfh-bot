@@ -1,14 +1,14 @@
-import { Prisma, type GuildEventLogEntry } from '@prisma/client';
+import type { Prisma, GuildEventLogEntry } from '@/generated/prisma/client.js';
 import { AttachmentBuilder, EmbedBuilder, type Client } from 'discord.js';
 
-import { prisma } from '../../../../lib/prisma.js';
-import { logger } from '../../../../app/logger.js';
-import { type AuditLogConfig, getAuditLogConfig } from '../config.js';
+import { prisma } from '@/lib/prisma.js';
+import { logger } from '@/app/logger.js';
+import { type AuditLogConfig, getAuditLogConfig } from '@/features/audit-log/services/config.js';
 import {
   isSendableTextChannel,
   resolveBucketChannelId,
   toPrismaJson,
-} from './normalize.js';
+} from '@/features/audit-log/services/events/normalize.js';
 
 export type AuditLogBucketName = 'primary' | 'noisy';
 export type AuditLogSourceName = 'gateway' | 'audit' | 'bot';

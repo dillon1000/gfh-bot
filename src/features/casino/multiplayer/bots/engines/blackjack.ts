@@ -1,5 +1,5 @@
-import { getBlackjackTotal, isSoftBlackjackTotal } from '../../../core/cards.js';
-import type { CasinoBotProfile, MultiplayerBlackjackPlayerState, PlayingCard } from '../../../core/types.js';
+import { getBlackjackTotal, isSoftBlackjackTotal } from '@/features/casino/core/cards.js';
+import type { CasinoBotProfile, MultiplayerBlackjackPlayerState, PlayingCard } from '@/features/casino/core/types.js';
 
 type BlackjackBotDecision = 'blackjack_hit' | 'blackjack_stand' | 'blackjack_double';
 

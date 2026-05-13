@@ -88,11 +88,11 @@ vi.mock('../src/features/polls/services/repository.js', () => ({
 import {
   createRemovalVoteRequest,
   secondRemovalVoteRequest,
-} from '../src/features/removals/services/removals/requests.js';
+} from '@/features/removals/services/removals/requests.js';
 import {
   expireStaleRemovalVoteRequests,
   syncWaitingRemovalVoteStartJobs,
-} from '../src/features/removals/services/removals/schedule.js';
+} from '@/features/removals/services/removals/schedule.js';
 
 describe('remove service', () => {
   beforeEach(() => {

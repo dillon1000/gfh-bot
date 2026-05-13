@@ -8,7 +8,7 @@ import {
   type TextChannel,
 } from 'discord.js';
 
-import { removeConfigurePermissions } from '../commands/definition.js';
+import { removeConfigurePermissions } from '@/features/removals/commands/definition.js';
 import {
   createRemovalVoteRequest,
   getLatestRemovalVoteRequest,
@@ -19,8 +19,8 @@ import {
   secondRemovalVoteRequest,
   setRemovalMemberRole,
   setRemovalNotificationChannel,
-} from '../services/removals/requests.js';
-import { recordAuditLogEvent } from '../../audit-log/services/events/delivery.js';
+} from '@/features/removals/services/removals/requests.js';
+import { recordAuditLogEvent } from '@/features/audit-log/services/events/delivery.js';
 
 const buildEmbed = (
   title: string,

@@ -1,5 +1,5 @@
-import { cardValue, drawCard } from './deck.js';
-import type { PlayingCard, PokerHandCategory } from './types.js';
+import { cardValue, drawCard } from '@/features/casino/core/deck.js';
+import type { PlayingCard, PokerHandCategory } from '@/features/casino/core/types.js';
 
 export type HandScore = {
   category: PokerHandCategory;

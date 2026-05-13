@@ -1,9 +1,9 @@
-import { withRedisLock } from '../../../lib/locks.js';
-import { prisma } from '../../../lib/prisma.js';
-import { redis } from '../../../lib/redis.js';
-import { sanitizeFreeformResponse } from '../parsing/parser.js';
-import { pollInclude } from './repository.js';
-import type { PollMode, PollWithRelations } from '../core/types.js';
+import { withRedisLock } from '@/lib/locks.js';
+import { prisma } from '@/lib/prisma.js';
+import { redis } from '@/lib/redis.js';
+import { sanitizeFreeformResponse } from '@/features/polls/parsing/parser.js';
+import { pollInclude } from '@/features/polls/services/repository.js';
+import type { PollMode, PollWithRelations } from '@/features/polls/core/types.js';
 
 const getEffectivePollMode = (poll: { mode?: PollMode | null; singleSelect: boolean }): PollMode =>
   poll.mode ?? (poll.singleSelect ? 'single' : 'multi');

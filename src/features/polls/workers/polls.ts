@@ -1,10 +1,10 @@
 import { Worker } from 'bullmq';
 import type { Client } from 'discord.js';
 
-import { logger } from '../../../app/logger.js';
-import { pollCloseQueueName, pollReminderQueueName } from '../../../lib/queue.js';
-import { getBullConnectionOptions } from '../../../lib/redis.js';
-import { closePollAndRefresh, sendPollReminder } from '../services/lifecycle.js';
+import { logger } from '@/app/logger.js';
+import { pollCloseQueueName, pollReminderQueueName } from '@/lib/queue.js';
+import { getBullConnectionOptions } from '@/lib/redis.js';
+import { closePollAndRefresh, sendPollReminder } from '@/features/polls/services/lifecycle.js';
 
 type PollReminderJobData = {
   reminderId?: string;

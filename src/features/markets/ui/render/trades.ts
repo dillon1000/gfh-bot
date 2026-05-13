@@ -30,17 +30,17 @@ import {
 	marketTradeQuoteCancelCustomId,
 	marketTradeQuoteConfirmCustomId,
 	marketTradeSelectCustomId,
-} from "../custom-ids.js";
-import { formatProbabilityPercent } from "../../core/math.js";
-import { getTradeLockReason } from "../../core/shared.js";
+} from "@/features/markets/ui/custom-ids.js";
+import { formatProbabilityPercent } from "@/features/markets/core/math.js";
+import { getTradeLockReason } from "@/features/markets/core/shared.js";
 import type {
 	MarketInteractionSession,
 	MarketLossProtectionQuote,
 	MarketTradeQuote,
 	MarketTradeQuoteAction,
 	MarketWithRelations,
-} from "../../core/types.js";
-import { buildMarketStatusEmbed } from "./market.js";
+} from "@/features/markets/core/types.js";
+import { buildMarketStatusEmbed } from "@/features/markets/ui/render/market.js";
 import {
 	formatMoney,
 	formatPercent,
@@ -48,7 +48,7 @@ import {
 	getTradeCopy,
 	resolveMarketWinnerCount,
 	truncateLabel,
-} from "./shared.js";
+} from "@/features/markets/ui/render/shared.js";
 
 const getContractModeLabel = (input: {
 	contractMode?: MarketWithRelations["contractMode"];

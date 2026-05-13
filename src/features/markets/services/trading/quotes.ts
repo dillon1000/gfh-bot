@@ -1,4 +1,4 @@
-import { getEffectiveAccountPreview } from "../account.js";
+import { getEffectiveAccountPreview } from "@/features/markets/services/account.js";
 import {
 	assertMarketOpen,
 	assertOutcomeTradable,
@@ -10,7 +10,7 @@ import {
 	getTradeLockReason,
 	getTradableOutcomeIndexes,
 	roundCurrency,
-} from "../../core/shared.js";
+} from "@/features/markets/core/shared.js";
 import {
 	computeBinaryBuyCost,
 	computeBinaryLmsrProbability,
@@ -28,16 +28,16 @@ import {
 	solveTopKShortSharesForAmount,
 	solveTopKSellSharesForAmount,
 	solveShortSharesForAmount,
-} from "../../core/math.js";
-import { getMarketById } from "../records.js";
+} from "@/features/markets/core/math.js";
+import { getMarketById } from "@/features/markets/services/records.js";
 import type {
 	MarketTradeQuote,
 	MarketTradeQuoteAction,
-} from "../../core/types.js";
+} from "@/features/markets/core/types.js";
 import {
 	assertPositiveTradeAmount,
 	type CalculateMarketTradeQuoteInput,
-} from "./shared.js";
+} from "@/features/markets/services/trading/shared.js";
 
 export const calculateMarketTradeQuote = async (
 	input: CalculateMarketTradeQuoteInput,
@@ -544,7 +544,7 @@ const calculateMarketTradeQuoteUnsafe = async (input: {
 				Math.round(resolveMarketWinnerCount(market) - settledWinnerCount),
 			),
 		);
-		let nextPricingShares = [...pricingShares];
+		const nextPricingShares = [...pricingShares];
 		const buildProbabilities = (): {
 			currentProbability: number;
 			nextProbability: number;
@@ -934,7 +934,7 @@ const calculateMarketTradeQuoteUnsafe = async (input: {
 		};
 	}
 
-	let nextPricingShares = [...pricingShares];
+	const nextPricingShares = [...pricingShares];
 	const buildProbabilities = (): {
 		currentProbability: number;
 		nextProbability: number;

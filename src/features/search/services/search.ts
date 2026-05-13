@@ -9,16 +9,16 @@ import {
   type TextChannel,
 } from 'discord.js';
 
-import { discordRestGet } from '../../../lib/discord-rest.js';
-import { searchMaxChannelIds } from '../core/constants.js';
+import { discordRestGet } from '@/lib/discord-rest.js';
+import { searchMaxChannelIds } from '@/features/search/core/constants.js';
 import type {
   GuildMessageSearchFilters,
   GuildMessageSearchIndexPendingResponse,
   GuildMessageSearchMessage,
   GuildMessageSearchPage,
   GuildMessageSearchResponse,
-} from '../core/types.js';
-import { serializeGuildMessageSearchFilters } from '../parsing/parser.js';
+} from '@/features/search/core/types.js';
+import { serializeGuildMessageSearchFilters } from '@/features/search/parsing/parser.js';
 
 const searchableChannelTypes = new Set<ChannelType>([
   ChannelType.GuildText,

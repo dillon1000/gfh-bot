@@ -1,13 +1,13 @@
-import type { Prisma } from "@prisma/client";
-import { type Client } from "discord.js";
+import type { Prisma } from "@/generated/prisma/client.js";
+import type { Client } from "discord.js";
 
-import { logger } from "../../../../app/logger.js";
-import { prisma } from "../../../../lib/prisma.js";
-import { removalVoteStartQueue } from "../../../../lib/queue.js";
+import { logger } from "@/app/logger.js";
+import { prisma } from "@/lib/prisma.js";
+import { removalVoteStartQueue } from "@/lib/queue.js";
 import type {
 	RemovalEligibilityConfig,
 	RemovalVoteRequestWithSupports,
-} from "../../core/types.js";
+} from "@/features/removals/core/types.js";
 
 const hourMs = 60 * 60 * 1000;
 export const dayMs = 24 * hourMs;

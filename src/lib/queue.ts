@@ -1,7 +1,7 @@
 import { Queue } from "bullmq";
 
-import { createLazyProxy } from "./lazy.js";
-import { getBullConnectionOptions } from "./redis.js";
+import { createLazyProxy } from "@/lib/lazy.js";
+import { getBullConnectionOptions } from "@/lib/redis.js";
 
 export const pollCloseQueueName = "poll-close";
 export const pollReminderQueueName = "poll-reminder";

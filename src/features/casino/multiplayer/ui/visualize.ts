@@ -16,7 +16,7 @@ import type {
 	MultiplayerBlackjackState,
 	MultiplayerHoldemState,
 	PlayingCard,
-} from "../../core/types.js";
+} from "@/features/casino/core/types.js";
 
 const width = 1200;
 const height = 760;

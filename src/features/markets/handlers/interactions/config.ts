@@ -1,13 +1,13 @@
 import { ChannelType, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 
-import { buildMarketStatusEmbed } from '../../ui/render/market.js';
+import { buildMarketStatusEmbed } from '@/features/markets/ui/render/market.js';
 import {
   disableMarketConfig,
   describeMarketConfig,
   getMarketConfig,
   setMarketConfig,
-} from '../../services/config.js';
-import { assertManageGuild } from './shared.js';
+} from '@/features/markets/services/config.js';
+import { assertManageGuild } from '@/features/markets/handlers/interactions/shared.js';
 
 export const handleMarketConfigCommand = async (
   interaction: ChatInputCommandInteraction,

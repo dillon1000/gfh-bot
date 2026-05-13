@@ -1,4 +1,4 @@
-import type { PlayingCard } from './types.js';
+import type { PlayingCard } from '@/features/casino/core/types.js';
 
 const getBlackjackHandValue = (cards: PlayingCard[]): { total: number; isSoft: boolean } => {
   let total = 0;

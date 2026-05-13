@@ -26,7 +26,7 @@ import {
   summarizeMessageContent,
   toTimestamp,
   type JsonValue,
-} from './normalize.js';
+} from '@/features/audit-log/services/events/normalize.js';
 
 export const summarizeUser = (user: unknown) => {
   if (!isRecord(user) || typeof user.id !== 'string') {

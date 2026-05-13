@@ -1,7 +1,7 @@
 import { scaleOrdinal, schemeTableau10 } from 'd3';
 import type { AttachmentBuilder } from 'discord.js';
 
-import type { PollWithRelations } from '../../core/types.js';
+import type { PollWithRelations } from '@/features/polls/core/types.js';
 
 export const background = '#323339';
 export const panel = '#272a30';

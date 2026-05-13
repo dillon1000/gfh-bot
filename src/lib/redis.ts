@@ -1,7 +1,7 @@
 import { Redis } from 'ioredis';
 
-import { env } from '../app/config.js';
-import { createLazyProxy } from './lazy.js';
+import { env } from '@/app/config.js';
+import { createLazyProxy } from '@/lib/lazy.js';
 
 const createConfiguredRedis = (): Redis => new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: null,

@@ -9,11 +9,11 @@ import {
   type ThreadChannel,
 } from 'discord.js';
 
-import { redis } from '../../../../lib/redis.js';
-import { buildCasinoStatusEmbed } from '../../ui/render.js';
-import { getCasinoConfig } from '../../services/config.js';
-import { getCasinoSession } from '../../state/sessions.js';
-import { getCasinoTableByThreadId } from '../../multiplayer/services/tables/queries.js';
+import { redis } from '@/lib/redis.js';
+import { buildCasinoStatusEmbed } from '@/features/casino/ui/render.js';
+import { getCasinoConfig } from '@/features/casino/services/config.js';
+import { getCasinoSession } from '@/features/casino/state/sessions.js';
+import { getCasinoTableByThreadId } from '@/features/casino/multiplayer/services/tables/queries.js';
 
 export const assertManageGuild = (interaction: ChatInputCommandInteraction): void => {
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {

@@ -31,7 +31,7 @@ vi.mock('../src/features/casino/multiplayer/services/tables/queries.js', () => (
   listTimedCasinoTables,
 }));
 
-let syncCasinoTableJobs: typeof import('../src/features/casino/multiplayer/services/scheduler.js').syncCasinoTableJobs;
+let syncCasinoTableJobs: typeof import('@/features/casino/multiplayer/services/scheduler.js').syncCasinoTableJobs;
 
 const createActiveBotTable = (deadlineOffsetMs = 30_000) => ({
   id: 'table_1',
@@ -116,7 +116,7 @@ const createActiveBotTable = (deadlineOffsetMs = 30_000) => ({
 
 describe('casino table schedule service', () => {
   beforeAll(async () => {
-    ({ syncCasinoTableJobs } = await import('../src/features/casino/multiplayer/services/scheduler.js'));
+    ({ syncCasinoTableJobs } = await import('@/features/casino/multiplayer/services/scheduler.js'));
   });
 
   beforeEach(() => {

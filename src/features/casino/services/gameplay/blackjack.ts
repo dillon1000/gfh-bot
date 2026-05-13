@@ -1,4 +1,4 @@
-import { getBlackjackTotal, isSoftBlackjackTotal } from '../../core/cards.js';
+import { getBlackjackTotal, isSoftBlackjackTotal } from '@/features/casino/core/cards.js';
 import {
   createDeck,
   dealCards,
@@ -6,14 +6,14 @@ import {
   getDefaultRng,
   shuffleDeck,
   type RandomNumberGenerator,
-} from '../../core/deck.js';
+} from '@/features/casino/core/deck.js';
 import type {
   BlackjackRound,
   BlackjackSession,
   PersistedCasinoRound,
   PlayingCard,
-} from '../../core/types.js';
-import { assertCanAffordWager, formatRoundMoney, persistRound } from './shared.js';
+} from '@/features/casino/core/types.js';
+import { assertCanAffordWager, formatRoundMoney, persistRound } from '@/features/casino/services/gameplay/shared.js';
 
 const isNaturalBlackjack = (cards: PlayingCard[]): boolean =>
   cards.length === 2 && getBlackjackTotal(cards) === 21;

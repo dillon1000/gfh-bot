@@ -3,10 +3,10 @@ import type {
 	CasinoTableSummary,
 	MultiplayerBlackjackState,
 	MultiplayerHoldemState,
-} from "../../../core/types.js";
-import { getCasinoTable } from "../../services/tables/queries.js";
-import { chooseBlackjackBotDecision } from "../engines/blackjack.js";
-import { chooseHoldemBotDecision } from "../engines/holdem.js";
+} from "@/features/casino/core/types.js";
+import { getCasinoTable } from "@/features/casino/multiplayer/services/tables/queries.js";
+import { chooseBlackjackBotDecision } from "@/features/casino/multiplayer/bots/engines/blackjack.js";
+import { chooseHoldemBotDecision } from "@/features/casino/multiplayer/bots/engines/holdem.js";
 
 const getSeatProfile = (
 	table: CasinoTableSummary,

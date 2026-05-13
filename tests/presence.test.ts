@@ -13,7 +13,7 @@ vi.mock('../src/app/config.js', () => ({
 
 import { ActivityType } from 'discord.js';
 
-import { buildConfiguredPresence } from '../src/app/presence.js';
+import { buildConfiguredPresence } from '@/app/presence.js';
 
 describe('buildConfiguredPresence', () => {
   it('returns null when no presence configuration is set', () => {

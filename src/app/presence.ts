@@ -1,6 +1,6 @@
 import { ActivityType, type Client, type PresenceData } from 'discord.js';
 
-import { env } from './config.js';
+import { env } from '@/app/config.js';
 
 const activityTypeByName = {
   playing: ActivityType.Playing,

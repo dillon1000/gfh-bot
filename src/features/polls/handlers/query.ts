@@ -12,10 +12,10 @@ import {
   type ModalSubmitInteraction,
 } from 'discord.js';
 
-import { buildPollCloseModal } from '../ui/poll-close-render.js';
-import { buildFeedbackEmbed } from '../../../lib/feedback-embeds.js';
-import { buildPollAuditEmbed } from '../ui/poll-embeds.js';
-import { buildPollResultsResponse } from '../ui/poll-responses.js';
+import { buildPollCloseModal } from '@/features/polls/ui/poll-close-render.js';
+import { buildFeedbackEmbed } from '@/lib/feedback-embeds.js';
+import { buildPollAuditEmbed } from '@/features/polls/ui/poll-embeds.js';
+import { buildPollResultsResponse } from '@/features/polls/ui/poll-responses.js';
 import {
   closePollAndRefresh,
   exportPollToCsv,
@@ -23,11 +23,11 @@ import {
   getPollResultsSnapshotByQuery,
   getPollVoteAuditSnapshotByQuery,
   isPollManager,
-} from '../services/lifecycle.js';
+} from '@/features/polls/services/lifecycle.js';
 import {
   getPollById,
   getPollByMessageId,
-} from '../services/repository.js';
+} from '@/features/polls/services/repository.js';
 
 const replyWithPollExport = async (
   interaction:

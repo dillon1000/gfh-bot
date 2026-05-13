@@ -1,9 +1,9 @@
 import { ChannelType, Client, GatewayIntentBits, Partials } from 'discord.js';
 
-import { env } from './config.js';
-import { backfillMarketForumPosts } from '../features/markets/services/forum-backfill.js';
-import { getMarketConfig } from '../features/markets/services/config.js';
-import { disconnectPrisma } from '../lib/prisma.js';
+import { env } from '@/app/config.js';
+import { backfillMarketForumPosts } from '@/features/markets/services/forum-backfill.js';
+import { getMarketConfig } from '@/features/markets/services/config.js';
+import { disconnectPrisma } from '@/lib/prisma.js';
 
 type ParsedArgs = {
   apply: boolean;

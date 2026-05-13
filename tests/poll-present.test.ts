@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { getPollChoiceComponentEmoji, getPollChoiceEmojiDisplay, normalizeQuestionFromMessage, renderPollBar } from '../src/features/polls/ui/present.js';
+import { getPollChoiceComponentEmoji, getPollChoiceEmojiDisplay, normalizeQuestionFromMessage, renderPollBar } from '@/features/polls/ui/present.js';
 
 describe('renderPollBar', () => {
   it('renders a proportional bar', () => {

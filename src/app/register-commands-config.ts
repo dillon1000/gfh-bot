@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import { z } from 'zod';
 
-import { optionalNonEmptyString } from './env-utils.js';
+import { optionalNonEmptyString } from '@/app/env-utils.js';
 
 const registerCommandsEnvSchema = z.object({
   DISCORD_TOKEN: z.string().min(1),

@@ -1,7 +1,7 @@
-import { ActionRowBuilder, ButtonBuilder } from 'discord.js';
+import { ActionRowBuilder, type ButtonBuilder } from 'discord.js';
 
-import { formatDurationFromMinutes } from '../../../lib/duration.js';
-import type { PollComputedResults, PollDraft, PollMode, PollWithRelations, RankedPollRound } from '../core/types.js';
+import { formatDurationFromMinutes } from '@/lib/duration.js';
+import type { PollComputedResults, PollDraft, PollMode, PollWithRelations, RankedPollRound } from '@/features/polls/core/types.js';
 
 export const chunkButtons = (buttons: ButtonBuilder[]): ActionRowBuilder<ButtonBuilder>[] => {
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];

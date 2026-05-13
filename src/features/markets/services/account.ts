@@ -1,18 +1,18 @@
-import { type MarketAccount, Prisma } from '@prisma/client';
+import type { MarketAccount, Prisma } from '@/generated/prisma/client.js';
 
-import { prisma } from '../../../lib/prisma.js';
+import { prisma } from '@/lib/prisma.js';
 import {
   ensureEconomyAccountTx,
   getEconomyLeaderboard,
   getEffectiveEconomyAccountPreview,
   grantEconomyBankroll,
   roundCurrency,
-} from '../../../lib/economy.js';
-import type { MarketAccountWithOpenPositions } from '../core/types.js';
+} from '@/lib/economy.js';
+import type { MarketAccountWithOpenPositions } from '@/features/markets/core/types.js';
 import {
   getPositionCoverageRatio,
   getPositionUninsuredCostBasis,
-} from '../core/shared.js';
+} from '@/features/markets/core/shared.js';
 
 export const ensureMarketAccountTx = async (
   tx: Prisma.TransactionClient,

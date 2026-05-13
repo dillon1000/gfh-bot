@@ -1,13 +1,13 @@
 import type { Role, GuildMember, Client } from 'discord.js';
 import { PermissionFlagsBits } from 'discord.js';
 
-import { logger } from '../../../app/logger.js';
-import { withRedisLock } from '../../../lib/locks.js';
-import { prisma } from '../../../lib/prisma.js';
-import { redis } from '../../../lib/redis.js';
-import { buildReactionRolePanelMessage } from '../ui/render.js';
-import { parseReactionRoleLookup } from '../parsing/query.js';
-import type { ReactionRolePanelInput, ReactionRolePanelWithOptions } from '../core/types.js';
+import { logger } from '@/app/logger.js';
+import { withRedisLock } from '@/lib/locks.js';
+import { prisma } from '@/lib/prisma.js';
+import { redis } from '@/lib/redis.js';
+import { buildReactionRolePanelMessage } from '@/features/reaction-roles/ui/render.js';
+import { parseReactionRoleLookup } from '@/features/reaction-roles/parsing/query.js';
+import type { ReactionRolePanelInput, ReactionRolePanelWithOptions } from '@/features/reaction-roles/core/types.js';
 
 const reactionRolePanelInclude = {
   options: {

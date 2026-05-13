@@ -1,4 +1,4 @@
-import type { MarketTradeQuoteAction } from "../core/types.js";
+import type { MarketTradeQuoteAction } from "@/features/markets/core/types.js";
 
 export const marketBuyButtonCustomId = (marketId: string): string =>
 	`market:buy:${marketId}`;

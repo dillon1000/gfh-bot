@@ -1,13 +1,13 @@
 import {
   ActionRowBuilder,
-  AttachmentBuilder,
+  type AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
 } from 'discord.js';
-import { CasinoGameKind } from '@prisma/client';
+import { CasinoGameKind } from '@/generated/prisma/client.js';
 
-import { logger } from '../../../../app/logger.js';
+import { logger } from '@/app/logger.js';
 import {
   casinoTableBlackjackDoubleButtonCustomId,
   casinoTableBlackjackHitButtonCustomId,
@@ -21,18 +21,18 @@ import {
   casinoTableLeaveButtonCustomId,
   casinoTablePeekButtonCustomId,
   casinoTableStartButtonCustomId,
-} from '../../ui/custom-ids.js';
+} from '@/features/casino/ui/custom-ids.js';
 import type {
   CasinoTableSeatSummary,
   CasinoTableSummary,
   MultiplayerBlackjackState,
   MultiplayerHoldemState,
   PlayingCard,
-} from '../../core/types.js';
+} from '@/features/casino/core/types.js';
 import {
   buildBlackjackTableDiagram,
   buildHoldemTableDiagram,
-} from './visualize.js';
+} from '@/features/casino/multiplayer/ui/visualize.js';
 
 const formatMoney = (value: number): string => `${value.toFixed(2)} pts`;
 

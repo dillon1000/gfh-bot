@@ -6,18 +6,18 @@ import {
 	type Client,
 } from "discord.js";
 
-import { logger } from "../../../../app/logger.js";
+import { logger } from "@/app/logger.js";
 import {
 	buildLeaderboardEmbed,
 	buildMarketForecastLeaderboardEmbed,
 	buildMarketForecastProfileEmbeds,
 	buildMarketListEmbed,
 	buildMarketTradersEmbeds,
-} from "../../ui/render/analytics.js";
-import { buildMarketForecastProfileDiagram } from "../../ui/profile-visualize.js";
-import { buildMarketStatusEmbed } from "../../ui/render/market.js";
-import { buildPortfolioMessage } from "../../ui/render/portfolio.js";
-import { getMarketConfig } from "../../services/config.js";
+} from "@/features/markets/ui/render/analytics.js";
+import { buildMarketForecastProfileDiagram } from "@/features/markets/ui/profile-visualize.js";
+import { buildMarketStatusEmbed } from "@/features/markets/ui/render/market.js";
+import { buildPortfolioMessage } from "@/features/markets/ui/render/portfolio.js";
+import { getMarketConfig } from "@/features/markets/services/config.js";
 import {
 	announceMarketUpdate,
 	buildMarketViewResponse,
@@ -26,16 +26,16 @@ import {
 	notifyMarketCancelled,
 	notifyMarketResolved,
 	refreshMarketMessage,
-} from "../../services/lifecycle.js";
+} from "@/features/markets/services/lifecycle.js";
 import {
 	getMarketAccountSummary,
 	getMarketLeaderboard,
 	grantMarketBankroll,
-} from "../../services/account.js";
+} from "@/features/markets/services/account.js";
 import {
 	getMarketForecastLeaderboard,
 	getMarketForecastProfileDetails,
-} from "../../services/forecast/queries.js";
+} from "@/features/markets/services/forecast/queries.js";
 import {
 	appendMarketOutcomes,
 	createMarketRecord,
@@ -44,21 +44,21 @@ import {
 	getMarketByQuery,
 	listMarkets,
 	summarizeMarketTraders,
-} from "../../services/records.js";
+} from "@/features/markets/services/records.js";
 import {
 	clearMarketJobs,
 	scheduleMarketClose,
 	scheduleMarketGrace,
 	scheduleMarketLiquidity,
 	scheduleMarketRefresh,
-} from "../../services/scheduler.js";
-import { cancelMarket } from "../../services/trading/cancel.js";
-import { closeMarketTrading } from "../../services/trading/close.js";
-import { executeMarketTrade } from "../../services/trading/execution.js";
+} from "@/features/markets/services/scheduler.js";
+import { cancelMarket } from "@/features/markets/services/trading/cancel.js";
+import { closeMarketTrading } from "@/features/markets/services/trading/close.js";
+import { executeMarketTrade } from "@/features/markets/services/trading/execution.js";
 import {
 	resolveMarket,
 	resolveMarketOutcome,
-} from "../../services/trading/resolution.js";
+} from "@/features/markets/services/trading/resolution.js";
 import {
 	parseAdditionalMarketOutcomes,
 	parseMarketOutcomes,
@@ -67,9 +67,9 @@ import {
 	parseOutcomeSelections,
 	sanitizeMarketDescription,
 	sanitizeMarketTitle,
-} from "../../parsing/market.js";
-import { parseMarketCloseAt } from "../../parsing/close.js";
-import { createTradeQuotePreview } from "./quotes.js";
+} from "@/features/markets/parsing/market.js";
+import { parseMarketCloseAt } from "@/features/markets/parsing/close.js";
+import { createTradeQuotePreview } from "@/features/markets/handlers/interactions/quotes.js";
 import {
 	assertCanGrantMarketFunds,
 	buildTradeExecutionDescription,
@@ -77,13 +77,13 @@ import {
 	parseTradeInputAmount,
 	type TradeAction,
 	validateEvidenceUrl,
-} from "./shared.js";
-import { handleMarketConfigCommand } from "./config.js";
-import type { MarketWithRelations } from "../../core/types.js";
+} from "@/features/markets/handlers/interactions/shared.js";
+import { handleMarketConfigCommand } from "@/features/markets/handlers/interactions/config.js";
+import type { MarketWithRelations } from "@/features/markets/core/types.js";
 import {
 	isCompetitiveMultiWinnerMarketMode,
 	resolveMarketWinnerCount,
-} from "../../core/shared.js";
+} from "@/features/markets/core/shared.js";
 
 const describeMarketEditChanges = (
 	previous: MarketWithRelations,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { optionalEnum, optionalNonEmptyString, optionalUrlString } from '../src/app/env-utils.js';
+import { optionalEnum, optionalNonEmptyString, optionalUrlString } from '@/app/env-utils.js';
 
 describe('env-utils', () => {
   it('treats blank optional strings as undefined', () => {

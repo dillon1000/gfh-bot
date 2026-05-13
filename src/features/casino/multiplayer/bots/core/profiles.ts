@@ -1,4 +1,4 @@
-import type { CasinoBotProfile } from '../../../core/types.js';
+import type { CasinoBotProfile } from '@/features/casino/core/types.js';
 
 const hashString = (value: string): number => {
   let hash = 0;

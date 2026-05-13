@@ -1,9 +1,9 @@
-import { type PermissionsBitField } from "discord.js";
+import type { PermissionsBitField } from "discord.js";
 
-import { prisma } from "../../../../lib/prisma.js";
-import { runSerializableTransaction } from "../../../../lib/run-serializable-transaction.js";
-import { ensureMarketAccountTx } from "../account.js";
-import { persistForecastRecordsTx } from "../forecast/records.js";
+import { prisma } from "@/lib/prisma.js";
+import { runSerializableTransaction } from "@/lib/run-serializable-transaction.js";
+import { ensureMarketAccountTx } from "@/features/markets/services/account.js";
+import { persistForecastRecordsTx } from "@/features/markets/services/forecast/records.js";
 import {
 	assertCanResolveMarket,
 	assertCanResolveOutcome,
@@ -19,12 +19,12 @@ import {
 	resolveMarketWinnerCount,
 	roundCurrency,
 	roundProbability,
-} from "../../core/shared.js";
+} from "@/features/markets/core/shared.js";
 import type {
 	MarketOutcomeResolutionResult,
 	MarketResolutionResult,
-} from "../../core/types.js";
-import { groupPositionsByUser } from "./shared.js";
+} from "@/features/markets/core/types.js";
+import { groupPositionsByUser } from "@/features/markets/services/trading/shared.js";
 
 const validateSettlementValue = (value: number): number => {
 	if (!Number.isFinite(value) || value < 0 || value > 1) {

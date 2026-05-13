@@ -7,7 +7,7 @@ import {
   parseSearchHasTypes,
   parseUserIds,
   serializeGuildMessageSearchFilters,
-} from '../src/features/search/parsing/parser.js';
+} from '@/features/search/parsing/parser.js';
 
 describe('search parser', () => {
   it('parses advanced array filters and negated values', () => {

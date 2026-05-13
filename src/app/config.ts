@@ -6,7 +6,7 @@ import {
 	optionalEnum,
 	optionalNonEmptyString,
 	optionalUrlString,
-} from "./env-utils.js";
+} from "@/app/env-utils.js";
 
 const snowflakePattern = /^\d{16,25}$/;
 

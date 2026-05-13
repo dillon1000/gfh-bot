@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildPollExportCsv } from '../src/features/polls/core/export.js';
-import { buildPollResultsEmbed } from '../src/features/polls/ui/poll-embeds.js';
-import { buildPollMessage } from '../src/features/polls/ui/poll-responses.js';
-import { computePollResults } from '../src/features/polls/core/results.js';
-import type { PollWithRelations } from '../src/features/polls/core/types.js';
+import { buildPollExportCsv } from '@/features/polls/core/export.js';
+import { buildPollResultsEmbed } from '@/features/polls/ui/poll-embeds.js';
+import { buildPollMessage } from '@/features/polls/ui/poll-responses.js';
+import { computePollResults } from '@/features/polls/core/results.js';
+import type { PollWithRelations } from '@/features/polls/core/types.js';
 
 const rankedPoll = {
   id: 'poll_ranked_1',

@@ -1,11 +1,11 @@
-import { env } from "../../../app/config.js";
-import { parseDurationToMsWithLimits } from "../../../lib/duration.js";
+import { env } from "@/app/config.js";
+import { parseDurationToMsWithLimits } from "@/lib/duration.js";
 import {
 	assertCloseTimeWindow,
 	durationInputPattern,
 	getAbsoluteCloseHelp,
 	parseAbsoluteCloseAt,
-} from "../../../lib/close-time.js";
+} from "@/lib/close-time.js";
 
 const marketMinDurationMs = 5 * 60_000;
 

@@ -3,7 +3,7 @@ import type {
   MultiplayerHoldemPlayerState,
   MultiplayerHoldemState,
   PlayingCard,
-} from '../../../core/types.js';
+} from '@/features/casino/core/types.js';
 
 type HoldemBotDecision =
   | { action: 'holdem_fold' }

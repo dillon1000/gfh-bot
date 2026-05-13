@@ -6,8 +6,8 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 
-import { logger } from '../../../app/logger.js';
-import { buildCasinoStatusEmbed } from '../ui/render.js';
+import { logger } from '@/app/logger.js';
+import { buildCasinoStatusEmbed } from '@/features/casino/ui/render.js';
 
 export const handleCasinoInteractionError = async (
   interaction:

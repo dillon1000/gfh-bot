@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { Redis } from "ioredis";
 
-import type { MarketQuoteSession } from "../core/types.js";
+import type { MarketQuoteSession } from "@/features/markets/core/types.js";
 
 // Keep quote sessions short-lived so confirmations use current pricing.
 const ttlSeconds = 60 * 10;

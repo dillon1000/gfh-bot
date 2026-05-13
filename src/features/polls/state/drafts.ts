@@ -1,7 +1,7 @@
 import type { Redis } from 'ioredis';
 
-import { defaultReminderOffsetsMinutes } from '../parsing/parser.js';
-import type { PollDraft } from '../core/types.js';
+import { defaultReminderOffsetsMinutes } from '@/features/polls/parsing/parser.js';
+import type { PollDraft } from '@/features/polls/core/types.js';
 
 const ttlSeconds = 60 * 60 * 24;
 

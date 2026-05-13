@@ -1,7 +1,7 @@
 import {
 	parseDiscordMessageLink,
 	type DiscordEntityLookup,
-} from "../../../lib/discord-message-links.js";
+} from "@/lib/discord-message-links.js";
 
 const maxOutcomes = 5;
 const minOutcomes = 2;

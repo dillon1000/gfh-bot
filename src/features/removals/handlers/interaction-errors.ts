@@ -1,6 +1,6 @@
 import { MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 
-import { logger } from '../../../app/logger.js';
+import { logger } from '@/app/logger.js';
 
 export const handleRemovalInteractionError = async (
   interaction: ChatInputCommandInteraction,
