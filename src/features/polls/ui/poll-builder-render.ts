@@ -161,16 +161,14 @@ export const buildPollBuilderModal = (
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
         .setValue(draft.durationText || '24h')
-        .setPlaceholder('1d 12h 15m')
-        .setMaxLength(20);
+        .setPlaceholder('1d 12h 15m');
       const remindersInput = new TextInputBuilder()
         .setCustomId('reminders')
         .setLabel('Reminders')
         .setStyle(TextInputStyle.Short)
         .setRequired(false)
         .setValue(draft.reminderOffsets.map((offsetMinutes) => formatDurationFromMinutes(offsetMinutes)).join(', '))
-        .setPlaceholder('1d, 1h, 10m or none')
-        .setMaxLength(100);
+        .setPlaceholder('1d, 1h, 10m or none');
       return new ModalBuilder()
         .setCustomId(pollBuilderModalCustomId(field))
         .setTitle('Edit time')
