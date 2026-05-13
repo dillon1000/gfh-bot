@@ -5,13 +5,13 @@ FROM node:24.15.0-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 
-RUN corepack enable && corepack prepare pnpm@10.27.0 --activate
+RUN corepack enable && corepack prepare pnpm@11.1.1 --activate
 
 WORKDIR /app
 
 FROM base AS deps
 
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
   pnpm install --frozen-lockfile
 
@@ -38,7 +38,7 @@ RUN apt-get update \
 
 RUN groupadd --system app && useradd --system --gid app --create-home app
 
-COPY --from=deps /app/package.json /app/pnpm-lock.yaml ./
+COPY --from=deps /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml /app/.npmrc ./
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/prisma ./prisma
 COPY --from=build /app/assets ./assets
