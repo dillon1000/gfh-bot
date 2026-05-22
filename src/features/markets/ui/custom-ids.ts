@@ -1,5 +1,37 @@
 import type { MarketTradeQuoteAction } from "@/features/markets/core/types.js";
 
+export type MarketBuilderAction =
+	| "title"
+	| "outcomes"
+	| "description"
+	| "tags"
+	| "close"
+	| "winner-count"
+	| "step-next"
+	| "step-back"
+	| "publish"
+	| "cancel";
+
+export type MarketBuilderModalField =
+	| "title"
+	| "outcomes"
+	| "description"
+	| "tags"
+	| "close"
+	| "winner-count";
+
+export type MarketBuilderSelect = "contract-mode" | "button-style";
+
+export const marketBuilderButtonCustomId = (
+	action: MarketBuilderAction,
+): string => `market-builder:${action}`;
+export const marketBuilderModalCustomId = (
+	field: MarketBuilderModalField,
+): string => `market-builder:modal:${field}`;
+export const marketBuilderSelectCustomId = (
+	select: MarketBuilderSelect,
+): string => `market-builder:select:${select}`;
+
 export const marketBuyButtonCustomId = (marketId: string): string =>
 	`market:buy:${marketId}`;
 export const marketSellButtonCustomId = (marketId: string): string =>

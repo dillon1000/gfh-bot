@@ -60,6 +60,20 @@ export type MarketCreationInput = {
 	closeAt: Date;
 };
 
+export type MarketBuilderStep = "content" | "contract" | "timing" | "review";
+
+export type MarketBuilderDraft = {
+	step: MarketBuilderStep;
+	title: string;
+	description: string;
+	outcomes: string[];
+	contractMode: MarketContractMode;
+	winnerCount: number;
+	buttonStyle: MarketButtonStyle;
+	tags: string[];
+	closeText: string;
+};
+
 export type MarketTradeResult = {
 	market: MarketWithRelations;
 	outcome: MarketOutcome;

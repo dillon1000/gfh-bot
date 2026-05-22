@@ -4,7 +4,7 @@ import { auditLogCommand } from '@/features/audit-log/handlers/commands.js';
 import { casinoCommand } from '@/features/casino/commands/definition.js';
 import { emojiBuilderCommand } from '@/features/emojis/commands/definition.js';
 import { latexCommand } from '@/features/meta/commands/latex.js';
-import { marketCommand } from '@/features/markets/commands/definition.js';
+import { marketBuilderCommand, marketCommand } from '@/features/markets/commands/definition.js';
 import { meowCommand } from '@/features/meta/commands/meow-definition.js';
 import { pingCommand } from '@/features/meta/commands/ping.js';
 import {
@@ -40,6 +40,7 @@ export const applicationCommands: RESTPostAPIApplicationCommandsJSONBody[] = [
   emojiBuilderCommand.toJSON(),
   latexCommand.toJSON(),
   marketCommand.toJSON(),
+  marketBuilderCommand.toJSON(),
   meowCommand.toJSON(),
   pingCommand.toJSON(),
   searchCommand.toJSON(),

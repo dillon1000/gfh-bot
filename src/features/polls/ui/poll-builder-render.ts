@@ -49,7 +49,7 @@ const STEP_TITLES: Record<PollBuilderStep, string> = {
 
 const STEP_HINTS: Record<PollBuilderStep, string> = {
   mode: 'Pick how voters will respond. You can skip ahead and publish at any time.',
-  content: 'Fill in the question and the rest of the content. Edits keep their last value.',
+  content: 'Fill in the question and the rest of the content.',
   timing: 'Set how long the poll runs, the discussion thread, and result visibility.',
   advanced: 'Optional governance, pass rules, and the *Other* option. Skip if you don\'t need them.',
 };
@@ -557,7 +557,7 @@ export const buildPollBuilderModal = (
         .setStyle(TextInputStyle.Paragraph)
         .setRequired(false)
         .setValue(draft.choiceEmojis.map((emoji) => emoji ?? '').join(', '))
-        .setPlaceholder('<:yes:123>, <:no:456> or blank')
+        .setPlaceholder('✅, 👎, <:yes:123>, <:no:456> or blank')
         .setMaxLength(500);
       return modal
         .setTitle('Edit emojis')

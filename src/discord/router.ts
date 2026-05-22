@@ -14,6 +14,12 @@ import {
 } from '@/features/emojis/handlers/interactions.js';
 import { handleLatexCommand } from '@/features/meta/commands/latex.js';
 import { handleMarketInteractionError } from '@/features/markets/handlers/interaction-errors.js';
+import {
+  handleMarketBuilderButton,
+  handleMarketBuilderCommand,
+  handleMarketBuilderModal,
+  handleMarketBuilderSelect,
+} from '@/features/markets/handlers/interactions/builder.js';
 import { handleMarketButton } from '@/features/markets/handlers/interactions/buttons.js';
 import { handleMarketCommand } from '@/features/markets/handlers/interactions/commands.js';
 import { handleMarketModal } from '@/features/markets/handlers/interactions/modals.js';
@@ -119,6 +125,9 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'market':
             await handleMarketCommand(client, interaction);
+            return;
+          case 'market-builder':
+            await handleMarketBuilderCommand(interaction);
             return;
           case 'ping':
             await handlePingCommand(interaction);
@@ -322,6 +331,11 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
+        if (interaction.customId.startsWith('market-builder:')) {
+          await handleMarketBuilderButton(client, interaction);
+          return;
+        }
+
         if (interaction.customId.startsWith('poll:rationale-upvote:')) {
           await handlePollRationaleUpvoteButton(interaction);
           return;
@@ -362,6 +376,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('poll:tier:select:')) {
           await handlePollTierSelect(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('market-builder:select:')) {
+          await handleMarketBuilderSelect(interaction);
           return;
         }
 
@@ -417,6 +436,11 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
+        if (interaction.customId.startsWith('market-builder:modal:')) {
+          await handleMarketBuilderModal(interaction);
+          return;
+        }
+
         if (interaction.customId.startsWith('market:')) {
           await handleMarketModal(client, interaction);
           return;
@@ -468,6 +492,10 @@ export const registerInteractionRouter = (client: Client): void => {
           await handleCasinoInteractionError(interaction, error);
         } else if (
           (interaction.isChatInputCommand() && interaction.commandName === 'market')
+          || (interaction.isChatInputCommand() && interaction.commandName === 'market-builder')
+          || (interaction.isButton() && interaction.customId.startsWith('market-builder:'))
+          || (interaction.isStringSelectMenu() && interaction.customId.startsWith('market-builder:'))
+          || (interaction.isModalSubmit() && interaction.customId.startsWith('market-builder:'))
           || (interaction.isButton() && interaction.customId.startsWith('market:'))
           || (interaction.isStringSelectMenu() && interaction.customId.startsWith('market:'))
           || (interaction.isModalSubmit() && interaction.customId.startsWith('market:'))
