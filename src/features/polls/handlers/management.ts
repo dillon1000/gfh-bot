@@ -419,7 +419,7 @@ export const handlePollTierImageModal = async (
   client: Client,
   interaction: ModalSubmitInteraction,
 ): Promise<void> => {
-  const [, , , , pollId, optionId] = interaction.customId.split(':');
+  const [, , , pollId, optionId] = interaction.customId.split(':');
   if (!pollId || !optionId) {
     throw new Error('Invalid tier image submission.');
   }

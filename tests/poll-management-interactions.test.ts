@@ -8,6 +8,7 @@ const {
   cancelPollRecord,
   reopenPollRecord,
   extendPollRecord,
+  setPollOptionImage,
   savePollDraft,
   refreshPollMessage,
   closePollAndRefresh,
@@ -19,6 +20,7 @@ const {
   cancelPollRecord: vi.fn(),
   reopenPollRecord: vi.fn(),
   extendPollRecord: vi.fn(),
+  setPollOptionImage: vi.fn(),
   savePollDraft: vi.fn(),
   refreshPollMessage: vi.fn(),
   closePollAndRefresh: vi.fn(),
@@ -32,6 +34,7 @@ vi.mock('../src/features/polls/services/repository.js', () => ({
   cancelPollRecord,
   reopenPollRecord,
   extendPollRecord,
+  setPollOptionImage,
 }));
 
 vi.mock('../src/features/polls/state/drafts.js', () => ({
@@ -58,6 +61,7 @@ import {
   handlePollDuplicateContext,
   handlePollEditContext,
   handlePollManageModal,
+  handlePollTierImageModal,
 } from '@/features/polls/handlers/management.js';
 import type { PollWithRelations } from '@/features/polls/core/types.js';
 
@@ -148,6 +152,7 @@ describe('poll management interactions', () => {
     cancelPollRecord.mockReset();
     reopenPollRecord.mockReset();
     extendPollRecord.mockReset();
+    setPollOptionImage.mockReset();
     savePollDraft.mockReset();
     refreshPollMessage.mockReset();
     closePollAndRefresh.mockReset();
@@ -300,5 +305,46 @@ describe('poll management interactions', () => {
     await expect(handlePollManageModal({} as never, interaction as never))
       .rejects
       .toThrow('Poll not found.');
+  });
+
+  it('accepts tier image modal submissions with a jpeg upload', async () => {
+    getPollById
+      .mockResolvedValueOnce({
+        ...basePoll,
+        mode: 'tier',
+      })
+      .mockResolvedValueOnce({
+        ...basePoll,
+        mode: 'tier',
+      });
+
+    const interaction = {
+      customId: 'poll:tier:image-modal:poll_1:option_1',
+      guildId: 'guild_1',
+      user: {
+        id: 'owner_1',
+      },
+      memberPermissions: createMemberPermissions(false),
+      fields: {
+        getUploadedFiles: vi.fn(() => ({
+          first: () => ({
+            name: 'tier-image.jpeg',
+            contentType: 'image/jpeg',
+            url: 'https://cdn.discordapp.com/attachments/test/tier-image.jpeg',
+          }),
+        })),
+      },
+      reply: vi.fn(),
+    };
+
+    await handlePollTierImageModal({} as never, interaction as never);
+
+    expect(setPollOptionImage).toHaveBeenCalledWith(
+      'poll_1',
+      'option_1',
+      'https://cdn.discordapp.com/attachments/test/tier-image.jpeg',
+    );
+    expect(refreshPollMessage).toHaveBeenCalledWith(expect.anything(), 'poll_1');
+    expect(interaction.reply).toHaveBeenCalledTimes(1);
   });
 });
