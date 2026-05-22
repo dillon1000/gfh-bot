@@ -51,7 +51,7 @@ const STEP_HINTS: Record<PollBuilderStep, string> = {
   mode: 'Pick how voters will respond. You can skip ahead and publish at any time.',
   content: 'Fill in the question and the rest of the content. Edits keep their last value.',
   timing: 'Set how long the poll runs, the discussion thread, and result visibility.',
-  advanced: 'Optional governance, pass rules, and the *Other* choice. Skip if you don\'t need them.',
+  advanced: 'Optional governance, pass rules, and the *Other* option. Skip if you don\'t need them.',
 };
 
 const MODE_OPTIONS: Array<{ mode: PollMode; label: string; description: string }> = [
@@ -74,6 +74,23 @@ export const getPreviousStep = (step: PollBuilderStep): PollBuilderStep | null =
 
 const truncate = (value: string, max = 90): string =>
   value.length <= max ? value : `${value.slice(0, max - 1)}…`;
+
+const getContentEntryLabel = (mode: PollMode): string => mode === 'tier' ? 'Items' : 'Choices';
+const getContentEntrySingular = (mode: PollMode): string => mode === 'tier' ? 'Item' : 'Choice';
+const getContentEntryUnit = (mode: PollMode): string => mode === 'tier' ? 'item' : 'choice';
+const getPrivateVoteLabel = (mode: PollMode): string => {
+  switch (mode) {
+    case 'freeform':
+      return 'responses';
+    case 'ranked':
+      return 'rankings';
+    case 'tier':
+      return 'tier placements';
+    case 'multi':
+    case 'single':
+      return 'choices';
+  }
+};
 
 const buildStepHeader = (draft: PollDraft): string => {
   const index = STEP_ORDER.indexOf(draft.step);
@@ -114,7 +131,7 @@ const sectionWithToggle = (
 
 const renderChoicesPreview = (draft: PollDraft): string => {
   if (draft.mode === 'freeform') {
-    return '*Freeform polls collect short text responses instead of fixed choices.*';
+    return '*Freeform polls collect short text responses instead of fixed options.*';
   }
   const list = draft.choices
     .map((choice, index) => `${getPollChoiceEmojiDisplay(draft.choiceEmojis[index] ?? null, index)} ${choice}`)
@@ -222,11 +239,11 @@ const addContentStep = (container: ContainerBuilder, draft: PollDraft): void => 
 
   if (draft.mode === 'freeform') {
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent('**Choices** · *Freeform polls collect short text responses instead.*'),
+      new TextDisplayBuilder().setContent('**Responses** · *Freeform polls collect short text responses.*'),
     );
   } else {
     container.addSectionComponents(
-      sectionWithEdit(`**Choices**\n${renderChoicesPreview(draft)}`, 'choices', { style: ButtonStyle.Primary }),
+      sectionWithEdit(`**${getContentEntryLabel(draft.mode)}**\n${renderChoicesPreview(draft)}`, 'choices', { style: ButtonStyle.Primary }),
     );
   }
 
@@ -245,7 +262,7 @@ const addContentStep = (container: ContainerBuilder, draft: PollDraft): void => 
 
   if (draft.mode !== 'freeform') {
     container.addSectionComponents(
-      sectionWithEdit(`**Choice emojis**\n${renderEmojiPreview(draft)}`, 'emojis'),
+      sectionWithEdit(`**${getContentEntrySingular(draft.mode)} emojis**\n${renderEmojiPreview(draft)}`, 'emojis'),
     );
   }
 
@@ -280,7 +297,7 @@ const addTimingStep = (container: ContainerBuilder, draft: PollDraft): void => {
   );
   container.addSectionComponents(
     sectionWithToggle(
-      `**Anonymous voting:** ${draft.anonymous ? 'On — choices stay private' : 'Off — voters listed publicly'}`,
+      `**Anonymous voting:** ${draft.anonymous ? `On — ${getPrivateVoteLabel(draft.mode)} stay private` : 'Off — voters listed publicly'}`,
       'anonymous',
       draft.anonymous,
     ),
@@ -385,7 +402,7 @@ const addAdvancedStep = (container: ContainerBuilder, draft: PollDraft): void =>
 
   container.addSectionComponents(
     sectionWithToggle(
-      `**“Other” choice:** ${otherAvailable ? (draft.allowOtherOption ? 'Voters can submit their own option' : 'Disabled') : `*Not used in ${getModeLabel(draft.mode).toLowerCase()} polls.*`}`,
+      `**“Other” option:** ${otherAvailable ? (draft.allowOtherOption ? 'Voters can submit their own option' : 'Disabled') : `*Not used in ${getModeLabel(draft.mode).toLowerCase()} polls.*`}`,
       'allow-other',
       draft.allowOtherOption,
       !otherAvailable,
@@ -399,7 +416,7 @@ const buildContainer = (draft: PollDraft, error?: string): ContainerBuilder => {
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(buildStepHeader(draft)));
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${STEP_HINTS[draft.step]}`));
   if (error) {
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`⚠️ ${error}`));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`Warning: ${error}`));
   }
   container.addSeparatorComponents(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true),
@@ -498,6 +515,8 @@ export const buildPollBuilderModal = (
         .addLabelComponents(labelFor('Question', 'Shown at the top of the poll', input));
     }
     case 'choices': {
+      const label = getContentEntryLabel(draft.mode);
+      const unit = getContentEntryUnit(draft.mode);
       const input = new TextInputBuilder()
         .setCustomId('value')
         .setStyle(TextInputStyle.Paragraph)
@@ -505,8 +524,8 @@ export const buildPollBuilderModal = (
         .setValue(draft.choices.join(', '))
         .setMaxLength(500);
       return modal
-        .setTitle('Edit choices')
-        .addLabelComponents(labelFor('Choices', 'Comma-separated · 2-10 entries · max 80 chars each', input));
+        .setTitle(`Edit ${label.toLowerCase()}`)
+        .addLabelComponents(labelFor(label, `Comma-separated · 2-10 ${unit}s · max 80 chars each`, input));
     }
     case 'tier-labels': {
       const input = new TextInputBuilder()
@@ -532,16 +551,17 @@ export const buildPollBuilderModal = (
         .addLabelComponents(labelFor('Description', 'Optional context shown below the question', input));
     }
     case 'emojis': {
+      const unit = getContentEntryUnit(draft.mode);
       const input = new TextInputBuilder()
         .setCustomId('value')
         .setStyle(TextInputStyle.Paragraph)
         .setRequired(false)
         .setValue(draft.choiceEmojis.map((emoji) => emoji ?? '').join(', '))
-        .setPlaceholder('✅, ❌ or <:yes:123>, <:no:456>')
+        .setPlaceholder('<:yes:123>, <:no:456> or blank')
         .setMaxLength(500);
       return modal
         .setTitle('Edit emojis')
-        .addLabelComponents(labelFor('Emojis', 'Comma-separated · one per choice · leave blank to use numbered defaults', input));
+        .addLabelComponents(labelFor('Emojis', `Comma-separated · one per ${unit} · leave blank to use numbered defaults`, input));
     }
     case 'time': {
       const durationInput = new TextInputBuilder()
