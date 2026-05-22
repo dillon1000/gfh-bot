@@ -44,6 +44,9 @@ export const pollBuilderModalCustomId = (field: PollBuilderModalField): string =
 export const pollTierOpenCustomId = (pollId: string): string => `poll:tier:open:${pollId}`;
 export const pollTierSelectCustomId = (pollId: string, optionId: string): string => `poll:tier:select:${pollId}:${optionId}`;
 export const pollTierClearCustomId = (pollId: string): string => `poll:tier:clear:${pollId}`;
+export const pollTierImageUploadCustomId = (pollId: string, optionId: string): string => `poll:tier:image:upload:${pollId}:${optionId}`;
+export const pollTierImageRemoveCustomId = (pollId: string, optionId: string): string => `poll:tier:image:remove:${pollId}:${optionId}`;
+export const pollTierImageModalCustomId = (pollId: string, optionId: string): string => `poll:tier:image-modal:${pollId}:${optionId}`;
 export const pollRationaleUpvoteCustomId = (rationaleId: string): string => `poll:rationale-upvote:${rationaleId}`;
 export const pollRationaleOpenCustomId = (pollId: string): string => `poll:rationale-open:${pollId}`;
 export const pollRationaleModalCustomId = (pollId: string): string => `poll:rationale-modal:${pollId}`;

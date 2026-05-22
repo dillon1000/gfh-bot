@@ -184,6 +184,7 @@ model Poll {
   passThreshold  Int?
   passOptionIndex Int?
   reminderRoleId String?
+  tierLabels     String[]        @default([])
   durationMinutes Int
   closesAt       DateTime
   closedAt       DateTime?
@@ -217,6 +218,7 @@ model PollOption {
   pollId    String
   label     String
   emoji     String?
+  imageUrl  String?
   isOther   Boolean    @default(false)
   sortOrder Int
   createdAt DateTime   @default(now())

@@ -46,6 +46,11 @@ import {
   handlePollManageCommand,
   handlePollManageModal,
   handlePollReopenContext,
+  handlePollTierImageModal,
+  handlePollTierImageRemoveButton,
+  handlePollTierImageUploadButton,
+  handlePollTierImagesCommand,
+  handlePollTierImagesOpenButton,
 } from '@/features/polls/handlers/management.js';
 import {
   handlePollAuditCommand,
@@ -149,6 +154,9 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'poll-rationale':
             await handlePollRationaleCommand(interaction);
+            return;
+          case 'poll-tier-images':
+            await handlePollTierImagesCommand(interaction);
             return;
           case 'starboard':
             await handleStarboardCommand(interaction);
@@ -293,6 +301,21 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
+        if (interaction.customId.startsWith('poll:tier:images-open:')) {
+          await handlePollTierImagesOpenButton(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:tier:image:upload:')) {
+          await handlePollTierImageUploadButton(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:tier:image:remove:')) {
+          await handlePollTierImageRemoveButton(client, interaction);
+          return;
+        }
+
         if (interaction.customId.startsWith('poll:results:')) {
           await handlePollResultsButton(client, interaction);
           return;
@@ -380,6 +403,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('poll:rationale-modal:')) {
           await handlePollRationaleModal(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:tier:image-modal:')) {
+          await handlePollTierImageModal(client, interaction);
           return;
         }
 

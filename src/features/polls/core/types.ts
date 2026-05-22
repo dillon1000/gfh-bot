@@ -2,11 +2,25 @@ import type { Prisma } from '@/generated/prisma/client.js';
 
 export type PollMode = 'single' | 'multi' | 'ranked' | 'freeform' | 'tier';
 
-export const TIER_LABELS = ['S', 'A', 'B', 'C', 'D', 'F'] as const;
-export type TierLabel = (typeof TIER_LABELS)[number];
-export const TIER_COUNT = TIER_LABELS.length;
-export const getTierLabelForRank = (rank: number): TierLabel | null =>
-  TIER_LABELS[rank] ?? null;
+export const DEFAULT_TIER_LABELS = ['S', 'A', 'B', 'C', 'D', 'F'] as const;
+export const MAX_TIER_LABELS = 6;
+export const MIN_TIER_LABELS = 2;
+export type TierLabel = string;
+
+type TierLabelsHost = { tierLabels?: string[] | null };
+
+export const resolveTierLabels = (poll: TierLabelsHost): string[] => {
+  const provided = poll.tierLabels ?? [];
+  return provided.length > 0 ? [...provided] : [...DEFAULT_TIER_LABELS];
+};
+
+export const getTierCount = (poll: TierLabelsHost): number =>
+  resolveTierLabels(poll).length;
+
+export const getTierLabelForRank = (poll: TierLabelsHost, rank: number): string | null => {
+  const labels = resolveTierLabels(poll);
+  return labels[rank] ?? null;
+};
 export type PollClosedReason = 'closed' | 'cancelled';
 
 type PrismaPollWithRelations = Prisma.PollGetPayload<{
@@ -25,8 +39,9 @@ type PrismaPollWithRelations = Prisma.PollGetPayload<{
   };
 }>;
 
-type PollOptionRecord = Omit<PrismaPollWithRelations['options'][number], 'isOther'> & {
+type PollOptionRecord = Omit<PrismaPollWithRelations['options'][number], 'isOther' | 'imageUrl'> & {
   isOther?: boolean;
+  imageUrl?: string | null;
 };
 
 type PollVoteRecord = Omit<PrismaPollWithRelations['votes'][number], 'optionId' | 'rank' | 'responseText'> & {
@@ -35,11 +50,12 @@ type PollVoteRecord = Omit<PrismaPollWithRelations['votes'][number], 'optionId' 
   responseText?: string | null;
 };
 
-export type PollWithRelations = Omit<PrismaPollWithRelations, 'mode' | 'votes' | 'closedReason' | 'durationMinutes' | 'options' | 'allowOtherOption'> & {
+export type PollWithRelations = Omit<PrismaPollWithRelations, 'mode' | 'votes' | 'closedReason' | 'durationMinutes' | 'options' | 'allowOtherOption' | 'tierLabels'> & {
   mode: PollMode;
   closedReason: PollClosedReason | null;
   durationMinutes: number;
   allowOtherOption?: boolean;
+  tierLabels?: string[];
   options: PollOptionRecord[];
   votes: PollVoteRecord[];
 };
@@ -67,6 +83,7 @@ export type PollCreationInput = {
   reminderRoleId?: string | null;
   reminderOffsets: number[];
   durationMs: number;
+  tierLabels?: string[];
 };
 
 export type PollDraft = {
@@ -156,7 +173,7 @@ export type TierPollItemRanking = {
   votes: number;
   averageRank: number | null;
   consensusTier: TierLabel | null;
-  tierDistribution: Record<TierLabel, number>;
+  tierDistribution: Record<string, number>;
 };
 
 export type TierPollComputedResults = {

@@ -54,6 +54,10 @@ const buildPollComponents = (poll: PollWithRelations) => {
               .setLabel('Rank Tiers')
               .setStyle(ButtonStyle.Primary)
               .setDisabled(votingDisabled),
+            new ButtonBuilder()
+              .setCustomId(`poll:tier:images-open:${poll.id}`)
+              .setLabel('Manage Images')
+              .setStyle(ButtonStyle.Secondary),
           ]
       : poll.mode === 'freeform'
         ? [

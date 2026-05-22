@@ -11,7 +11,7 @@ import type {
   TierPollComputedResults,
   TierPollOutcome,
 } from '@/features/polls/core/types.js';
-import { TIER_COUNT, TIER_LABELS, getTierLabelForRank } from '@/features/polls/core/types.js';
+import { getTierLabelForRank, resolveTierLabels } from '@/features/polls/core/types.js';
 
 type RankedBallot = {
   userId: string;
@@ -341,18 +341,20 @@ const computeRankedPollResults = (poll: PollWithRelations): RankedPollComputedRe
   };
 };
 
-const emptyTierDistribution = (): Record<TierLabel, number> =>
-  TIER_LABELS.reduce<Record<TierLabel, number>>((acc, label) => {
+const emptyTierDistribution = (labels: string[]): Record<string, number> =>
+  labels.reduce<Record<string, number>>((acc, label) => {
     acc[label] = 0;
     return acc;
-  }, {} as Record<TierLabel, number>);
+  }, {});
 
 const computeTierPollResults = (poll: PollWithRelations): TierPollComputedResults => {
-  const perOption = new Map<string, { ranks: number[]; distribution: Record<TierLabel, number> }>();
+  const labels = resolveTierLabels(poll);
+  const tierCount = labels.length;
+  const perOption = new Map<string, { ranks: number[]; distribution: Record<string, number> }>();
   const voters = new Set<string>();
 
   for (const option of poll.options) {
-    perOption.set(option.id, { ranks: [], distribution: emptyTierDistribution() });
+    perOption.set(option.id, { ranks: [], distribution: emptyTierDistribution(labels) });
   }
 
   for (const vote of poll.votes) {
@@ -361,7 +363,7 @@ const computeTierPollResults = (poll: PollWithRelations): TierPollComputedResult
     }
 
     const rank = vote.rank;
-    if (rank < 0 || rank >= TIER_COUNT) {
+    if (rank < 0 || rank >= tierCount) {
       continue;
     }
 
@@ -372,21 +374,21 @@ const computeTierPollResults = (poll: PollWithRelations): TierPollComputedResult
 
     voters.add(vote.userId);
     bucket.ranks.push(rank);
-    const tierLabel = getTierLabelForRank(rank);
+    const tierLabel = getTierLabelForRank(poll, rank);
     if (tierLabel) {
-      bucket.distribution[tierLabel] += 1;
+      bucket.distribution[tierLabel] = (bucket.distribution[tierLabel] ?? 0) + 1;
     }
   }
 
   const items = poll.options.map((option) => {
-    const bucket = perOption.get(option.id) ?? { ranks: [], distribution: emptyTierDistribution() };
+    const bucket = perOption.get(option.id) ?? { ranks: [], distribution: emptyTierDistribution(labels) };
     const votes = bucket.ranks.length;
     const averageRank = votes === 0
       ? null
       : bucket.ranks.reduce((sum, rank) => sum + rank, 0) / votes;
     const consensusTier = averageRank === null
       ? null
-      : getTierLabelForRank(Math.min(TIER_COUNT - 1, Math.max(0, Math.round(averageRank))));
+      : getTierLabelForRank(poll, Math.min(tierCount - 1, Math.max(0, Math.round(averageRank))));
 
     return {
       id: option.id,

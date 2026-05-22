@@ -10,7 +10,7 @@ import {
   TextDisplayBuilder,
 } from 'discord.js';
 
-import { TIER_LABELS, getTierLabelForRank } from '@/features/polls/core/types.js';
+import { getTierLabelForRank, resolveTierLabels } from '@/features/polls/core/types.js';
 import type { PollWithRelations } from '@/features/polls/core/types.js';
 import {
   pollTierClearCustomId,
@@ -27,11 +27,13 @@ const buildTierItemSection = (
   currentRank: number | undefined,
   votingDisabled: boolean,
 ): { text: TextDisplayBuilder; row: ActionRowBuilder<StringSelectMenuBuilder> } => {
-  const currentTier = currentRank !== undefined ? getTierLabelForRank(currentRank) : null;
+  const tierLabels = resolveTierLabels(poll);
+  const currentTier = currentRank !== undefined ? getTierLabelForRank(poll, currentRank) : null;
   const emoji = getPollChoiceEmojiDisplay(option.emoji, index);
+  const imageHint = option.imageUrl ? ' 🖼️' : '';
   const headerText = currentTier
-    ? `**${emoji} ${option.label}** — currently \`${currentTier}\``
-    : `**${emoji} ${option.label}** — *not yet ranked*`;
+    ? `**${emoji} ${option.label}**${imageHint} — currently \`${currentTier}\``
+    : `**${emoji} ${option.label}**${imageHint} — *not yet ranked*`;
 
   const text = new TextDisplayBuilder().setContent(headerText);
 
@@ -42,10 +44,10 @@ const buildTierItemSection = (
     .setMinValues(1)
     .setMaxValues(1)
     .addOptions(
-      TIER_LABELS.map((tier, tierIndex) => {
+      tierLabels.map((tier, tierIndex) => {
         const description = tierIndex === 0
           ? 'Top tier'
-          : tierIndex === TIER_LABELS.length - 1
+          : tierIndex === tierLabels.length - 1
             ? 'Bottom tier'
             : null;
         return {

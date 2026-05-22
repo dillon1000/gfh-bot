@@ -8,6 +8,7 @@ import {
 import { parseDurationToMs } from '@/lib/duration.js';
 import { normalizeEmojiInput } from '@/lib/emoji.js';
 import type { PollMode } from '@/features/polls/core/types.js';
+import { MAX_TIER_LABELS, MIN_TIER_LABELS } from '@/features/polls/core/types.js';
 
 const minChoices = 2;
 const maxChoices = 10;
@@ -419,6 +420,46 @@ export const parsePollFormInput = (input: {
     allowOtherOption,
     ...(description ? { description } : {}),
   };
+};
+
+const maxTierLabelLength = 12;
+
+export const parseTierLabels = (
+  value: string | string[] | null | undefined,
+  mode: PollMode,
+): string[] => {
+  const parts = Array.isArray(value)
+    ? value.map((part) => part.trim()).filter(Boolean)
+    : (value ?? '')
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+  if (parts.length === 0) {
+    return [];
+  }
+
+  if (mode !== 'tier') {
+    throw new Error('Tier labels can only be set on tier-list polls.');
+  }
+
+  if (parts.length < MIN_TIER_LABELS || parts.length > MAX_TIER_LABELS) {
+    throw new Error(`Provide between ${MIN_TIER_LABELS} and ${MAX_TIER_LABELS} tier labels.`);
+  }
+
+  const seen = new Set<string>();
+  for (const label of parts) {
+    if (label.length > maxTierLabelLength) {
+      throw new Error(`Each tier label must be ${maxTierLabelLength} characters or fewer.`);
+    }
+    const key = label.toLocaleLowerCase();
+    if (seen.has(key)) {
+      throw new Error('Tier labels must be unique.');
+    }
+    seen.add(key);
+  }
+
+  return parts;
 };
 
 export const sanitizeFreeformResponse = (value: string): string => {

@@ -34,7 +34,7 @@ export async function buildPollResultDiagram(
   const buffer = results.kind === 'ranked'
     ? await sharp(Buffer.from(buildRankedPollSvg(poll, results, outcome))).png().toBuffer()
     : results.kind === 'tier'
-      ? await sharp(Buffer.from(buildTierPollSvg(poll, results))).png().toBuffer()
+      ? await sharp(Buffer.from(await buildTierPollSvg(poll, results))).png().toBuffer()
     : await buildStandardPollPng(poll, results, outcome, snapshot.electorate);
 
   return {

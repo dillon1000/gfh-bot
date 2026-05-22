@@ -22,6 +22,7 @@ import {
   parseQuorumPercent,
   parseReminderOffsets,
   parseReminderRoleTarget,
+  parseTierLabels,
   resolvePassRule,
 } from '@/features/polls/parsing/parser.js';
 import { normalizeQuestionFromMessage, resolvePollThreadName } from '@/features/polls/ui/present.js';
@@ -52,6 +53,7 @@ type PublishDraft = {
   createThread: boolean;
   threadName: string;
   durationMs: number;
+  tierLabels?: string[];
 };
 
 const validateDraftGovernance = async (
@@ -102,6 +104,7 @@ const publishPoll = async (
     reminderRoleId: draft.reminderRoleId,
     reminderOffsets: draft.reminderOffsets,
     durationMs: draft.durationMs,
+    ...(draft.tierLabels && draft.tierLabels.length > 0 ? { tierLabels: draft.tierLabels } : {}),
   });
 
   try {
@@ -156,8 +159,11 @@ export const handlePollCommand = async (
     parsed.durationMs,
   );
 
+  const tierLabels = parseTierLabels(interaction.options.getString('tier_labels'), parsed.mode);
+
   const published = await publishPoll(client, interaction, {
     ...parsed,
+    ...(tierLabels.length > 0 ? { tierLabels } : {}),
     anonymous: interaction.options.getBoolean('anonymous') ?? false,
     hideResultsUntilClosed: interaction.options.getBoolean('hide_results') ?? false,
     quorumPercent,

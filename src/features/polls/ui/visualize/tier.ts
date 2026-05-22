@@ -1,11 +1,9 @@
 import {
-  TIER_LABELS,
+  resolveTierLabels,
   type PollWithRelations,
-  type TierLabel,
   type TierPollComputedResults,
 } from '@/features/polls/core/types.js';
 import {
-  background,
   border,
   buildSvgShell,
   createColorScale,
@@ -16,14 +14,9 @@ import {
   truncate,
 } from '@/features/polls/ui/visualize/shared.js';
 
-const tierAccent: Record<TierLabel, string> = {
-  S: '#ff6b6b',
-  A: '#ffa94d',
-  B: '#ffe066',
-  C: '#a9e34b',
-  D: '#74c0fc',
-  F: '#b197fc',
-};
+const defaultTierAccents = ['#ff6b6b', '#ffa94d', '#ffe066', '#a9e34b', '#74c0fc', '#b197fc'];
+const getTierAccent = (index: number): string =>
+  defaultTierAccents[index] ?? defaultTierAccents[defaultTierAccents.length - 1] ?? '#7aa2db';
 
 const escapeXml = (value: string): string => value
   .replaceAll('&', '&amp;')
@@ -36,9 +29,9 @@ const width = 1200;
 const headerHeight = 130;
 const footerHeight = 80;
 const tierGutter = 16;
-const tierLabelWidth = 80;
+const tierLabelWidth = 110;
 const itemPadding = 14;
-const itemHeight = 60;
+const itemHeight = 84;
 const itemMinWidth = 140;
 const itemMaxWidth = 240;
 const rowPaddingY = 18;
@@ -48,35 +41,72 @@ type RowItem = {
   label: string;
   color: string;
   voteCount: number;
+  imageDataUri: string | null;
 };
 
-const itemBlock = (item: RowItem, x: number, y: number, width: number): string => {
-  const labelMaxChars = Math.max(8, Math.floor(width / 9));
+const supportedImageMimeTypes = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+const fetchTimeoutMs = 4_000;
+
+const fetchImageAsDataUri = async (url: string): Promise<string | null> => {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), fetchTimeoutMs);
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) {
+        return null;
+      }
+      const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() ?? '';
+      const mimeType = supportedImageMimeTypes.has(contentType) ? contentType : 'image/png';
+      const buffer = Buffer.from(await response.arrayBuffer());
+      return `data:${mimeType};base64,${buffer.toString('base64')}`;
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return null;
+  }
+};
+
+const itemBlock = (item: RowItem, x: number, y: number, blockWidth: number): string => {
+  const hasImage = Boolean(item.imageDataUri);
+  const labelMaxChars = Math.max(8, Math.floor(blockWidth / 9));
   const labelText = truncate(item.label, labelMaxChars);
+  const fillColor = hasImage ? '#1c1f24' : item.color;
+  const labelColor = hasImage ? '#f5f7fa' : '#1c1f24';
+  const subColor = hasImage ? '#b8bdc7' : '#1c1f24';
+
+  const imageElement = hasImage
+    ? `<image href="${item.imageDataUri}" x="${x + 4}" y="${y + 4}" width="${blockWidth - 8}" height="${itemHeight - 28}" preserveAspectRatio="xMidYMid slice" clip-path="inset(0 round 6px)"/>`
+    : '';
 
   return [
-    `<rect x="${x}" y="${y}" width="${width}" height="${itemHeight}" rx="10" fill="${item.color}" stroke="${border}" stroke-width="1"/>`,
-    renderText(x + width / 2, y + itemHeight / 2 - 2, labelText, {
+    `<rect x="${x}" y="${y}" width="${blockWidth}" height="${itemHeight}" rx="10" fill="${fillColor}" stroke="${border}" stroke-width="1"/>`,
+    imageElement,
+    `<rect x="${x}" y="${y + itemHeight - 26}" width="${blockWidth}" height="26" fill="${hasImage ? 'rgba(0,0,0,0.55)' : 'transparent'}"/>`,
+    renderText(x + blockWidth / 2, y + itemHeight - 12, labelText, {
       anchor: 'middle',
-      color: '#1c1f24',
-      fontSize: 16,
+      color: labelColor,
+      fontSize: 13,
       fontWeight: 700,
     }),
-    renderText(x + width / 2, y + itemHeight / 2 + 16, `${item.voteCount} vote${item.voteCount === 1 ? '' : 's'}`, {
-      anchor: 'middle',
-      color: '#1c1f24',
+    renderText(x + blockWidth - 8, y + 14, `${item.voteCount}`, {
+      anchor: 'end',
+      color: subColor,
       fontSize: 11,
+      fontWeight: 700,
     }),
   ].join('\n');
 };
 
 const buildRow = (
-  tier: TierLabel,
+  tier: string,
+  tierIndex: number,
   items: RowItem[],
   yOffset: number,
   rowHeight: number,
 ): string => {
-  const accent = tierAccent[tier];
+  const accent = getTierAccent(tierIndex);
   const innerX = tierLabelWidth + tierGutter + 32;
   const innerWidth = width - innerX - 32;
 
@@ -98,9 +128,12 @@ const buildRow = (
     cursorX += itemWidth + itemPadding;
   }
 
+  const labelDisplay = truncate(tier, 6);
+  const fontSize = labelDisplay.length > 3 ? 24 : labelDisplay.length > 2 ? 32 : 42;
+
   return [
     `<rect x="32" y="${yOffset}" width="${tierLabelWidth}" height="${rowHeight}" rx="14" fill="${accent}"/>`,
-    `<text x="${32 + tierLabelWidth / 2}" y="${yOffset + rowHeight / 2 + 14}" text-anchor="middle" fill="#1c1f24" font-size="42" font-weight="900">${escapeXml(tier)}</text>`,
+    `<text x="${32 + tierLabelWidth / 2}" y="${yOffset + rowHeight / 2 + fontSize / 3}" text-anchor="middle" fill="#1c1f24" font-size="${fontSize}" font-weight="900">${escapeXml(labelDisplay)}</text>`,
     `<rect x="${innerX - 16}" y="${yOffset}" width="${innerWidth + 32}" height="${rowHeight}" rx="14" fill="${panel}" stroke="${border}" stroke-width="1"/>`,
     items.length === 0
       ? renderText(innerX + innerWidth / 2, yOffset + rowHeight / 2 + 6, 'No items in this tier', {
@@ -126,14 +159,26 @@ const computeRowHeight = (itemCount: number): number => {
   return rowPaddingY * 2 + rowCount * itemHeight + (rowCount - 1) * itemPadding;
 };
 
-export const buildTierPollSvg = (
+export const buildTierPollSvg = async (
   poll: PollWithRelations,
   results: TierPollComputedResults,
-): string => {
+): Promise<string> => {
+  const tierLabels = resolveTierLabels(poll);
   const colorScale = createColorScale(poll);
-  const itemsByTier = new Map<TierLabel, RowItem[]>();
-  for (const tier of TIER_LABELS) {
-    itemsByTier.set(tier, []);
+
+  const imageByOptionId = new Map<string, string | null>();
+  await Promise.all(
+    poll.options
+      .filter((option) => Boolean(option.imageUrl))
+      .map(async (option) => {
+        const dataUri = await fetchImageAsDataUri(option.imageUrl!);
+        imageByOptionId.set(option.id, dataUri);
+      }),
+  );
+
+  const itemsByTier = new Map<string, RowItem[]>();
+  for (const label of tierLabels) {
+    itemsByTier.set(label, []);
   }
   const unranked: RowItem[] = [];
 
@@ -144,17 +189,17 @@ export const buildTierPollSvg = (
       label: item.label,
       color,
       voteCount: item.votes,
+      imageDataUri: imageByOptionId.get(item.id) ?? null,
     };
-    if (item.consensusTier) {
-      itemsByTier.get(item.consensusTier)?.push(rowItem);
+    if (item.consensusTier && itemsByTier.has(item.consensusTier)) {
+      itemsByTier.get(item.consensusTier)!.push(rowItem);
     } else {
       unranked.push(rowItem);
     }
   }
 
-  // sort within tier by average rank ascending (better avg = first)
-  for (const tier of TIER_LABELS) {
-    const list = itemsByTier.get(tier) ?? [];
+  for (const label of tierLabels) {
+    const list = itemsByTier.get(label) ?? [];
     list.sort((left, right) => {
       const leftItem = results.items.find((entry) => entry.id === left.id);
       const rightItem = results.items.find((entry) => entry.id === right.id);
@@ -164,19 +209,21 @@ export const buildTierPollSvg = (
     });
   }
 
-  const rowHeights: Array<{ tier: TierLabel; height: number; items: RowItem[] }> = TIER_LABELS.map((tier) => {
-    const items = itemsByTier.get(tier) ?? [];
-    return { tier, height: computeRowHeight(items.length), items };
-  });
+  const rowMeta: Array<{ tier: string; tierIndex: number; height: number; items: RowItem[] }> = tierLabels.map(
+    (tier, tierIndex) => {
+      const items = itemsByTier.get(tier) ?? [];
+      return { tier, tierIndex, height: computeRowHeight(items.length), items };
+    },
+  );
 
-  const tiersBlockHeight = rowHeights.reduce((sum, row) => sum + row.height + tierGutter, 0) - tierGutter;
+  const tiersBlockHeight = rowMeta.reduce((sum, row) => sum + row.height + tierGutter, 0) - tierGutter;
   const unrankedHeight = unranked.length > 0 ? computeRowHeight(unranked.length) + 40 : 0;
   const totalHeight = headerHeight + tiersBlockHeight + unrankedHeight + footerHeight;
 
   let yCursor = headerHeight;
   const rows: string[] = [];
-  for (const row of rowHeights) {
-    rows.push(buildRow(row.tier, row.items, yCursor, row.height));
+  for (const row of rowMeta) {
+    rows.push(buildRow(row.tier, row.tierIndex, row.items, yCursor, row.height));
     yCursor += row.height + tierGutter;
   }
 

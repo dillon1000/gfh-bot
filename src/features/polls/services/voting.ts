@@ -4,7 +4,7 @@ import { redis } from '@/lib/redis.js';
 import { sanitizeFreeformResponse } from '@/features/polls/parsing/parser.js';
 import { pollInclude } from '@/features/polls/services/repository.js';
 import type { PollMode, PollWithRelations } from '@/features/polls/core/types.js';
-import { TIER_COUNT } from '@/features/polls/core/types.js';
+import { getTierCount } from '@/features/polls/core/types.js';
 
 const getEffectivePollMode = (poll: { mode?: PollMode | null; singleSelect: boolean }): PollMode =>
   poll.mode ?? (poll.singleSelect ? 'single' : 'multi');
@@ -262,10 +262,6 @@ export const setPollTierVote = async (
   optionId: string,
   tierRank: number | null,
 ): Promise<PollWithRelations> => {
-  if (tierRank !== null && (!Number.isInteger(tierRank) || tierRank < 0 || tierRank >= TIER_COUNT)) {
-    throw new Error('Invalid tier assignment.');
-  }
-
   const result = await withRedisLock(redis, `lock:poll-vote:${pollId}:${userId}`, 5_000, async () =>
     prisma.$transaction(async (tx) => {
       const poll = await tx.poll.findUnique({
@@ -279,6 +275,11 @@ export const setPollTierVote = async (
 
       if (poll.mode !== 'tier') {
         throw new Error('This poll is not a tier-list poll.');
+      }
+
+      const tierCount = getTierCount(poll);
+      if (tierRank !== null && (!Number.isInteger(tierRank) || tierRank < 0 || tierRank >= tierCount)) {
+        throw new Error('Invalid tier assignment.');
       }
 
       if (poll.closedAt || poll.closesAt.getTime() <= Date.now()) {
