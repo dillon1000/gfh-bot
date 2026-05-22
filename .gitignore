@@ -9,3 +9,7 @@ prisma/dev.db
 /tmp/
 /output/
 /src/generated/
+.fallow/
+.claude/
+.vscode/
+tmp/
