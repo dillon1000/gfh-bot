@@ -366,6 +366,31 @@ export const handlePollTierOpenButton = async (
   );
 };
 
+export const handlePollTierItemSelect = async (
+  interaction: StringSelectMenuInteraction,
+): Promise<void> => {
+  const pollId = interaction.customId.split(':')[3];
+  if (!pollId) {
+    throw new Error('Invalid poll identifier.');
+  }
+
+  const selectedOptionId = interaction.values[0];
+  if (!selectedOptionId) {
+    throw new Error('No tier-list item selected.');
+  }
+
+  const poll = await getValidatedTierPoll(pollId);
+  await assertUserCanVoteInPoll(interaction.client, poll, interaction.user.id);
+  if (!poll.options.some((option) => !option.isOther && option.id === selectedOptionId)) {
+    throw new Error('Tier-list item not found on this poll.');
+  }
+
+  const assignments = getPollTierAssignmentsForUser(poll, interaction.user.id);
+  await interaction.update(
+    buildTierVotingMessage(poll, assignments, isPollClosedOrExpired(poll), selectedOptionId),
+  );
+};
+
 export const handlePollTierSelect = async (
   client: Client,
   interaction: StringSelectMenuInteraction,
@@ -398,7 +423,7 @@ export const handlePollTierSelect = async (
   const updatedPoll = await getValidatedTierPoll(pollId);
   const assignments = getPollTierAssignmentsForUser(updatedPoll, interaction.user.id);
   await interaction.update(
-    buildTierVotingMessage(updatedPoll, assignments, isPollClosedOrExpired(updatedPoll)),
+    buildTierVotingMessage(updatedPoll, assignments, isPollClosedOrExpired(updatedPoll), optionId),
   );
 };
 

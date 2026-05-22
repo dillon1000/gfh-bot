@@ -12,6 +12,7 @@ import { MAX_TIER_LABELS, MIN_TIER_LABELS } from '@/features/polls/core/types.js
 
 const minChoices = 2;
 const maxChoices = 10;
+const maxTierChoices = 25;
 const maxQuestionLength = 200;
 const maxDescriptionLength = 1_000;
 const maxChoiceLength = 80;
@@ -215,6 +216,9 @@ export const parsePassChoiceIndex = (
   return normalized - 1;
 };
 
+export const getMaxPollChoices = (mode: PollMode): number =>
+  mode === 'tier' ? maxTierChoices : maxChoices;
+
 export const resolvePassRule = (
   mode: PollMode,
   passThreshold: number | null,
@@ -273,30 +277,37 @@ export const sanitizeDescription = (value: string): string => {
   return trimmed;
 };
 
-export const parseChoicesCsv = (value: string): string[] => {
+export const parseChoicesCsv = (
+  value: string,
+  options: { maxChoices?: number; noun?: string } = {},
+): string[] => {
+  const limit = options.maxChoices ?? maxChoices;
+  const noun = options.noun ?? 'choices';
+  const singular = noun.endsWith('s') ? noun.slice(0, -1) : noun;
+  const capitalizedNoun = noun.slice(0, 1).toUpperCase() + noun.slice(1);
   const choices = value
     .split(',')
     .map((choice) => choice.trim())
     .filter(Boolean);
 
   if (choices.length < minChoices) {
-    throw new Error(`At least ${minChoices} choices are required.`);
+    throw new Error(`At least ${minChoices} ${noun} are required.`);
   }
 
-  if (choices.length > maxChoices) {
-    throw new Error(`No more than ${maxChoices} choices are allowed.`);
+  if (choices.length > limit) {
+    throw new Error(`No more than ${limit} ${noun} are allowed.`);
   }
 
   const normalized = new Set<string>();
 
   for (const choice of choices) {
     if (choice.length > maxChoiceLength) {
-      throw new Error(`Each choice must be ${maxChoiceLength} characters or fewer.`);
+      throw new Error(`Each ${singular} must be ${maxChoiceLength} characters or fewer.`);
     }
 
     const key = choice.toLocaleLowerCase();
     if (normalized.has(key)) {
-      throw new Error('Choices must be unique.');
+      throw new Error(`${capitalizedNoun} must be unique.`);
     }
 
     normalized.add(key);
@@ -404,7 +415,10 @@ export const parsePollFormInput = (input: {
     : (input.choices ?? '');
   const choices = mode === 'freeform'
     ? []
-    : parseChoicesCsv(rawChoices);
+    : parseChoicesCsv(rawChoices, {
+        maxChoices: getMaxPollChoices(mode),
+        noun: mode === 'tier' ? 'items' : 'choices',
+      });
   const choiceEmojis = parseChoiceEmojisCsv(input.choiceEmojis, choices.length);
   const durationMs = parsePollDurationMs(input.durationText, input.now);
   const allowOtherOption = mode !== 'ranked' && mode !== 'freeform' && mode !== 'tier' && (input.allowOtherOption ?? false);

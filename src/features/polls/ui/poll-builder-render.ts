@@ -20,6 +20,7 @@ import {
 } from 'discord.js';
 
 import { formatDurationFromMinutes } from '@/lib/duration.js';
+import { getMaxPollChoices } from '@/features/polls/parsing/parser.js';
 import {
   pollBuilderButtonCustomId,
   pollBuilderModalCustomId,
@@ -78,6 +79,8 @@ const truncate = (value: string, max = 90): string =>
 const getContentEntryLabel = (mode: PollMode): string => mode === 'tier' ? 'Items' : 'Choices';
 const getContentEntrySingular = (mode: PollMode): string => mode === 'tier' ? 'Item' : 'Choice';
 const getContentEntryUnit = (mode: PollMode): string => mode === 'tier' ? 'item' : 'choice';
+const getContentEntryMaxLength = (mode: PollMode): number =>
+  mode === 'tier' ? 2_500 : 500;
 const getPrivateVoteLabel = (mode: PollMode): string => {
   switch (mode) {
     case 'freeform':
@@ -522,10 +525,10 @@ export const buildPollBuilderModal = (
         .setStyle(TextInputStyle.Paragraph)
         .setRequired(true)
         .setValue(draft.choices.join(', '))
-        .setMaxLength(500);
+        .setMaxLength(getContentEntryMaxLength(draft.mode));
       return modal
         .setTitle(`Edit ${label.toLowerCase()}`)
-        .addLabelComponents(labelFor(label, `Comma-separated · 2-10 ${unit}s · max 80 chars each`, input));
+        .addLabelComponents(labelFor(label, `Comma-separated · 2-${getMaxPollChoices(draft.mode)} ${unit}s · max 80 chars each`, input));
     }
     case 'tier-labels': {
       const input = new TextInputBuilder()

@@ -13,6 +13,7 @@ import { redis } from '@/lib/redis.js';
 import { deletePollDraft, getPollDraft, savePollDraft } from '@/features/polls/state/drafts.js';
 import {
   defaultReminderOffsetsMinutes,
+  getMaxPollChoices,
   parseChoiceEmojisCsv,
   parseChoicesCsv,
   parseGovernanceChannelTargets,
@@ -456,7 +457,10 @@ export const handlePollBuilderModal = async (
       draft.question = interaction.fields.getTextInputValue('value').trim();
       break;
     case pollBuilderModalCustomId('choices'):
-      draft.choices = parseChoicesCsv(interaction.fields.getTextInputValue('value'));
+      draft.choices = parseChoicesCsv(interaction.fields.getTextInputValue('value'), {
+        maxChoices: getMaxPollChoices(draft.mode),
+        noun: draft.mode === 'tier' ? 'items' : 'choices',
+      });
       draft.choiceEmojis = parseChoiceEmojisCsv(draft.choiceEmojis, draft.choices.length);
       if (draft.passThreshold !== null && (draft.passOptionIndex === null || draft.passOptionIndex >= draft.choices.length)) {
         draft.passOptionIndex = 0;

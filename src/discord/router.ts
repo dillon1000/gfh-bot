@@ -54,6 +54,7 @@ import {
   handlePollManageModal,
   handlePollReopenContext,
   handlePollTierImageModal,
+  handlePollTierImageItemSelect,
   handlePollTierImageRemoveButton,
   handlePollTierImageUploadButton,
   handlePollTierImagesCommand,
@@ -80,6 +81,7 @@ import {
   handlePollResponseButton,
   handlePollResponseModal,
   handlePollTierClearButton,
+  handlePollTierItemSelect,
   handlePollTierOpenButton,
   handlePollTierSelect,
   handlePollVoteSelect,
@@ -371,6 +373,16 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('poll:vote:')) {
           await handlePollVoteSelect(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:tier:item-select:')) {
+          await handlePollTierItemSelect(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:tier:image:item-select:')) {
+          await handlePollTierImageItemSelect(interaction);
           return;
         }
 

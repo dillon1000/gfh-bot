@@ -7,6 +7,7 @@ import {
   type Client,
   type MessageContextMenuCommandInteraction,
   type ModalSubmitInteraction,
+  type StringSelectMenuInteraction,
 } from 'discord.js';
 
 import { formatDurationFromMinutes, parseDurationToMs } from '@/lib/duration.js';
@@ -18,7 +19,7 @@ import {
   buildPollExtendModal,
   buildPollReopenModal,
 } from '@/features/polls/ui/management-render.js';
-import { parseChoicesCsv, sanitizeQuestion } from '@/features/polls/parsing/parser.js';
+import { getMaxPollChoices, parseChoicesCsv, sanitizeQuestion } from '@/features/polls/parsing/parser.js';
 import { getPollDurationMinutes } from '@/features/polls/state/poll-state.js';
 import { buildFeedbackEmbed } from '@/lib/feedback-embeds.js';
 import { buildPollBuilderPreview } from '@/features/polls/ui/poll-builder-render.js';
@@ -251,7 +252,10 @@ export const handlePollManageModal = async (
       const question = sanitizeQuestion(interaction.fields.getTextInputValue('question'));
       const choices = poll.mode === 'freeform'
         ? []
-        : parseChoicesCsv(interaction.fields.getTextInputValue('choices'));
+        : parseChoicesCsv(interaction.fields.getTextInputValue('choices'), {
+            maxChoices: getMaxPollChoices(poll.mode),
+            noun: poll.mode === 'tier' ? 'items' : 'choices',
+          });
       await editPollBeforeFirstVote(poll.id, { question, choices });
       await refreshPollMessage(client, poll.id);
       await interaction.editReply({
@@ -336,6 +340,32 @@ export const handlePollTierImagesOpenButton = async (
 
   assertTierPollManagement(poll, interaction);
   await interaction.reply(buildTierImagesEditor(poll));
+};
+
+export const handlePollTierImageItemSelect = async (
+  interaction: StringSelectMenuInteraction,
+): Promise<void> => {
+  const pollId = interaction.customId.split(':')[4];
+  if (!pollId) {
+    throw new Error('Invalid poll identifier.');
+  }
+
+  const optionId = interaction.values[0];
+  if (!optionId) {
+    throw new Error('No tier-list item selected.');
+  }
+
+  const poll = await getPollById(pollId);
+  if (!poll) {
+    throw new Error('Poll not found.');
+  }
+
+  assertTierPollManagement(poll, interaction);
+  if (!poll.options.some((option) => !option.isOther && option.id === optionId)) {
+    throw new Error('Tier-list item not found on this poll.');
+  }
+
+  await interaction.update(buildTierImagesEditor(poll, optionId));
 };
 
 export const handlePollTierImageUploadButton = async (

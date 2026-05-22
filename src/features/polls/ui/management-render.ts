@@ -6,6 +6,7 @@ import {
 } from 'discord.js';
 
 import { formatDurationFromMinutes } from '@/lib/duration.js';
+import { getMaxPollChoices } from '@/features/polls/parsing/parser.js';
 import { pollManageModalCustomId } from '@/features/polls/ui/custom-ids.js';
 import type { PollWithRelations } from '@/features/polls/core/types.js';
 
@@ -26,13 +27,15 @@ export const buildPollEditModal = (
     .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(questionInput));
 
   if (poll.mode !== 'freeform') {
+    const entryLabel = poll.mode === 'tier' ? 'Items' : 'Choices';
     const choicesInput = new TextInputBuilder()
       .setCustomId('choices')
-      .setLabel('Choices (comma separated)')
+      .setLabel(`${entryLabel} (comma separated)`)
       .setStyle(TextInputStyle.Paragraph)
       .setRequired(true)
       .setValue(poll.options.filter((option) => !option.isOther).map((option) => option.label).join(', '))
-      .setMaxLength(500);
+      .setPlaceholder(`2-${getMaxPollChoices(poll.mode)} entries`)
+      .setMaxLength(poll.mode === 'tier' ? 2_500 : 500);
 
     modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(choicesInput));
   }

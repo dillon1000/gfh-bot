@@ -53,8 +53,10 @@ export const pollBuilderButtonCustomId = (action: PollBuilderAction): string => 
 export const pollBuilderModalCustomId = (field: PollBuilderModalField): string => `poll-builder:modal:${field}`;
 export const pollBuilderSelectCustomId = (select: PollBuilderSelect): string => `poll-builder:select:${select}`;
 export const pollTierOpenCustomId = (pollId: string): string => `poll:tier:open:${pollId}`;
+export const pollTierItemSelectCustomId = (pollId: string): string => `poll:tier:item-select:${pollId}`;
 export const pollTierSelectCustomId = (pollId: string, optionId: string): string => `poll:tier:select:${pollId}:${optionId}`;
 export const pollTierClearCustomId = (pollId: string): string => `poll:tier:clear:${pollId}`;
+export const pollTierImageItemSelectCustomId = (pollId: string): string => `poll:tier:image:item-select:${pollId}`;
 export const pollTierImageUploadCustomId = (pollId: string, optionId: string): string => `poll:tier:image:upload:${pollId}:${optionId}`;
 export const pollTierImageRemoveCustomId = (pollId: string, optionId: string): string => `poll:tier:image:remove:${pollId}:${optionId}`;
 export const pollTierImageModalCustomId = (pollId: string, optionId: string): string => `poll:tier:image-modal:${pollId}:${optionId}`;
