@@ -306,7 +306,7 @@ export const setPollTierVote = async (
             pollId,
             userId,
             optionId,
-            rank: tierRank,
+            tierRank,
           },
         });
       }
@@ -323,7 +323,7 @@ export const setPollTierVote = async (
         .sort();
 
       if (previousOptionIds.join(',') !== nextOptionIds.join(',')
-        || previousVotes.some((vote) => vote.optionId === optionId && vote.rank !== tierRank)) {
+        || previousVotes.some((vote) => vote.optionId === optionId && (vote.tierRank ?? vote.rank) !== tierRank)) {
         await tx.pollVoteEvent.create({
           data: {
             pollId,
@@ -408,10 +408,11 @@ export const getPollTierAssignmentsForUser = (
 ): Map<string, number> => {
   const assignments = new Map<string, number>();
   for (const vote of poll.votes) {
-    if (vote.userId !== userId || !vote.optionId || vote.rank === null || vote.rank === undefined) {
+    const tierRank = vote.tierRank ?? vote.rank;
+    if (vote.userId !== userId || !vote.optionId || tierRank === null || tierRank === undefined) {
       continue;
     }
-    assignments.set(vote.optionId, vote.rank);
+    assignments.set(vote.optionId, tierRank);
   }
   return assignments;
 };

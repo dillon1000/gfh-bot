@@ -44,9 +44,10 @@ type PollOptionRecord = Omit<PrismaPollWithRelations['options'][number], 'isOthe
   imageUrl?: string | null;
 };
 
-type PollVoteRecord = Omit<PrismaPollWithRelations['votes'][number], 'optionId' | 'rank' | 'responseText'> & {
+type PollVoteRecord = Omit<PrismaPollWithRelations['votes'][number], 'optionId' | 'rank' | 'tierRank' | 'responseText'> & {
   optionId?: string | null;
   rank?: number | null;
+  tierRank?: number | null;
   responseText?: string | null;
 };
 

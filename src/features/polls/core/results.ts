@@ -358,11 +358,11 @@ const computeTierPollResults = (poll: PollWithRelations): TierPollComputedResult
   }
 
   for (const vote of poll.votes) {
-    if (!vote.optionId || vote.rank === null || vote.rank === undefined) {
+    const rank = vote.tierRank ?? vote.rank;
+    if (!vote.optionId || rank === null || rank === undefined) {
       continue;
     }
 
-    const rank = vote.rank;
     if (rank < 0 || rank >= tierCount) {
       continue;
     }

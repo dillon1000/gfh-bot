@@ -235,6 +235,7 @@ model PollVote {
   optionId  String?
   userId    String
   rank      Int?
+  tierRank  Int?
   responseText String?
   createdAt DateTime   @default(now())
   poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
