@@ -1,4 +1,5 @@
 import {
+  type AnySelectMenuInteraction,
   type Guild,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
@@ -26,9 +27,16 @@ import {
   resolvePassRule,
 } from '@/features/polls/parsing/parser.js';
 import { normalizeQuestionFromMessage, resolvePollThreadName } from '@/features/polls/ui/present.js';
-import { pollBuilderButtonCustomId, pollBuilderModalCustomId } from '@/features/polls/ui/custom-ids.js';
+import { pollBuilderButtonCustomId, pollBuilderModalCustomId, pollBuilderSelectCustomId } from '@/features/polls/ui/custom-ids.js';
 import { buildFeedbackEmbed } from '@/lib/feedback-embeds.js';
-import { buildPollBuilderModal, buildPollBuilderPreview } from '@/features/polls/ui/poll-builder-render.js';
+import {
+  buildPollBuilderFinalMessage,
+  buildPollBuilderModal,
+  buildPollBuilderPreview,
+  getNextStep,
+  getPreviousStep,
+} from '@/features/polls/ui/poll-builder-render.js';
+import type { PollMode } from '@/features/polls/core/types.js';
 import { validatePollGovernanceConfig } from '@/features/polls/services/governance.js';
 import { hydratePollMessage } from '@/features/polls/services/lifecycle.js';
 import { createPollRecord, deletePollRecord } from '@/features/polls/services/repository.js';
@@ -195,10 +203,7 @@ export const handlePollBuilderCommand = async (
   }
 
   const draft = await getPollDraft(redis, interaction.guildId, interaction.user.id);
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
-    ...buildPollBuilderPreview(draft),
-  });
+  await interaction.reply(buildPollBuilderPreview(draft));
 };
 
 export const handlePollFromMessageContext = async (
@@ -211,6 +216,7 @@ export const handlePollFromMessageContext = async (
   const target = interaction.targetMessage;
   const content = target.content.trim();
   const draft = {
+    step: 'mode' as const,
     question: normalizeQuestionFromMessage(content),
     description: content
       ? `${target.url}`
@@ -218,6 +224,7 @@ export const handlePollFromMessageContext = async (
     mode: 'single' as const,
     choices: ['Yes', 'No'],
     choiceEmojis: [null, null],
+    tierLabels: [],
     anonymous: false,
     hideResultsUntilClosed: false,
     allowOtherOption: false,
@@ -235,29 +242,29 @@ export const handlePollFromMessageContext = async (
   };
 
   await savePollDraft(redis, interaction.guildId, interaction.user.id, draft);
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
-    ...buildPollBuilderPreview(draft),
-  });
+  await interaction.reply(buildPollBuilderPreview(draft));
 };
 
-const cyclePollMode = (mode: 'single' | 'multi' | 'ranked' | 'freeform' | 'tier'): 'single' | 'multi' | 'ranked' | 'freeform' | 'tier' => {
-  switch (mode) {
-    case 'single':
-      return 'multi';
-    case 'multi':
-      return 'ranked';
-    case 'ranked':
-      return 'freeform';
-    case 'freeform':
-      return 'tier';
-    default:
-      return 'single';
+const POLL_MODES: ReadonlySet<PollMode> = new Set(['single', 'multi', 'ranked', 'freeform', 'tier']);
+
+const isPollMode = (value: string): value is PollMode => POLL_MODES.has(value as PollMode);
+
+const applyModeChange = (draft: { mode: PollMode; passThreshold: number | null; passOptionIndex: number | null; allowOtherOption: boolean; tierLabels: string[] }, nextMode: PollMode): void => {
+  draft.mode = nextMode;
+  if (nextMode === 'ranked' || nextMode === 'freeform' || nextMode === 'tier') {
+    draft.passThreshold = null;
+    draft.passOptionIndex = null;
+  }
+  if (nextMode !== 'single' && nextMode !== 'multi') {
+    draft.allowOtherOption = false;
+  }
+  if (nextMode !== 'tier') {
+    draft.tierLabels = [];
   }
 };
 
 const updatePollBuilderPreview = async (
-  interaction: ButtonInteraction | ModalSubmitInteraction,
+  interaction: ButtonInteraction | ModalSubmitInteraction | AnySelectMenuInteraction,
   error?: string,
 ): Promise<void> => {
   if (!interaction.inGuild()) {
@@ -267,15 +274,16 @@ const updatePollBuilderPreview = async (
   const draft = await getPollDraft(redis, interaction.guildId, interaction.user.id);
   const preview = buildPollBuilderPreview(draft, error);
 
-  if ((interaction.isModalSubmit() && interaction.isFromMessage()) || interaction.isButton()) {
+  if (
+    interaction.isButton()
+    || interaction.isAnySelectMenu()
+    || (interaction.isModalSubmit() && interaction.isFromMessage())
+  ) {
     await interaction.update(preview);
     return;
   }
 
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
-    ...preview,
-  });
+  await interaction.reply(preview);
 };
 
 export const handlePollBuilderButton = async (
@@ -291,30 +299,37 @@ export const handlePollBuilderButton = async (
   switch (interaction.customId) {
     case pollBuilderButtonCustomId('question'):
     case pollBuilderButtonCustomId('choices'):
+    case pollBuilderButtonCustomId('tier-labels'):
     case pollBuilderButtonCustomId('description'):
     case pollBuilderButtonCustomId('emojis'):
     case pollBuilderButtonCustomId('time'):
-    case pollBuilderButtonCustomId('governance'):
+    case pollBuilderButtonCustomId('quorum'):
     case pollBuilderButtonCustomId('pass-rule'):
     case pollBuilderButtonCustomId('thread-name'): {
       const field = interaction.customId.split(':').at(-1) as Parameters<typeof buildPollBuilderModal>[0];
       await interaction.showModal(buildPollBuilderModal(field, draft));
       return;
     }
-    case pollBuilderButtonCustomId('thread-toggle'):
-      draft.createThread = !draft.createThread;
-      await savePollDraft(redis, interaction.guildId, interaction.user.id, draft);
+    case pollBuilderButtonCustomId('step-next'): {
+      const next = getNextStep(draft.step);
+      if (next) {
+        draft.step = next;
+        await savePollDraft(redis, interaction.guildId, interaction.user.id, draft);
+      }
       await updatePollBuilderPreview(interaction);
       return;
-    case pollBuilderButtonCustomId('mode'):
-      draft.mode = cyclePollMode(draft.mode);
-      if (draft.mode === 'ranked' || draft.mode === 'freeform' || draft.mode === 'tier') {
-        draft.passThreshold = null;
-        draft.passOptionIndex = null;
+    }
+    case pollBuilderButtonCustomId('step-back'): {
+      const previous = getPreviousStep(draft.step);
+      if (previous) {
+        draft.step = previous;
+        await savePollDraft(redis, interaction.guildId, interaction.user.id, draft);
       }
-      if (draft.mode !== 'single' && draft.mode !== 'multi') {
-        draft.allowOtherOption = false;
-      }
+      await updatePollBuilderPreview(interaction);
+      return;
+    }
+    case pollBuilderButtonCustomId('thread-toggle'):
+      draft.createThread = !draft.createThread;
       await savePollDraft(redis, interaction.guildId, interaction.user.id, draft);
       await updatePollBuilderPreview(interaction);
       return;
@@ -350,6 +365,7 @@ export const handlePollBuilderButton = async (
 
       const published = await publishPoll(client, interaction, {
         ...parsed,
+        ...(draft.mode === 'tier' && draft.tierLabels.length > 0 ? { tierLabels: draft.tierLabels } : {}),
         anonymous: draft.anonymous,
         hideResultsUntilClosed: draft.hideResultsUntilClosed,
         quorumPercent: draft.quorumPercent,
@@ -365,27 +381,65 @@ export const handlePollBuilderButton = async (
       });
 
       await deletePollDraft(redis, interaction.guildId, interaction.user.id);
-      await interaction.editReply({
-        embeds: [
-          buildFeedbackEmbed(
-            'Poll Published',
-            buildPublishSuccessDescription(published),
-          ),
-        ],
-        components: [],
-      });
+      await interaction.editReply(
+        buildPollBuilderFinalMessage('Poll Published', buildPublishSuccessDescription(published), 'success'),
+      );
       return;
     }
     case pollBuilderButtonCustomId('cancel'):
       await deletePollDraft(redis, interaction.guildId, interaction.user.id);
-      await interaction.update({
-        embeds: [buildFeedbackEmbed('Poll Builder Cancelled', 'The draft has been discarded.', 0xef4444)],
-        components: [],
-      });
+      await interaction.update(
+        buildPollBuilderFinalMessage('Poll Builder Cancelled', 'The draft has been discarded.', 'cancel'),
+      );
       return;
     default:
       return;
   }
+};
+
+export const handlePollBuilderSelect = async (
+  interaction: AnySelectMenuInteraction,
+): Promise<void> => {
+  if (!interaction.inGuild()) {
+    throw new Error('The poll builder only works inside a server.');
+  }
+
+  const draft = await getPollDraft(redis, interaction.guildId, interaction.user.id);
+
+  switch (interaction.customId) {
+    case pollBuilderSelectCustomId('mode'): {
+      if (!interaction.isStringSelectMenu()) return;
+      const nextMode = interaction.values[0];
+      if (!nextMode || !isPollMode(nextMode)) return;
+      applyModeChange(draft, nextMode);
+      break;
+    }
+    case pollBuilderSelectCustomId('allowed-roles'): {
+      if (!interaction.isRoleSelectMenu()) return;
+      draft.allowedRoleIds = [...interaction.values];
+      break;
+    }
+    case pollBuilderSelectCustomId('blocked-roles'): {
+      if (!interaction.isRoleSelectMenu()) return;
+      draft.blockedRoleIds = [...interaction.values];
+      break;
+    }
+    case pollBuilderSelectCustomId('eligible-channels'): {
+      if (!interaction.isChannelSelectMenu()) return;
+      draft.eligibleChannelIds = [...interaction.values];
+      break;
+    }
+    case pollBuilderSelectCustomId('reminder-role'): {
+      if (!interaction.isRoleSelectMenu()) return;
+      draft.reminderRoleId = interaction.values[0] ?? null;
+      break;
+    }
+    default:
+      return;
+  }
+
+  await savePollDraft(redis, interaction.guildId, interaction.user.id, draft);
+  await updatePollBuilderPreview(interaction);
 };
 
 export const handlePollBuilderModal = async (
@@ -407,6 +461,9 @@ export const handlePollBuilderModal = async (
       if (draft.passThreshold !== null && (draft.passOptionIndex === null || draft.passOptionIndex >= draft.choices.length)) {
         draft.passOptionIndex = 0;
       }
+      break;
+    case pollBuilderModalCustomId('tier-labels'):
+      draft.tierLabels = parseTierLabels(interaction.fields.getTextInputValue('value'), draft.mode);
       break;
     case pollBuilderModalCustomId('emojis'):
       draft.choiceEmojis = parseChoiceEmojisCsv(interaction.fields.getTextInputValue('value'), draft.choices.length);
@@ -432,12 +489,8 @@ export const handlePollBuilderModal = async (
     case pollBuilderModalCustomId('thread-name'):
       draft.threadName = interaction.fields.getTextInputValue('value').trim();
       break;
-    case pollBuilderModalCustomId('governance'):
+    case pollBuilderModalCustomId('quorum'):
       draft.quorumPercent = parseQuorumPercent(interaction.fields.getTextInputValue('quorum'));
-      draft.allowedRoleIds = parseGovernanceRoleTargets(interaction.fields.getTextInputValue('allowed-roles'));
-      draft.blockedRoleIds = parseGovernanceRoleTargets(interaction.fields.getTextInputValue('blocked-roles'));
-      draft.eligibleChannelIds = parseGovernanceChannelTargets(interaction.fields.getTextInputValue('eligible-channels'));
-      draft.reminderRoleId = parseReminderRoleTarget(interaction.fields.getTextInputValue('reminder-role'));
       break;
     case pollBuilderModalCustomId('pass-rule'): {
       const passThreshold = parsePassThreshold(interaction.fields.getTextInputValue('threshold'));

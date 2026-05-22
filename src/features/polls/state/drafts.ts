@@ -8,11 +8,13 @@ const ttlSeconds = 60 * 60 * 24;
 const getDraftKey = (guildId: string, userId: string): string => `poll-draft:${guildId}:${userId}`;
 
 export const createDefaultDraft = (): PollDraft => ({
+  step: 'mode',
   question: 'What should we decide?',
   description: '',
   mode: 'single',
   choices: ['Yes', 'No'],
   choiceEmojis: [null, null],
+  tierLabels: [],
   anonymous: false,
   hideResultsUntilClosed: false,
   allowOtherOption: false,

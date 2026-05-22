@@ -1,10 +1,10 @@
 import {
+  type AnySelectMenuInteraction,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type MessageContextMenuCommandInteraction,
   MessageFlags,
   type ModalSubmitInteraction,
-  type StringSelectMenuInteraction,
 } from 'discord.js';
 
 import { logger } from '@/app/logger.js';
@@ -15,7 +15,7 @@ export const handlePollInteractionError = async (
     | ChatInputCommandInteraction
     | MessageContextMenuCommandInteraction
     | ButtonInteraction
-    | StringSelectMenuInteraction
+    | AnySelectMenuInteraction
     | ModalSubmitInteraction,
   error: unknown,
 ): Promise<void> => {

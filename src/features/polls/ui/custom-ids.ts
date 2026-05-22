@@ -1,29 +1,39 @@
 export type PollBuilderAction =
   | 'question'
   | 'choices'
+  | 'tier-labels'
   | 'emojis'
   | 'description'
   | 'time'
-  | 'governance'
+  | 'quorum'
   | 'pass-rule'
   | 'thread-toggle'
   | 'thread-name'
-  | 'mode'
   | 'allow-other'
   | 'anonymous'
   | 'hide-results'
+  | 'step-next'
+  | 'step-back'
   | 'publish'
   | 'cancel';
 
 export type PollBuilderModalField =
   | 'question'
   | 'choices'
+  | 'tier-labels'
   | 'emojis'
   | 'description'
   | 'time'
-  | 'governance'
+  | 'quorum'
   | 'pass-rule'
   | 'thread-name';
+
+export type PollBuilderSelect =
+  | 'mode'
+  | 'allowed-roles'
+  | 'blocked-roles'
+  | 'eligible-channels'
+  | 'reminder-role';
 
 export type PollManageAction = 'edit' | 'cancel' | 'reopen' | 'extend';
 
@@ -41,6 +51,7 @@ export const pollCloseModalCustomId = (pollId: string): string => `poll:close-mo
 export const pollManageModalCustomId = (action: PollManageAction, pollId: string): string => `poll:manage-modal:${action}:${pollId}`;
 export const pollBuilderButtonCustomId = (action: PollBuilderAction): string => `poll-builder:${action}`;
 export const pollBuilderModalCustomId = (field: PollBuilderModalField): string => `poll-builder:modal:${field}`;
+export const pollBuilderSelectCustomId = (select: PollBuilderSelect): string => `poll-builder:select:${select}`;
 export const pollTierOpenCustomId = (pollId: string): string => `poll:tier:open:${pollId}`;
 export const pollTierSelectCustomId = (pollId: string, optionId: string): string => `poll:tier:select:${pollId}:${optionId}`;
 export const pollTierClearCustomId = (pollId: string): string => `poll:tier:clear:${pollId}`;

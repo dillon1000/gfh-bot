@@ -86,12 +86,16 @@ export type PollCreationInput = {
   tierLabels?: string[];
 };
 
+export type PollBuilderStep = 'mode' | 'content' | 'timing' | 'advanced';
+
 export type PollDraft = {
+  step: PollBuilderStep;
   question: string;
   description: string;
   mode: PollMode;
   choices: string[];
   choiceEmojis: Array<string | null>;
+  tierLabels: string[];
   anonymous: boolean;
   hideResultsUntilClosed: boolean;
   allowOtherOption: boolean;

@@ -34,6 +34,7 @@ import {
   handlePollBuilderButton,
   handlePollBuilderCommand,
   handlePollBuilderModal,
+  handlePollBuilderSelect,
   handlePollCommand,
   handlePollFromMessageContext,
 } from '@/features/polls/handlers/builder.js';
@@ -343,6 +344,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
       }
 
+      if (interaction.isAnySelectMenu() && interaction.customId.startsWith('poll-builder:select:')) {
+        await handlePollBuilderSelect(interaction);
+        return;
+      }
+
       if (interaction.isStringSelectMenu()) {
         if (interaction.customId.startsWith('casino:')) {
           await handleCasinoSelect(interaction);
@@ -426,7 +432,7 @@ export const registerInteractionRouter = (client: Client): void => {
         interaction.isChatInputCommand() ||
         interaction.isMessageContextMenuCommand() ||
         interaction.isButton() ||
-        interaction.isStringSelectMenu() ||
+        interaction.isAnySelectMenu() ||
         interaction.isModalSubmit()
       ) {
         if (

@@ -89,11 +89,13 @@ const getManagePollByContext = async (
 };
 
 const buildDraftFromPoll = (poll: PollWithRelations): PollDraft => ({
+  step: 'mode',
   question: poll.question,
   description: poll.description ?? '',
   mode: poll.mode,
   choices: poll.options.filter((option) => !option.isOther).map((option) => option.label),
   choiceEmojis: poll.options.filter((option) => !option.isOther).map((option) => option.emoji ?? null),
+  tierLabels: poll.tierLabels ?? [],
   anonymous: poll.anonymous,
   hideResultsUntilClosed: poll.hideResultsUntilClosed,
   allowOtherOption: poll.allowOtherOption ?? false,
@@ -122,10 +124,7 @@ const seedDuplicateDraft = async (
   assertPollManagementAccess(poll, interaction.user.id, canManageGuild, 'duplicate');
   const draft = buildDraftFromPoll(poll);
   await savePollDraft(redis, interaction.guildId, interaction.user.id, draft);
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
-    ...buildPollBuilderPreview(draft),
-  });
+  await interaction.reply(buildPollBuilderPreview(draft));
 };
 
 const showPollManagementModal = async (
