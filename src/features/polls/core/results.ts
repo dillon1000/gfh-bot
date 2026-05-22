@@ -7,7 +7,11 @@ import type {
   RankedPollComputedResults,
   RankedPollRound,
   StandardPollComputedResults,
+  TierLabel,
+  TierPollComputedResults,
+  TierPollOutcome,
 } from '@/features/polls/core/types.js';
+import { getTierLabelForRank, resolveTierLabels } from '@/features/polls/core/types.js';
 
 type RankedBallot = {
   userId: string;
@@ -337,11 +341,91 @@ const computeRankedPollResults = (poll: PollWithRelations): RankedPollComputedRe
   };
 };
 
+const emptyTierDistribution = (labels: string[]): Record<string, number> =>
+  labels.reduce<Record<string, number>>((acc, label) => {
+    acc[label] = 0;
+    return acc;
+  }, {});
+
+const computeTierPollResults = (poll: PollWithRelations): TierPollComputedResults => {
+  const labels = resolveTierLabels(poll);
+  const tierCount = labels.length;
+  const perOption = new Map<string, { ranks: number[]; distribution: Record<string, number> }>();
+  const voters = new Set<string>();
+
+  for (const option of poll.options) {
+    perOption.set(option.id, { ranks: [], distribution: emptyTierDistribution(labels) });
+  }
+
+  for (const vote of poll.votes) {
+    const rank = vote.tierRank ?? vote.rank;
+    if (!vote.optionId || rank === null || rank === undefined) {
+      continue;
+    }
+
+    if (rank < 0 || rank >= tierCount) {
+      continue;
+    }
+
+    const bucket = perOption.get(vote.optionId);
+    if (!bucket) {
+      continue;
+    }
+
+    voters.add(vote.userId);
+    bucket.ranks.push(rank);
+    const tierLabel = getTierLabelForRank(poll, rank);
+    if (tierLabel) {
+      bucket.distribution[tierLabel] = (bucket.distribution[tierLabel] ?? 0) + 1;
+    }
+  }
+
+  const items = poll.options.map((option) => {
+    const bucket = perOption.get(option.id) ?? { ranks: [], distribution: emptyTierDistribution(labels) };
+    const votes = bucket.ranks.length;
+    const averageRank = votes === 0
+      ? null
+      : bucket.ranks.reduce((sum, rank) => sum + rank, 0) / votes;
+    const consensusTier = averageRank === null
+      ? null
+      : getTierLabelForRank(poll, Math.min(tierCount - 1, Math.max(0, Math.round(averageRank))));
+
+    return {
+      id: option.id,
+      label: option.label,
+      emoji: option.emoji ?? null,
+      votes,
+      averageRank,
+      consensusTier,
+      tierDistribution: bucket.distribution,
+    };
+  });
+
+  const totalVotes = items.reduce((sum, item) => sum + item.votes, 0);
+  const choices = items.map((item) => ({
+    id: item.id,
+    label: item.label,
+    emoji: item.emoji,
+    votes: item.votes,
+    percentage: totalVotes === 0 ? 0 : (item.votes / totalVotes) * 100,
+  }));
+
+  return {
+    kind: 'tier',
+    totalVotes,
+    totalVoters: voters.size,
+    items,
+    choices,
+  };
+};
+
 export const computePollResults = (poll: PollWithRelations): PollComputedResults =>
   poll.mode === 'ranked'
     ? computeRankedPollResults(poll)
     : poll.mode === 'freeform'
       ? computeFreeformPollResults(poll)
+    : poll.mode === 'tier'
+      ? computeTierPollResults(poll)
     : computeStandardPollResults(poll);
 
 export const computePollOutcome = (
@@ -369,6 +453,33 @@ export const computePollOutcome = (
       uniqueResponses: results.uniqueResponses,
     };
 
+    return outcome;
+  }
+
+  if (results.kind === 'tier') {
+    const ranked = results.items.filter((item) => item.averageRank !== null);
+    if (ranked.length === 0) {
+      const outcome: TierPollOutcome = {
+        kind: 'tier',
+        status: 'no-votes',
+        topItemLabel: null,
+        topTier: null,
+        rankedItemCount: 0,
+      };
+      return outcome;
+    }
+
+    const sorted = [...ranked].sort(
+      (left, right) => (left.averageRank ?? Number.POSITIVE_INFINITY) - (right.averageRank ?? Number.POSITIVE_INFINITY),
+    );
+    const top = sorted[0]!;
+    const outcome: TierPollOutcome = {
+      kind: 'tier',
+      status: 'ranked',
+      topItemLabel: top.label,
+      topTier: top.consensusTier,
+      rankedItemCount: ranked.length,
+    };
     return outcome;
   }
 

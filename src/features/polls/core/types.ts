@@ -1,6 +1,26 @@
 import type { Prisma } from '@/generated/prisma/client.js';
 
-export type PollMode = 'single' | 'multi' | 'ranked' | 'freeform';
+export type PollMode = 'single' | 'multi' | 'ranked' | 'freeform' | 'tier';
+
+export const DEFAULT_TIER_LABELS = ['S', 'A', 'B', 'C', 'D', 'F'] as const;
+export const MAX_TIER_LABELS = 6;
+export const MIN_TIER_LABELS = 2;
+export type TierLabel = string;
+
+type TierLabelsHost = { tierLabels?: string[] | null };
+
+export const resolveTierLabels = (poll: TierLabelsHost): string[] => {
+  const provided = poll.tierLabels ?? [];
+  return provided.length > 0 ? [...provided] : [...DEFAULT_TIER_LABELS];
+};
+
+export const getTierCount = (poll: TierLabelsHost): number =>
+  resolveTierLabels(poll).length;
+
+export const getTierLabelForRank = (poll: TierLabelsHost, rank: number): string | null => {
+  const labels = resolveTierLabels(poll);
+  return labels[rank] ?? null;
+};
 export type PollClosedReason = 'closed' | 'cancelled';
 
 type PrismaPollWithRelations = Prisma.PollGetPayload<{
@@ -19,21 +39,24 @@ type PrismaPollWithRelations = Prisma.PollGetPayload<{
   };
 }>;
 
-type PollOptionRecord = Omit<PrismaPollWithRelations['options'][number], 'isOther'> & {
+type PollOptionRecord = Omit<PrismaPollWithRelations['options'][number], 'isOther' | 'imageUrl'> & {
   isOther?: boolean;
+  imageUrl?: string | null;
 };
 
-type PollVoteRecord = Omit<PrismaPollWithRelations['votes'][number], 'optionId' | 'rank' | 'responseText'> & {
+type PollVoteRecord = Omit<PrismaPollWithRelations['votes'][number], 'optionId' | 'rank' | 'tierRank' | 'responseText'> & {
   optionId?: string | null;
   rank?: number | null;
+  tierRank?: number | null;
   responseText?: string | null;
 };
 
-export type PollWithRelations = Omit<PrismaPollWithRelations, 'mode' | 'votes' | 'closedReason' | 'durationMinutes' | 'options' | 'allowOtherOption'> & {
+export type PollWithRelations = Omit<PrismaPollWithRelations, 'mode' | 'votes' | 'closedReason' | 'durationMinutes' | 'options' | 'allowOtherOption' | 'tierLabels'> & {
   mode: PollMode;
   closedReason: PollClosedReason | null;
   durationMinutes: number;
   allowOtherOption?: boolean;
+  tierLabels?: string[];
   options: PollOptionRecord[];
   votes: PollVoteRecord[];
 };
@@ -61,14 +84,19 @@ export type PollCreationInput = {
   reminderRoleId?: string | null;
   reminderOffsets: number[];
   durationMs: number;
+  tierLabels?: string[];
 };
 
+export type PollBuilderStep = 'mode' | 'content' | 'timing' | 'advanced';
+
 export type PollDraft = {
+  step: PollBuilderStep;
   question: string;
   description: string;
   mode: PollMode;
   choices: string[];
   choiceEmojis: Array<string | null>;
+  tierLabels: string[];
   anonymous: boolean;
   hideResultsUntilClosed: boolean;
   allowOtherOption: boolean;
@@ -143,7 +171,35 @@ export type RankedPollComputedResults = {
   }>;
 };
 
-export type PollComputedResults = StandardPollComputedResults | RankedPollComputedResults | FreeformPollComputedResults;
+export type TierPollItemRanking = {
+  id: string;
+  label: string;
+  emoji: string | null;
+  votes: number;
+  averageRank: number | null;
+  consensusTier: TierLabel | null;
+  tierDistribution: Record<string, number>;
+};
+
+export type TierPollComputedResults = {
+  kind: 'tier';
+  totalVotes: number;
+  totalVoters: number;
+  items: TierPollItemRanking[];
+  choices: Array<{
+    id: string;
+    label: string;
+    emoji: string | null;
+    votes: number;
+    percentage: number;
+  }>;
+};
+
+export type PollComputedResults =
+  | StandardPollComputedResults
+  | RankedPollComputedResults
+  | FreeformPollComputedResults
+  | TierPollComputedResults;
 
 export type StandardPollOutcome = {
   kind: 'standard';
@@ -167,7 +223,15 @@ export type FreeformPollOutcome = {
   uniqueResponses: number;
 };
 
-export type PollOutcome = StandardPollOutcome | RankedPollOutcome | FreeformPollOutcome;
+export type TierPollOutcome = {
+  kind: 'tier';
+  status: 'ranked' | 'quorum-failed' | 'no-votes';
+  topItemLabel: string | null;
+  topTier: TierLabel | null;
+  rankedItemCount: number;
+};
+
+export type PollOutcome = StandardPollOutcome | RankedPollOutcome | FreeformPollOutcome | TierPollOutcome;
 
 export type PollElectorateEvaluation = {
   hasElectorateRules: boolean;

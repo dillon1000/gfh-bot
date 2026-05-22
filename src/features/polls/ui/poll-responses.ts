@@ -7,6 +7,7 @@ import {
   pollRankOpenCustomId,
   pollResponseButtonCustomId,
   pollResultsCustomId,
+  pollTierOpenCustomId,
   pollVoteCustomId,
 } from '@/features/polls/ui/custom-ids.js';
 import { buildPollMessageEmbed, buildPollResultsEmbed } from '@/features/polls/ui/poll-embeds.js';
@@ -26,6 +27,10 @@ const shouldAttachPollDiagram = (
     return false;
   }
 
+  if (poll.mode === 'tier') {
+    return true;
+  }
+
   return poll.mode !== 'ranked' || isPollClosedOrExpired(poll);
 };
 
@@ -42,6 +47,18 @@ const buildPollComponents = (poll: PollWithRelations) => {
             .setStyle(ButtonStyle.Primary)
             .setDisabled(votingDisabled),
         ]
+      : poll.mode === 'tier'
+        ? [
+            new ButtonBuilder()
+              .setCustomId(pollTierOpenCustomId(poll.id))
+              .setLabel('Rank Tiers')
+              .setStyle(ButtonStyle.Primary)
+              .setDisabled(votingDisabled),
+            new ButtonBuilder()
+              .setCustomId(`poll:tier:images-open:${poll.id}`)
+              .setLabel('Manage Images')
+              .setStyle(ButtonStyle.Secondary),
+          ]
       : poll.mode === 'freeform'
         ? [
             new ButtonBuilder()
@@ -67,7 +84,9 @@ const buildPollComponents = (poll: PollWithRelations) => {
 
   return poll.mode === 'ranked'
     ? [controls]
-    : poll.mode === 'freeform'
+    : poll.mode === 'tier'
+      ? [controls]
+      : poll.mode === 'freeform'
       ? [controls]
       : poll.mode === 'single'
         ? [

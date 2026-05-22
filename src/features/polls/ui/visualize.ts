@@ -6,6 +6,7 @@ import type { EvaluatedPollSnapshot, PollComputedResults, PollWithRelations } fr
 import type { DiagramPayload } from '@/features/polls/ui/visualize/shared.js';
 import { buildRankedPollSvg } from '@/features/polls/ui/visualize/ranked.js';
 import { buildStandardPollPng } from '@/features/polls/ui/visualize/standard.js';
+import { buildTierPollSvg } from '@/features/polls/ui/visualize/tier.js';
 
 export { getStandardPollSummary } from '@/features/polls/ui/visualize/standard.js';
 
@@ -32,6 +33,8 @@ export async function buildPollResultDiagram(
 
   const buffer = results.kind === 'ranked'
     ? await sharp(Buffer.from(buildRankedPollSvg(poll, results, outcome))).png().toBuffer()
+    : results.kind === 'tier'
+      ? await sharp(Buffer.from(await buildTierPollSvg(poll, results))).png().toBuffer()
     : await buildStandardPollPng(poll, results, outcome, snapshot.electorate);
 
   return {

@@ -4,6 +4,7 @@ import { redis } from '@/lib/redis.js';
 import { sanitizeFreeformResponse } from '@/features/polls/parsing/parser.js';
 import { pollInclude } from '@/features/polls/services/repository.js';
 import type { PollMode, PollWithRelations } from '@/features/polls/core/types.js';
+import { getTierCount } from '@/features/polls/core/types.js';
 
 const getEffectivePollMode = (poll: { mode?: PollMode | null; singleSelect: boolean }): PollMode =>
   poll.mode ?? (poll.singleSelect ? 'single' : 'multi');
@@ -254,6 +255,167 @@ export const clearPollVotes = async (
   userId: string,
 ): Promise<PollWithRelations> =>
   setPollResponse(pollId, userId, { selectedOptionIds: [] }, { allowRankedClear: true, allowTextClear: true });
+
+export const setPollTierVote = async (
+  pollId: string,
+  userId: string,
+  optionId: string,
+  tierRank: number | null,
+): Promise<PollWithRelations> => {
+  const result = await withRedisLock(redis, `lock:poll-vote:${pollId}:${userId}`, 5_000, async () =>
+    prisma.$transaction(async (tx) => {
+      const poll = await tx.poll.findUnique({
+        where: { id: pollId },
+        include: pollInclude,
+      });
+
+      if (!poll) {
+        throw new Error('Poll not found.');
+      }
+
+      if (poll.mode !== 'tier') {
+        throw new Error('This poll is not a tier-list poll.');
+      }
+
+      const tierCount = getTierCount(poll);
+      if (tierRank !== null && (!Number.isInteger(tierRank) || tierRank < 0 || tierRank >= tierCount)) {
+        throw new Error('Invalid tier assignment.');
+      }
+
+      if (poll.closedAt || poll.closesAt.getTime() <= Date.now()) {
+        throw new Error('This poll is already closed.');
+      }
+
+      if (!poll.options.some((option) => option.id === optionId)) {
+        throw new Error('Invalid tier-list item.');
+      }
+
+      const previousVotes = poll.votes.filter((vote) => vote.userId === userId);
+      const previousOptionIds = previousVotes
+        .map((vote) => vote.optionId)
+        .filter((value): value is string => Boolean(value))
+        .sort();
+
+      await tx.pollVote.deleteMany({
+        where: { pollId, userId, optionId },
+      });
+
+      if (tierRank !== null) {
+        await tx.pollVote.create({
+          data: {
+            pollId,
+            userId,
+            optionId,
+            tierRank,
+          },
+        });
+      }
+
+      const refreshedPoll = await tx.poll.findUniqueOrThrow({
+        where: { id: pollId },
+        include: pollInclude,
+      });
+
+      const nextOptionIds = refreshedPoll.votes
+        .filter((vote) => vote.userId === userId)
+        .map((vote) => vote.optionId)
+        .filter((value): value is string => Boolean(value))
+        .sort();
+
+      if (previousOptionIds.join(',') !== nextOptionIds.join(',')
+        || previousVotes.some((vote) => vote.optionId === optionId && (vote.tierRank ?? vote.rank) !== tierRank)) {
+        await tx.pollVoteEvent.create({
+          data: {
+            pollId,
+            userId,
+            previousOptionIds,
+            nextOptionIds,
+            previousResponseTexts: [],
+            nextResponseTexts: [],
+          },
+        });
+      }
+
+      return refreshedPoll;
+    }),
+  );
+
+  if (!result) {
+    throw new Error('Another vote update is already in progress. Please try again.');
+  }
+
+  return result;
+};
+
+export const clearTierPollVotes = async (
+  pollId: string,
+  userId: string,
+): Promise<PollWithRelations> => {
+  const result = await withRedisLock(redis, `lock:poll-vote:${pollId}:${userId}`, 5_000, async () =>
+    prisma.$transaction(async (tx) => {
+      const poll = await tx.poll.findUnique({
+        where: { id: pollId },
+        include: pollInclude,
+      });
+      if (!poll) {
+        throw new Error('Poll not found.');
+      }
+      if (poll.mode !== 'tier') {
+        throw new Error('This poll is not a tier-list poll.');
+      }
+      if (poll.closedAt || poll.closesAt.getTime() <= Date.now()) {
+        throw new Error('This poll is already closed.');
+      }
+
+      const previousVotes = poll.votes.filter((vote) => vote.userId === userId);
+      const previousOptionIds = previousVotes
+        .map((vote) => vote.optionId)
+        .filter((value): value is string => Boolean(value))
+        .sort();
+
+      await tx.pollVote.deleteMany({ where: { pollId, userId } });
+
+      if (previousOptionIds.length > 0) {
+        await tx.pollVoteEvent.create({
+          data: {
+            pollId,
+            userId,
+            previousOptionIds,
+            nextOptionIds: [],
+            previousResponseTexts: [],
+            nextResponseTexts: [],
+          },
+        });
+      }
+
+      return tx.poll.findUniqueOrThrow({
+        where: { id: pollId },
+        include: pollInclude,
+      });
+    }),
+  );
+
+  if (!result) {
+    throw new Error('Another vote update is already in progress. Please try again.');
+  }
+
+  return result;
+};
+
+export const getPollTierAssignmentsForUser = (
+  poll: PollWithRelations,
+  userId: string,
+): Map<string, number> => {
+  const assignments = new Map<string, number>();
+  for (const vote of poll.votes) {
+    const tierRank = vote.tierRank ?? vote.rank;
+    if (vote.userId !== userId || !vote.optionId || tierRank === null || tierRank === undefined) {
+      continue;
+    }
+    assignments.set(vote.optionId, tierRank);
+  }
+  return assignments;
+};
 
 export const closePoll = async (
   pollId: string,

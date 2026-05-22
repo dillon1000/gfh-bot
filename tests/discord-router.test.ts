@@ -213,6 +213,7 @@ const createStringSelectInteraction = (customId: string) => ({
   isMessageContextMenuCommand: () => false,
   isButton: () => false,
   isStringSelectMenu: () => true,
+  isAnySelectMenu: () => true,
   isModalSubmit: () => false,
 });
 
@@ -222,6 +223,7 @@ const createButtonInteraction = (customId: string) => ({
   isMessageContextMenuCommand: () => false,
   isButton: () => true,
   isStringSelectMenu: () => false,
+  isAnySelectMenu: () => false,
   isModalSubmit: () => false,
 });
 
@@ -231,6 +233,7 @@ const createModalInteraction = (customId: string) => ({
   isMessageContextMenuCommand: () => false,
   isButton: () => false,
   isStringSelectMenu: () => false,
+  isAnySelectMenu: () => false,
   isModalSubmit: () => true,
 });
 

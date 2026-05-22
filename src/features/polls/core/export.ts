@@ -265,5 +265,9 @@ export function buildPollExportCsv(snapshotOrPoll: EvaluatedPollSnapshot | PollW
     return buildFreeformExportCsv(snapshot);
   }
 
+  if (snapshot.poll.mode === 'tier') {
+    throw new Error('Tier-list polls do not support CSV export yet.');
+  }
+
   return buildStandardPollExportCsv(snapshot);
 }

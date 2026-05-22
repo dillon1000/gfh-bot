@@ -37,7 +37,14 @@ export const pollCommand = new SlashCommandBuilder()
         { name: 'Multi choice', value: 'multi' },
         { name: 'Ranked choice', value: 'ranked' },
         { name: 'Freeform', value: 'freeform' },
+        { name: 'Tier list', value: 'tier' },
       ),
+  )
+  .addStringOption((option) =>
+    option
+      .setName('tier_labels')
+      .setDescription('Tier-list mode only: 2-6 comma-separated tier labels (default S,A,B,C,D,F)')
+      .setRequired(false),
   )
   .addBooleanOption((option) =>
     option
@@ -256,6 +263,16 @@ export const pollAnalyticsCommand = new SlashCommandBuilder()
       .setRequired(false)
       .setMinValue(3)
       .setMaxValue(10),
+  );
+
+export const pollTierImagesCommand = new SlashCommandBuilder()
+  .setName('poll-tier-images')
+  .setDescription('Manage images for tier-list poll items (poll creator or server manager only).')
+  .addStringOption((option) =>
+    option
+      .setName('query')
+      .setDescription('Discord message link, raw message ID, or poll ID')
+      .setRequired(true),
   );
 
 export const pollRationaleCommand = new SlashCommandBuilder()

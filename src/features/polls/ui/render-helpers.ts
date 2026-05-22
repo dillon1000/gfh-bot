@@ -1,7 +1,7 @@
 import { ActionRowBuilder, type ButtonBuilder } from 'discord.js';
 
 import { formatDurationFromMinutes } from '@/lib/duration.js';
-import type { PollComputedResults, PollDraft, PollMode, PollWithRelations, RankedPollRound } from '@/features/polls/core/types.js';
+import type { PollComputedResults, PollMode, PollWithRelations, RankedPollRound } from '@/features/polls/core/types.js';
 
 export const chunkButtons = (buttons: ButtonBuilder[]): ActionRowBuilder<ButtonBuilder>[] => {
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
@@ -53,6 +53,8 @@ export const getModeLabel = (mode: PollMode): string => {
       return 'Ranked choice';
     case 'freeform':
       return 'Freeform';
+    case 'tier':
+      return 'Tier list';
     default:
       return 'Single choice';
   }
@@ -70,6 +72,10 @@ export const getPassRuleLabel = (
 
   if (mode === 'freeform') {
     return 'Not used in freeform polls';
+  }
+
+  if (mode === 'tier') {
+    return 'Not used in tier-list polls';
   }
 
   if (!passThreshold) {
@@ -142,29 +148,3 @@ export const renderChoiceLine = (
   return `**${token} ${choice.label}**\n\`${bar}\` ${percent} (${choice.votes})`;
 };
 
-export const getDraftSummary = (
-  draft: PollDraft,
-  getPollChoiceEmojiDisplay: (emoji: string | null, index: number) => string,
-  resolvePollThreadName: (question: string, threadName: string) => string,
-): string =>
-  [
-    draft.description || '*No description or source link yet*',
-    '',
-    `**Question** ${draft.question}`,
-    `**Choices** ${draft.mode === 'freeform'
-      ? 'Freeform text responses'
-      : `${draft.choices.map((choice, index) => `${getPollChoiceEmojiDisplay(draft.choiceEmojis[index] ?? null, index)} ${choice}`).join(' • ')}${draft.allowOtherOption ? ' • Other' : ''}`}`,
-    `**Emojis** ${draft.mode === 'freeform'
-      ? 'Not used in freeform polls'
-      : draft.choiceEmojis.some((emoji) => emoji)
-      ? draft.choiceEmojis.map((emoji, index) => getPollChoiceEmojiDisplay(emoji, index)).join(' • ')
-      : 'Default numbered emoji'}`,
-    `**Mode** ${getModeLabel(draft.mode)}`,
-    `**Other Choice** ${draft.mode === 'single' || draft.mode === 'multi' ? (draft.allowOtherOption ? 'Enabled' : 'Disabled') : 'Not available in this mode'}`,
-    `**Visibility** ${draft.anonymous ? 'Anonymous option selections' : 'Public vote totals'}${draft.hideResultsUntilClosed ? ' • Hidden until close' : ''}`,
-    `**Governance** ${getGovernanceLabel(draft)}`,
-    `**Reminders** ${getReminderLabel(draft)}`,
-    `**Pass Rule** ${getPassRuleLabel(draft.mode, draft.passThreshold, draft.passOptionIndex, draft.choices.map((label) => ({ label })))}`,
-    `**Discussion** ${draft.createThread ? `Thread opens as **${resolvePollThreadName(draft.question, draft.threadName)}**` : 'No thread will be created'}`,
-    `**Duration** ${draft.durationText}`,
-  ].join('\n');

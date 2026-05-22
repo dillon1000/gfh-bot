@@ -119,6 +119,8 @@ const buildCompactDetailsLines = (snapshot: EvaluatedPollSnapshot, resultsHidden
       ? getRankedStatusLabel(poll, results, outcome)
       : poll.mode === 'freeform'
         ? `Responses ${resultsHidden ? 'hidden until close' : `${results.totalVoters} collected`}`
+      : poll.mode === 'tier' && results.kind === 'tier'
+        ? `Tier list ${resultsHidden ? 'hidden until close' : `${results.totalVoters} ranker${results.totalVoters === 1 ? '' : 's'}`}`
       : `Pass rule ${getPassRuleLabel(poll.mode, poll.passThreshold, poll.passOptionIndex, poll.options)}`,
   ];
 
@@ -248,6 +250,21 @@ export const buildPollMessageEmbed = (
       },
     );
   } else {
+    const renderTierLines = (tierResults: Extract<PollComputedResults, { kind: 'tier' }>): string => {
+      if (tierResults.items.length === 0) {
+        return 'No items to rank.';
+      }
+      const ranked = [...tierResults.items]
+        .filter((item) => item.averageRank !== null)
+        .sort((left, right) => (left.averageRank ?? 0) - (right.averageRank ?? 0));
+      const unranked = tierResults.items.filter((item) => item.averageRank === null);
+      const lines = ranked.map((item) => `**${item.consensusTier ?? '·'}** · ${item.label} *(${item.votes} vote${item.votes === 1 ? '' : 's'})*`);
+      if (unranked.length > 0) {
+        lines.push('', `*Unranked:* ${unranked.map((item) => item.label).join(', ')}`);
+      }
+      return lines.join('\n');
+    };
+
     embed.addFields(
       {
         name: isPollCancelled(poll)
@@ -258,9 +275,11 @@ export const buildPollMessageEmbed = (
               ? 'Results Hidden'
               : 'Live Results',
         value: resultsHidden
-          ? `${results.kind === 'freeform' ? 'Responses' : 'Vote counts and percentages'} are hidden until the poll closes.`
+          ? `${results.kind === 'freeform' ? 'Responses' : results.kind === 'tier' ? 'Tier rankings' : 'Vote counts and percentages'} are hidden until the poll closes.`
           : clampFieldValue(
-              results.choices.length === 0
+              results.kind === 'tier'
+                ? renderTierLines(results)
+                : results.choices.length === 0
                 ? (results.kind === 'freeform' ? 'No responses yet.' : 'No votes yet.')
                 : results.choices.map((choice, index) => renderPollChoiceLine(choice, index)).join('\n\n'),
             ),
@@ -270,6 +289,9 @@ export const buildPollMessageEmbed = (
         value: clampFieldValue([
           ...details,
           results.kind === 'freeform' ? `**Unique Responses** ${results.uniqueResponses}` : null,
+          results.kind === 'tier' && outcome.kind === 'tier' && outcome.status === 'ranked' && outcome.topItemLabel
+            ? `**Top Tier** ${outcome.topTier ?? '?'} · ${outcome.topItemLabel}`
+            : null,
           outcome.kind === 'standard' && outcome.status !== 'quorum-failed' && poll.closedAt && !isPollCancelled(poll)
             ? `**Outcome** ${outcome.status === 'passed' ? 'Passed' : outcome.status === 'failed' ? 'Failed' : 'No pass threshold'}`
             : null,
@@ -365,6 +387,64 @@ export function buildPollResultsEmbed(
       embed.addFields({
         name: 'Voters',
         value: uniqueVoterMentions.join(', ') || 'No ballots yet',
+      });
+    }
+
+    return embed;
+  }
+
+  if (results.kind === 'tier') {
+    const ranked = [...results.items]
+      .filter((item) => item.averageRank !== null)
+      .sort((left, right) => (left.averageRank ?? 0) - (right.averageRank ?? 0));
+    const unranked = results.items.filter((item) => item.averageRank === null);
+
+    embed.setDescription(
+      [
+        `Status: ${getPollStatusText(poll)}`,
+        `Mode: Tier list`,
+        `Rankers: ${results.totalVoters}`,
+        `Total rankings: ${results.totalVotes}`,
+        ...buildElectorateLines(snapshot).map(toPlainLine),
+        isPollCancelled(poll) ? 'Outcome: Poll cancelled' : null,
+        outcome.kind === 'tier' && outcome.status === 'quorum-failed' ? 'Outcome: Quorum not met' : null,
+        outcome.kind === 'tier' && outcome.status === 'ranked' && outcome.topItemLabel
+          ? `Top: ${outcome.topItemLabel} (${outcome.topTier ?? '?'})`
+          : null,
+        poll.anonymous
+          ? 'Anonymous poll: voter identities are shown below, but individual rankings remain private.'
+          : 'Non-anonymous poll: voter identities are shown below.',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    );
+
+    for (const item of ranked) {
+      const distribution = Object.entries(item.tierDistribution)
+        .filter(([, count]) => count > 0)
+        .map(([tier, count]) => `${tier}: ${count}`)
+        .join(' • ');
+      embed.addFields({
+        name: `${item.consensusTier ?? '·'} · ${item.label}`,
+        value: clampFieldValue([
+          `Votes: ${item.votes}`,
+          item.averageRank !== null ? `Avg rank: ${item.averageRank.toFixed(2)}` : null,
+          distribution ? `Distribution: ${distribution}` : null,
+        ].filter(Boolean).join('\n')),
+      });
+    }
+
+    if (unranked.length > 0) {
+      embed.addFields({
+        name: 'Unranked',
+        value: clampFieldValue(unranked.map((item) => `· ${item.label}`).join('\n')),
+      });
+    }
+
+    if (poll.anonymous) {
+      embed.addFields({
+        name: 'Voters',
+        value: uniqueVoterMentions.join(', ') || 'No rankings yet',
       });
     }
 

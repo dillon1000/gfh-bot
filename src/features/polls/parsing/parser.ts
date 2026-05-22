@@ -8,6 +8,7 @@ import {
 import { parseDurationToMs } from '@/lib/duration.js';
 import { normalizeEmojiInput } from '@/lib/emoji.js';
 import type { PollMode } from '@/features/polls/core/types.js';
+import { MAX_TIER_LABELS, MIN_TIER_LABELS } from '@/features/polls/core/types.js';
 
 const minChoices = 2;
 const maxChoices = 10;
@@ -62,9 +63,10 @@ export const parsePollMode = (value: string | null | undefined): PollMode => {
     case 'multi':
     case 'ranked':
     case 'freeform':
+    case 'tier':
       return normalized;
     default:
-      throw new Error('Poll mode must be single, multi, ranked, or freeform.');
+      throw new Error('Poll mode must be single, multi, ranked, freeform, or tier.');
   }
 };
 
@@ -218,9 +220,10 @@ export const resolvePassRule = (
   passThreshold: number | null,
   passChoiceIndex: number | null,
 ): { passThreshold: number | null; passOptionIndex: number | null } => {
-  if (mode === 'ranked' || mode === 'freeform') {
+  if (mode === 'ranked' || mode === 'freeform' || mode === 'tier') {
     if (passThreshold !== null || passChoiceIndex !== null) {
-      throw new Error(`${mode === 'ranked' ? 'Ranked-choice' : 'Freeform'} polls cannot use pass-threshold settings.`);
+      const label = mode === 'ranked' ? 'Ranked-choice' : mode === 'freeform' ? 'Freeform' : 'Tier-list';
+      throw new Error(`${label} polls cannot use pass-threshold settings.`);
     }
 
     return {
@@ -404,7 +407,7 @@ export const parsePollFormInput = (input: {
     : parseChoicesCsv(rawChoices);
   const choiceEmojis = parseChoiceEmojisCsv(input.choiceEmojis, choices.length);
   const durationMs = parsePollDurationMs(input.durationText, input.now);
-  const allowOtherOption = mode !== 'ranked' && mode !== 'freeform' && (input.allowOtherOption ?? false);
+  const allowOtherOption = mode !== 'ranked' && mode !== 'freeform' && mode !== 'tier' && (input.allowOtherOption ?? false);
 
   assertChoicesCompatibleWithOtherOption(choices, allowOtherOption);
 
@@ -417,6 +420,46 @@ export const parsePollFormInput = (input: {
     allowOtherOption,
     ...(description ? { description } : {}),
   };
+};
+
+const maxTierLabelLength = 12;
+
+export const parseTierLabels = (
+  value: string | string[] | null | undefined,
+  mode: PollMode,
+): string[] => {
+  const parts = Array.isArray(value)
+    ? value.map((part) => part.trim()).filter(Boolean)
+    : (value ?? '')
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+  if (parts.length === 0) {
+    return [];
+  }
+
+  if (mode !== 'tier') {
+    throw new Error('Tier labels can only be set on tier-list polls.');
+  }
+
+  if (parts.length < MIN_TIER_LABELS || parts.length > MAX_TIER_LABELS) {
+    throw new Error(`Provide between ${MIN_TIER_LABELS} and ${MAX_TIER_LABELS} tier labels.`);
+  }
+
+  const seen = new Set<string>();
+  for (const label of parts) {
+    if (label.length > maxTierLabelLength) {
+      throw new Error(`Each tier label must be ${maxTierLabelLength} characters or fewer.`);
+    }
+    const key = label.toLocaleLowerCase();
+    if (seen.has(key)) {
+      throw new Error('Tier labels must be unique.');
+    }
+    seen.add(key);
+  }
+
+  return parts;
 };
 
 export const sanitizeFreeformResponse = (value: string): string => {

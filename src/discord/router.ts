@@ -34,6 +34,7 @@ import {
   handlePollBuilderButton,
   handlePollBuilderCommand,
   handlePollBuilderModal,
+  handlePollBuilderSelect,
   handlePollCommand,
   handlePollFromMessageContext,
 } from '@/features/polls/handlers/builder.js';
@@ -46,6 +47,11 @@ import {
   handlePollManageCommand,
   handlePollManageModal,
   handlePollReopenContext,
+  handlePollTierImageModal,
+  handlePollTierImageRemoveButton,
+  handlePollTierImageUploadButton,
+  handlePollTierImagesCommand,
+  handlePollTierImagesOpenButton,
 } from '@/features/polls/handlers/management.js';
 import {
   handlePollAuditCommand,
@@ -67,6 +73,9 @@ import {
   handlePollRankUndoButton,
   handlePollResponseButton,
   handlePollResponseModal,
+  handlePollTierClearButton,
+  handlePollTierOpenButton,
+  handlePollTierSelect,
   handlePollVoteSelect,
 } from '@/features/polls/handlers/voting.js';
 import {
@@ -146,6 +155,9 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'poll-rationale':
             await handlePollRationaleCommand(interaction);
+            return;
+          case 'poll-tier-images':
+            await handlePollTierImagesCommand(interaction);
             return;
           case 'starboard':
             await handleStarboardCommand(interaction);
@@ -280,6 +292,31 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
+        if (interaction.customId.startsWith('poll:tier:open:')) {
+          await handlePollTierOpenButton(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:tier:clear:')) {
+          await handlePollTierClearButton(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:tier:images-open:')) {
+          await handlePollTierImagesOpenButton(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:tier:image:upload:')) {
+          await handlePollTierImageUploadButton(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:tier:image:remove:')) {
+          await handlePollTierImageRemoveButton(client, interaction);
+          return;
+        }
+
         if (interaction.customId.startsWith('poll:results:')) {
           await handlePollResultsButton(client, interaction);
           return;
@@ -307,6 +344,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
       }
 
+      if (interaction.isAnySelectMenu() && interaction.customId.startsWith('poll-builder:select:')) {
+        await handlePollBuilderSelect(interaction);
+        return;
+      }
+
       if (interaction.isStringSelectMenu()) {
         if (interaction.customId.startsWith('casino:')) {
           await handleCasinoSelect(interaction);
@@ -315,6 +357,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('poll:vote:')) {
           await handlePollVoteSelect(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:tier:select:')) {
+          await handlePollTierSelect(client, interaction);
           return;
         }
 
@@ -365,6 +412,11 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
+        if (interaction.customId.startsWith('poll:tier:image-modal:')) {
+          await handlePollTierImageModal(client, interaction);
+          return;
+        }
+
         if (interaction.customId.startsWith('market:')) {
           await handleMarketModal(client, interaction);
           return;
@@ -380,7 +432,7 @@ export const registerInteractionRouter = (client: Client): void => {
         interaction.isChatInputCommand() ||
         interaction.isMessageContextMenuCommand() ||
         interaction.isButton() ||
-        interaction.isStringSelectMenu() ||
+        interaction.isAnySelectMenu() ||
         interaction.isModalSubmit()
       ) {
         if (

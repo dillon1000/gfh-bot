@@ -129,6 +129,7 @@ export const createPollRecord = async (
       passThreshold: input.passThreshold ?? null,
       passOptionIndex: input.passOptionIndex ?? null,
       reminderRoleId: input.reminderRoleId ?? null,
+      tierLabels: input.tierLabels ?? [],
       durationMinutes: durationMsToMinutes(input.durationMs),
       closesAt,
       options: {
@@ -239,6 +240,31 @@ export const getPollByQuery = async (
   }
 
   return poll;
+};
+
+export const setPollOptionImage = async (
+  pollId: string,
+  optionId: string,
+  imageUrl: string | null,
+): Promise<PollWithRelations> => {
+  const updated = await prisma.$transaction(async (tx) => {
+    const option = await tx.pollOption.findUnique({ where: { id: optionId } });
+    if (!option || option.pollId !== pollId) {
+      throw new Error('Tier-list item not found on this poll.');
+    }
+
+    await tx.pollOption.update({
+      where: { id: optionId },
+      data: { imageUrl },
+    });
+
+    return tx.poll.findUniqueOrThrow({
+      where: { id: pollId },
+      include: pollInclude,
+    });
+  });
+
+  return updated;
 };
 
 export const deletePollRecord = async (pollId: string): Promise<void> => {
