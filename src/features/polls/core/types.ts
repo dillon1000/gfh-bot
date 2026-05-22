@@ -1,6 +1,12 @@
 import type { Prisma } from '@/generated/prisma/client.js';
 
-export type PollMode = 'single' | 'multi' | 'ranked' | 'freeform';
+export type PollMode = 'single' | 'multi' | 'ranked' | 'freeform' | 'tier';
+
+export const TIER_LABELS = ['S', 'A', 'B', 'C', 'D', 'F'] as const;
+export type TierLabel = (typeof TIER_LABELS)[number];
+export const TIER_COUNT = TIER_LABELS.length;
+export const getTierLabelForRank = (rank: number): TierLabel | null =>
+  TIER_LABELS[rank] ?? null;
 export type PollClosedReason = 'closed' | 'cancelled';
 
 type PrismaPollWithRelations = Prisma.PollGetPayload<{
@@ -143,7 +149,35 @@ export type RankedPollComputedResults = {
   }>;
 };
 
-export type PollComputedResults = StandardPollComputedResults | RankedPollComputedResults | FreeformPollComputedResults;
+export type TierPollItemRanking = {
+  id: string;
+  label: string;
+  emoji: string | null;
+  votes: number;
+  averageRank: number | null;
+  consensusTier: TierLabel | null;
+  tierDistribution: Record<TierLabel, number>;
+};
+
+export type TierPollComputedResults = {
+  kind: 'tier';
+  totalVotes: number;
+  totalVoters: number;
+  items: TierPollItemRanking[];
+  choices: Array<{
+    id: string;
+    label: string;
+    emoji: string | null;
+    votes: number;
+    percentage: number;
+  }>;
+};
+
+export type PollComputedResults =
+  | StandardPollComputedResults
+  | RankedPollComputedResults
+  | FreeformPollComputedResults
+  | TierPollComputedResults;
 
 export type StandardPollOutcome = {
   kind: 'standard';
@@ -167,7 +201,15 @@ export type FreeformPollOutcome = {
   uniqueResponses: number;
 };
 
-export type PollOutcome = StandardPollOutcome | RankedPollOutcome | FreeformPollOutcome;
+export type TierPollOutcome = {
+  kind: 'tier';
+  status: 'ranked' | 'quorum-failed' | 'no-votes';
+  topItemLabel: string | null;
+  topTier: TierLabel | null;
+  rankedItemCount: number;
+};
+
+export type PollOutcome = StandardPollOutcome | RankedPollOutcome | FreeformPollOutcome | TierPollOutcome;
 
 export type PollElectorateEvaluation = {
   hasElectorateRules: boolean;

@@ -62,9 +62,10 @@ export const parsePollMode = (value: string | null | undefined): PollMode => {
     case 'multi':
     case 'ranked':
     case 'freeform':
+    case 'tier':
       return normalized;
     default:
-      throw new Error('Poll mode must be single, multi, ranked, or freeform.');
+      throw new Error('Poll mode must be single, multi, ranked, freeform, or tier.');
   }
 };
 
@@ -218,9 +219,10 @@ export const resolvePassRule = (
   passThreshold: number | null,
   passChoiceIndex: number | null,
 ): { passThreshold: number | null; passOptionIndex: number | null } => {
-  if (mode === 'ranked' || mode === 'freeform') {
+  if (mode === 'ranked' || mode === 'freeform' || mode === 'tier') {
     if (passThreshold !== null || passChoiceIndex !== null) {
-      throw new Error(`${mode === 'ranked' ? 'Ranked-choice' : 'Freeform'} polls cannot use pass-threshold settings.`);
+      const label = mode === 'ranked' ? 'Ranked-choice' : mode === 'freeform' ? 'Freeform' : 'Tier-list';
+      throw new Error(`${label} polls cannot use pass-threshold settings.`);
     }
 
     return {
@@ -404,7 +406,7 @@ export const parsePollFormInput = (input: {
     : parseChoicesCsv(rawChoices);
   const choiceEmojis = parseChoiceEmojisCsv(input.choiceEmojis, choices.length);
   const durationMs = parsePollDurationMs(input.durationText, input.now);
-  const allowOtherOption = mode !== 'ranked' && mode !== 'freeform' && (input.allowOtherOption ?? false);
+  const allowOtherOption = mode !== 'ranked' && mode !== 'freeform' && mode !== 'tier' && (input.allowOtherOption ?? false);
 
   assertChoicesCompatibleWithOtherOption(choices, allowOtherOption);
 

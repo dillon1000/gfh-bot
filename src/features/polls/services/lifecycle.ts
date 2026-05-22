@@ -141,6 +141,20 @@ export const describePollOutcome = (
     return `${outcome.uniqueResponses} unique response${outcome.uniqueResponses === 1 ? '' : 's'} collected.`;
   }
 
+  if (outcome.kind === 'tier') {
+    if (outcome.status === 'quorum-failed' && electorate && electorate.quorumPercent !== null && electorate.turnoutPercent !== null) {
+      return `Quorum not met: turnout reached ${electorate.turnoutPercent.toFixed(1)}% against a ${electorate.quorumPercent}% requirement.`;
+    }
+
+    if (outcome.status === 'no-votes') {
+      return 'No tier rankings were recorded.';
+    }
+
+    return outcome.topItemLabel
+      ? `Top tier: ${outcome.topItemLabel} (${outcome.topTier ?? '?'}). ${outcome.rankedItemCount} item${outcome.rankedItemCount === 1 ? '' : 's'} ranked.`
+      : `${outcome.rankedItemCount} item${outcome.rankedItemCount === 1 ? '' : 's'} ranked.`;
+  }
+
   if (outcome.status === 'no-threshold') {
     return `No pass threshold was configured. ${outcome.measuredChoiceLabel} finished at ${outcome.measuredPercentage.toFixed(1)}%.`;
   }

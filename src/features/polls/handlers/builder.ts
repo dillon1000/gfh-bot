@@ -37,7 +37,7 @@ type PublishDraft = {
   description?: string;
   choices: string[];
   choiceEmojis: Array<string | null>;
-  mode: 'single' | 'multi' | 'ranked' | 'freeform';
+  mode: 'single' | 'multi' | 'ranked' | 'freeform' | 'tier';
   anonymous: boolean;
   hideResultsUntilClosed: boolean;
   allowOtherOption: boolean;
@@ -235,7 +235,7 @@ export const handlePollFromMessageContext = async (
   });
 };
 
-const cyclePollMode = (mode: 'single' | 'multi' | 'ranked' | 'freeform'): 'single' | 'multi' | 'ranked' | 'freeform' => {
+const cyclePollMode = (mode: 'single' | 'multi' | 'ranked' | 'freeform' | 'tier'): 'single' | 'multi' | 'ranked' | 'freeform' | 'tier' => {
   switch (mode) {
     case 'single':
       return 'multi';
@@ -243,6 +243,8 @@ const cyclePollMode = (mode: 'single' | 'multi' | 'ranked' | 'freeform'): 'singl
       return 'ranked';
     case 'ranked':
       return 'freeform';
+    case 'freeform':
+      return 'tier';
     default:
       return 'single';
   }
@@ -300,7 +302,7 @@ export const handlePollBuilderButton = async (
       return;
     case pollBuilderButtonCustomId('mode'):
       draft.mode = cyclePollMode(draft.mode);
-      if (draft.mode === 'ranked' || draft.mode === 'freeform') {
+      if (draft.mode === 'ranked' || draft.mode === 'freeform' || draft.mode === 'tier') {
         draft.passThreshold = null;
         draft.passOptionIndex = null;
       }

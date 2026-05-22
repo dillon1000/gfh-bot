@@ -15,6 +15,7 @@ enum PollMode {
   multi
   ranked
   freeform
+  tier
 }
 
 enum PollClosedReason {

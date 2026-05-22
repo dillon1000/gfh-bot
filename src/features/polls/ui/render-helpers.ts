@@ -53,6 +53,8 @@ export const getModeLabel = (mode: PollMode): string => {
       return 'Ranked choice';
     case 'freeform':
       return 'Freeform';
+    case 'tier':
+      return 'Tier list';
     default:
       return 'Single choice';
   }
@@ -70,6 +72,10 @@ export const getPassRuleLabel = (
 
   if (mode === 'freeform') {
     return 'Not used in freeform polls';
+  }
+
+  if (mode === 'tier') {
+    return 'Not used in tier-list polls';
   }
 
   if (!passThreshold) {

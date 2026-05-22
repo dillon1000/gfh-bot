@@ -37,6 +37,7 @@ export const pollCommand = new SlashCommandBuilder()
         { name: 'Multi choice', value: 'multi' },
         { name: 'Ranked choice', value: 'ranked' },
         { name: 'Freeform', value: 'freeform' },
+        { name: 'Tier list', value: 'tier' },
       ),
   )
   .addBooleanOption((option) =>

@@ -21,12 +21,17 @@ import { refreshPollMessage } from '@/features/polls/services/lifecycle.js';
 import { getPollById } from '@/features/polls/services/repository.js';
 import {
   clearPollVotes,
+  clearTierPollVotes,
   getPollRankingForUser,
   getPollResponseForUser,
+  getPollTierAssignmentsForUser,
   setPollTextResponse,
+  setPollTierVote,
   setPollVotes,
 } from '@/features/polls/services/voting.js';
 import { resolveSingleSelectVoteToggle } from '@/features/polls/core/vote-toggle.js';
+import { buildTierVotingMessage, isTierRemoveValue } from '@/features/polls/ui/tier-editor.js';
+import { isPollClosedOrExpired } from '@/features/polls/ui/render-helpers.js';
 
 export const handlePollVoteSelect = async (
   client: Client,
@@ -325,6 +330,97 @@ export const handlePollRankClearButton = async (
   await clearPollVotes(pollId, interaction.user.id);
   await refreshPollMessage(client, pollId);
   await updateRankedChoiceEditor(interaction, pollId);
+};
+
+const getValidatedTierPoll = async (
+  pollId: string,
+  options?: { requireOpen?: boolean },
+) => {
+  const poll = await getPollById(pollId);
+  if (!poll) {
+    throw new Error('Poll not found.');
+  }
+  if (poll.mode !== 'tier') {
+    throw new Error('This poll is not a tier-list poll.');
+  }
+  if (options?.requireOpen && isPollClosedOrExpired(poll)) {
+    throw new Error('This poll is already closed.');
+  }
+  return poll;
+};
+
+export const handlePollTierOpenButton = async (
+  interaction: ButtonInteraction,
+): Promise<void> => {
+  const pollId = interaction.customId.split(':')[3];
+  if (!pollId) {
+    throw new Error('Invalid poll identifier.');
+  }
+
+  const poll = await getValidatedTierPoll(pollId);
+  await assertUserCanVoteInPoll(interaction.client, poll, interaction.user.id);
+  const assignments = getPollTierAssignmentsForUser(poll, interaction.user.id);
+
+  await interaction.reply(
+    buildTierVotingMessage(poll, assignments, isPollClosedOrExpired(poll)),
+  );
+};
+
+export const handlePollTierSelect = async (
+  client: Client,
+  interaction: StringSelectMenuInteraction,
+): Promise<void> => {
+  const [, , , pollId, optionId] = interaction.customId.split(':');
+  if (!pollId || !optionId) {
+    throw new Error('Invalid tier-list vote.');
+  }
+
+  const poll = await getValidatedTierPoll(pollId, { requireOpen: true });
+  await assertUserCanVoteInPoll(client, poll, interaction.user.id);
+
+  const value = interaction.values[0];
+  if (!value) {
+    throw new Error('No tier selected.');
+  }
+
+  if (isTierRemoveValue(value)) {
+    await setPollTierVote(pollId, interaction.user.id, optionId, null);
+  } else {
+    const tierRank = Number(value);
+    if (!Number.isInteger(tierRank)) {
+      throw new Error('Invalid tier selection.');
+    }
+    await setPollTierVote(pollId, interaction.user.id, optionId, tierRank);
+  }
+
+  await refreshPollMessage(client, pollId);
+
+  const updatedPoll = await getValidatedTierPoll(pollId);
+  const assignments = getPollTierAssignmentsForUser(updatedPoll, interaction.user.id);
+  await interaction.update(
+    buildTierVotingMessage(updatedPoll, assignments, isPollClosedOrExpired(updatedPoll)),
+  );
+};
+
+export const handlePollTierClearButton = async (
+  client: Client,
+  interaction: ButtonInteraction,
+): Promise<void> => {
+  const pollId = interaction.customId.split(':')[3];
+  if (!pollId) {
+    throw new Error('Invalid poll identifier.');
+  }
+
+  const poll = await getValidatedTierPoll(pollId, { requireOpen: true });
+  await assertUserCanVoteInPoll(client, poll, interaction.user.id);
+
+  await clearTierPollVotes(pollId, interaction.user.id);
+  await refreshPollMessage(client, pollId);
+
+  const updatedPoll = await getValidatedTierPoll(pollId);
+  await interaction.update(
+    buildTierVotingMessage(updatedPoll, new Map(), isPollClosedOrExpired(updatedPoll)),
+  );
 };
 
 export const handlePollRankSubmitButton = async (

@@ -67,6 +67,9 @@ import {
   handlePollRankUndoButton,
   handlePollResponseButton,
   handlePollResponseModal,
+  handlePollTierClearButton,
+  handlePollTierOpenButton,
+  handlePollTierSelect,
   handlePollVoteSelect,
 } from '@/features/polls/handlers/voting.js';
 import {
@@ -280,6 +283,16 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
+        if (interaction.customId.startsWith('poll:tier:open:')) {
+          await handlePollTierOpenButton(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:tier:clear:')) {
+          await handlePollTierClearButton(client, interaction);
+          return;
+        }
+
         if (interaction.customId.startsWith('poll:results:')) {
           await handlePollResultsButton(client, interaction);
           return;
@@ -315,6 +328,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('poll:vote:')) {
           await handlePollVoteSelect(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:tier:select:')) {
+          await handlePollTierSelect(client, interaction);
           return;
         }
 
