@@ -483,3 +483,8 @@ export const marketCommand = new SlashCommandBuilder()
 	);
 
 marketCommand.setDefaultMemberPermissions(PermissionFlagsBits.SendMessages);
+
+export const marketBuilderCommand = new SlashCommandBuilder()
+	.setName("market-builder")
+	.setDescription("Open an interactive market creation wizard.")
+	.setDefaultMemberPermissions(PermissionFlagsBits.SendMessages);
