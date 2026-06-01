@@ -1,4 +1,4 @@
-import type { Poll, PollReminder, PollMode as PrismaPollMode, Prisma } from '@/generated/prisma/client.js';
+import type { Poll, PollMode as PrismaPollMode, Prisma } from '@/generated/prisma/client.js';
 
 import { env } from '@/app/config.js';
 import { assertWithinRateLimit } from '@/lib/rate-limit.js';
@@ -7,17 +7,13 @@ import { redis } from '@/lib/redis.js';
 import { durationMsToMinutes, getPollDurationMinutes } from '@/features/polls/state/poll-state.js';
 import { parsePollLookup } from '@/features/polls/parsing/query.js';
 import { assertChoicesCompatibleWithOtherOption } from '@/features/polls/parsing/parser.js';
+import { resolveQuizQuestions } from '@/features/polls/core/types.js';
 import type { PollCreationInput, PollWithRelations } from '@/features/polls/core/types.js';
 import {
   buildPollReminderRecords,
   removeScheduledPollClose,
   removeScheduledPollReminders,
   replaceScheduledPollJobs,
-  schedulePollClose,
-  schedulePollReminder,
-  schedulePollReminders,
-  syncOpenPollCloseJobs,
-  syncOpenPollReminderJobs,
 } from '@/features/polls/services/repository/jobs.js';
 
 export {
@@ -98,6 +94,9 @@ export const createPollRecord = async (
     input.choices.map((choice) => choice.label),
     input.allowOtherOption,
   );
+  if (input.mode === 'quiz' && resolveQuizQuestions({ quizQuestions: input.quizQuestions ?? [] }).length === 0) {
+    throw new Error('Quiz polls require at least one question.');
+  }
 
   if (!options?.skipRateLimit) {
     await assertWithinRateLimit(
@@ -110,6 +109,23 @@ export const createPollRecord = async (
 
   const closesAt = new Date(Date.now() + input.durationMs);
 
+  const optionRecords = [
+    ...input.choices.map((choice, index) => ({
+      label: choice.label,
+      emoji: choice.emoji ?? null,
+      isOther: false,
+      sortOrder: index,
+    })),
+    ...(input.allowOtherOption
+      ? [{
+          label: 'Other',
+          emoji: null,
+          isOther: true,
+          sortOrder: input.choices.length,
+        }]
+      : []),
+  ];
+
   const poll = await prisma.poll.create({
     data: {
       guildId: input.guildId,
@@ -121,6 +137,8 @@ export const createPollRecord = async (
       singleSelect: input.mode !== 'multi',
       anonymous: input.anonymous,
       hideResultsUntilClosed: input.hideResultsUntilClosed,
+      hideResultsAfterClose: input.hideResultsAfterClose,
+      ...(input.mode === 'quiz' ? { quizQuestions: input.quizQuestions ?? [] } : {}),
       allowOtherOption: input.allowOtherOption,
       quorumPercent: input.quorumPercent ?? null,
       allowedRoleIds: input.allowedRoleIds,
@@ -132,24 +150,7 @@ export const createPollRecord = async (
       tierLabels: input.tierLabels ?? [],
       durationMinutes: durationMsToMinutes(input.durationMs),
       closesAt,
-      options: {
-        create: [
-          ...input.choices.map((choice, index) => ({
-            label: choice.label,
-            emoji: choice.emoji ?? null,
-            isOther: false,
-            sortOrder: index,
-          })),
-          ...(input.allowOtherOption
-            ? [{
-                label: 'Other',
-                emoji: null,
-                isOther: true,
-                sortOrder: input.choices.length,
-              }]
-            : []),
-        ],
-      },
+      ...(optionRecords.length > 0 ? { options: { create: optionRecords } } : {}),
       reminders: {
         create: buildPollReminderRecords(closesAt, input.reminderOffsets),
       },

@@ -4,6 +4,7 @@ import { logger } from '@/app/logger.js';
 import { buildPollResultDiagram } from '@/features/polls/ui/visualize.js';
 import {
   pollChoiceCustomId,
+  pollQuizOpenCustomId,
   pollRankOpenCustomId,
   pollResponseButtonCustomId,
   pollResultsCustomId,
@@ -12,18 +13,22 @@ import {
 } from '@/features/polls/ui/custom-ids.js';
 import { buildPollMessageEmbed, buildPollResultsEmbed } from '@/features/polls/ui/poll-embeds.js';
 import { getPollChoiceComponentEmoji } from '@/features/polls/ui/present.js';
-import { chunkButtons, isPollClosedOrExpired } from '@/features/polls/ui/render-helpers.js';
+import { arePollResultsHidden, chunkButtons, isPollClosedOrExpired } from '@/features/polls/ui/render-helpers.js';
 import { createFallbackPollSnapshot } from '@/features/polls/services/governance.js';
 import type { EvaluatedPollSnapshot, PollComputedResults, PollWithRelations } from '@/features/polls/core/types.js';
 
 const shouldAttachPollDiagram = (
-  poll: Pick<PollWithRelations, 'mode' | 'closedAt' | 'closesAt' | 'hideResultsUntilClosed'>,
+  poll: Pick<PollWithRelations, 'mode' | 'closedAt' | 'closesAt' | 'hideResultsUntilClosed' | 'hideResultsAfterClose'>,
 ): boolean => {
-  if (poll.hideResultsUntilClosed && !isPollClosedOrExpired(poll)) {
+  if (arePollResultsHidden(poll)) {
     return false;
   }
 
   if (poll.mode === 'freeform') {
+    return false;
+  }
+
+  if (poll.mode === 'quiz') {
     return false;
   }
 
@@ -67,6 +72,14 @@ const buildPollComponents = (poll: PollWithRelations) => {
               .setStyle(ButtonStyle.Primary)
               .setDisabled(votingDisabled),
           ]
+      : poll.mode === 'quiz'
+        ? [
+            new ButtonBuilder()
+              .setCustomId(pollQuizOpenCustomId(poll.id))
+              .setLabel('Answer Quiz')
+              .setStyle(ButtonStyle.Primary)
+              .setDisabled(votingDisabled),
+          ]
         : otherOption
           ? [
               new ButtonBuilder()
@@ -86,7 +99,9 @@ const buildPollComponents = (poll: PollWithRelations) => {
     ? [controls]
     : poll.mode === 'tier'
       ? [controls]
-      : poll.mode === 'freeform'
+    : poll.mode === 'freeform'
+      ? [controls]
+    : poll.mode === 'quiz'
       ? [controls]
       : poll.mode === 'single'
         ? [

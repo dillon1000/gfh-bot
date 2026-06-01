@@ -26,7 +26,7 @@ export const buildPollEditModal = (
     .setTitle('Edit poll')
     .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(questionInput));
 
-  if (poll.mode !== 'freeform') {
+  if (poll.mode !== 'freeform' && poll.mode !== 'quiz') {
     const entryLabel = poll.mode === 'tier' ? 'Items' : 'Choices';
     const choicesInput = new TextInputBuilder()
       .setCustomId('choices')

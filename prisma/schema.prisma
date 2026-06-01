@@ -16,6 +16,7 @@ enum PollMode {
   ranked
   freeform
   tier
+  quiz
 }
 
 enum PollClosedReason {
@@ -176,6 +177,8 @@ model Poll {
   singleSelect   Boolean         @default(true)
   anonymous      Boolean         @default(false)
   hideResultsUntilClosed Boolean @default(false)
+  hideResultsAfterClose Boolean  @default(false)
+  quizQuestions  Json?
   allowOtherOption Boolean       @default(false)
   quorumPercent  Int?
   allowedRoleIds String[]        @default([])
@@ -237,6 +240,7 @@ model PollVote {
   rank      Int?
   tierRank  Int?
   responseText String?
+  quizAnswers Json?
   createdAt DateTime   @default(now())
   poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
   option    PollOption? @relation(fields: [optionId], references: [id], onDelete: Cascade)

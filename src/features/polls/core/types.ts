@@ -1,6 +1,49 @@
 import type { Prisma } from '@/generated/prisma/client.js';
 
-export type PollMode = 'single' | 'multi' | 'ranked' | 'freeform' | 'tier';
+export type PollMode = 'single' | 'multi' | 'ranked' | 'freeform' | 'tier' | 'quiz';
+
+export const QUIZ_QUESTION_TYPES = [
+  'single_select',
+  'multi_select',
+  'true_false',
+  'scale_1_10',
+  'free_answer',
+  'file_upload',
+] as const;
+
+export type QuizQuestionType = typeof QUIZ_QUESTION_TYPES[number];
+
+export type QuizQuestion = {
+  id: string;
+  prompt: string;
+  type: QuizQuestionType;
+  options?: string[];
+  required?: boolean;
+};
+
+export type QuizAnswer = {
+  questionId: string;
+  type: QuizQuestionType;
+  values?: string[];
+  text?: string;
+};
+
+export const DEFAULT_QUIZ_QUESTIONS: QuizQuestion[] = [
+  {
+    id: 'q1',
+    prompt: 'Is this statement true?',
+    type: 'true_false',
+    options: ['True', 'False'],
+    required: true,
+  },
+  {
+    id: 'q2',
+    prompt: 'Pick a score from 1 to 10',
+    type: 'scale_1_10',
+    options: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
+    required: true,
+  },
+];
 
 export const DEFAULT_TIER_LABELS = ['S', 'A', 'B', 'C', 'D', 'F'] as const;
 export const MAX_TIER_LABELS = 6;
@@ -20,6 +63,81 @@ export const getTierCount = (poll: TierLabelsHost): number =>
 export const getTierLabelForRank = (poll: TierLabelsHost, rank: number): string | null => {
   const labels = resolveTierLabels(poll);
   return labels[rank] ?? null;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+export const isQuizQuestionType = (value: unknown): value is QuizQuestionType =>
+  typeof value === 'string' && QUIZ_QUESTION_TYPES.includes(value as QuizQuestionType);
+
+type QuizQuestionsHost = { quizQuestions?: Prisma.JsonValue | QuizQuestion[] | null };
+type QuizAnswersHost = { quizAnswers?: Prisma.JsonValue | QuizAnswer[] | null };
+
+export const resolveQuizQuestions = (poll: QuizQuestionsHost): QuizQuestion[] => {
+  const value = poll.quizQuestions;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry, index): QuizQuestion | null => {
+      if (!isRecord(entry) || !isQuizQuestionType(entry.type) || typeof entry.prompt !== 'string') {
+        return null;
+      }
+
+      const options = Array.isArray(entry.options)
+        ? (entry.options as unknown[]).filter((option): option is string => typeof option === 'string')
+        : [];
+
+      return {
+        id: typeof entry.id === 'string' && entry.id ? entry.id : `q${index + 1}`,
+        prompt: entry.prompt,
+        type: entry.type,
+        ...(options.length > 0 ? { options } : {}),
+        required: entry.required !== false,
+      };
+    })
+    .filter((entry): entry is QuizQuestion => entry !== null);
+};
+
+export const resolveQuizAnswers = (vote: QuizAnswersHost): QuizAnswer[] => {
+  const value = vote.quizAnswers;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry): QuizAnswer | null => {
+      if (!isRecord(entry) || !isQuizQuestionType(entry.type) || typeof entry.questionId !== 'string') {
+        return null;
+      }
+
+      const values = Array.isArray(entry.values)
+        ? (entry.values as unknown[]).filter((item): item is string => typeof item === 'string')
+        : [];
+      const text = typeof entry.text === 'string' ? entry.text : '';
+
+      return {
+        questionId: entry.questionId,
+        type: entry.type,
+        ...(values.length > 0 ? { values } : {}),
+        ...(text ? { text } : {}),
+      };
+    })
+    .filter((entry): entry is QuizAnswer => entry !== null);
+};
+
+export const getQuizQuestionOptionLabels = (question: QuizQuestion): string[] => {
+  if (question.type === 'true_false') {
+    return ['True', 'False'];
+  }
+
+  if (question.type === 'scale_1_10') {
+    return Array.from({ length: 10 }, (_, index) => String(index + 1));
+  }
+
+  return question.options ?? [];
 };
 export type PollClosedReason = 'closed' | 'cancelled';
 
@@ -44,18 +162,21 @@ type PollOptionRecord = Omit<PrismaPollWithRelations['options'][number], 'isOthe
   imageUrl?: string | null;
 };
 
-type PollVoteRecord = Omit<PrismaPollWithRelations['votes'][number], 'optionId' | 'rank' | 'tierRank' | 'responseText'> & {
+type PollVoteRecord = Omit<PrismaPollWithRelations['votes'][number], 'optionId' | 'rank' | 'tierRank' | 'responseText' | 'quizAnswers'> & {
   optionId?: string | null;
   rank?: number | null;
   tierRank?: number | null;
   responseText?: string | null;
+  quizAnswers?: Prisma.JsonValue | null;
 };
 
-export type PollWithRelations = Omit<PrismaPollWithRelations, 'mode' | 'votes' | 'closedReason' | 'durationMinutes' | 'options' | 'allowOtherOption' | 'tierLabels'> & {
+export type PollWithRelations = Omit<PrismaPollWithRelations, 'mode' | 'votes' | 'closedReason' | 'durationMinutes' | 'options' | 'allowOtherOption' | 'hideResultsAfterClose' | 'quizQuestions' | 'tierLabels'> & {
   mode: PollMode;
   closedReason: PollClosedReason | null;
   durationMinutes: number;
   allowOtherOption?: boolean;
+  hideResultsAfterClose?: boolean;
+  quizQuestions?: Prisma.JsonValue | null;
   tierLabels?: string[];
   options: PollOptionRecord[];
   votes: PollVoteRecord[];
@@ -74,7 +195,9 @@ export type PollCreationInput = {
   }>;
   anonymous: boolean;
   hideResultsUntilClosed: boolean;
+  hideResultsAfterClose: boolean;
   allowOtherOption: boolean;
+  quizQuestions?: QuizQuestion[];
   quorumPercent?: number | null;
   allowedRoleIds: string[];
   blockedRoleIds: string[];
@@ -99,7 +222,9 @@ export type PollDraft = {
   tierLabels: string[];
   anonymous: boolean;
   hideResultsUntilClosed: boolean;
+  hideResultsAfterClose: boolean;
   allowOtherOption: boolean;
+  quizQuestions: QuizQuestion[];
   quorumPercent: number | null;
   allowedRoleIds: string[];
   blockedRoleIds: string[];
@@ -195,11 +320,38 @@ export type TierPollComputedResults = {
   }>;
 };
 
+export type QuizPollQuestionResult = {
+  questionId: string;
+  prompt: string;
+  type: QuizQuestionType;
+  totalAnswers: number;
+  choices: Array<{
+    id: string;
+    label: string;
+    emoji: string | null;
+    votes: number;
+    percentage: number;
+  }>;
+  textAnswers: Array<{
+    userId: string;
+    text: string;
+  }>;
+};
+
+export type QuizPollComputedResults = {
+  kind: 'quiz';
+  totalVotes: number;
+  totalVoters: number;
+  questions: QuizPollQuestionResult[];
+  choices: [];
+};
+
 export type PollComputedResults =
   | StandardPollComputedResults
   | RankedPollComputedResults
   | FreeformPollComputedResults
-  | TierPollComputedResults;
+  | TierPollComputedResults
+  | QuizPollComputedResults;
 
 export type StandardPollOutcome = {
   kind: 'standard';
@@ -231,7 +383,19 @@ export type TierPollOutcome = {
   rankedItemCount: number;
 };
 
-export type PollOutcome = StandardPollOutcome | RankedPollOutcome | FreeformPollOutcome | TierPollOutcome;
+export type QuizPollOutcome = {
+  kind: 'quiz';
+  status: 'submissions-collected' | 'quorum-failed' | 'no-submissions';
+  submittedCount: number;
+  questionCount: number;
+};
+
+export type PollOutcome =
+  | StandardPollOutcome
+  | RankedPollOutcome
+  | FreeformPollOutcome
+  | TierPollOutcome
+  | QuizPollOutcome;
 
 export type PollElectorateEvaluation = {
   hasElectorateRules: boolean;

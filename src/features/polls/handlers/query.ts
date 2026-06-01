@@ -28,6 +28,7 @@ import {
   getPollById,
   getPollByMessageId,
 } from '@/features/polls/services/repository.js';
+import { getPollResultsHiddenReason } from '@/features/polls/ui/render-helpers.js';
 
 const replyWithPollExport = async (
   interaction:
@@ -77,6 +78,32 @@ const buildAuditUserMentions = (userIds: string[]): string | undefined =>
   userIds.length > 0
     ? `Users in this view: ${userIds.map((userId) => `<@${userId}>`).join(', ')}`
     : undefined;
+
+const assertPollExportAvailable = (
+  poll: Parameters<typeof getPollResultsHiddenReason>[0],
+): void => {
+  const hiddenReason = getPollResultsHiddenReason(poll);
+  if (!hiddenReason) {
+    return;
+  }
+
+  throw new Error(hiddenReason === 'after-close'
+    ? 'This poll keeps results hidden after it closes. Exports are not available.'
+    : 'This poll hides results until it closes. Exports are not available while the poll is open.');
+};
+
+const assertPollAuditAvailable = (
+  poll: Parameters<typeof getPollResultsHiddenReason>[0],
+): void => {
+  const hiddenReason = getPollResultsHiddenReason(poll);
+  if (!hiddenReason) {
+    return;
+  }
+
+  throw new Error(hiddenReason === 'after-close'
+    ? 'This poll keeps results hidden after it closes. Vote audit history is not available.'
+    : 'This poll hides results until it closes. Vote audit history is not available while the poll is open.');
+};
 
 export const handlePollResultsCommand = async (
   client: Client,
@@ -161,9 +188,7 @@ export const handlePollExportCommand = async (
     throw new Error('Poll not found.');
   }
 
-  if (snapshot.poll.hideResultsUntilClosed && !snapshot.poll.closedAt && snapshot.poll.closesAt.getTime() > Date.now()) {
-    throw new Error('This poll hides results until it closes. Exports are not available while the poll is open.');
-  }
+  assertPollExportAvailable(snapshot.poll);
 
   await replyWithPollExport(interaction, snapshot.poll.question, await exportPollToCsv(snapshot));
 };
@@ -182,14 +207,14 @@ export const handlePollExportContext = async (
     throw new Error('Poll not found.');
   }
 
-  if (poll.hideResultsUntilClosed && !poll.closedAt && poll.closesAt.getTime() > Date.now()) {
-    throw new Error('This poll hides results until it closes. Exports are not available while the poll is open.');
-  }
+  assertPollExportAvailable(poll);
 
   const snapshot = await getPollResultsSnapshot(client, poll.id);
   if (!snapshot) {
     throw new Error('Poll not found.');
   }
+
+  assertPollExportAvailable(snapshot.poll);
 
   await replyWithPollExport(interaction, poll.question, await exportPollToCsv(snapshot));
 };
@@ -211,6 +236,8 @@ export const handlePollAuditCommand = async (
   if (snapshot.poll.anonymous) {
     throw new Error('Anonymous polls do not expose vote audit history.');
   }
+
+  assertPollAuditAvailable(snapshot.poll);
 
   const canManageGuild = interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
   if (!isPollManager(snapshot.poll, interaction.user.id, canManageGuild)) {
@@ -259,6 +286,8 @@ export const handlePollAuditContext = async (
     throw new Error('Anonymous polls do not expose vote audit history.');
   }
 
+  assertPollAuditAvailable(poll);
+
   const canManageGuild = interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
   if (!isPollManager(poll, interaction.user.id, canManageGuild)) {
     throw new Error('Only the poll creator or a server manager can view poll audit history.');
@@ -268,6 +297,8 @@ export const handlePollAuditContext = async (
   if (!snapshot) {
     throw new Error('Poll not found.');
   }
+
+  assertPollAuditAvailable(snapshot.poll);
 
   const auditUserIds = [...new Set(snapshot.events.slice(0, 10).map((event) => event.userId))];
   const content = buildAuditUserMentions(auditUserIds);

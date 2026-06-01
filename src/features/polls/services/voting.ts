@@ -3,14 +3,80 @@ import { prisma } from '@/lib/prisma.js';
 import { redis } from '@/lib/redis.js';
 import { sanitizeFreeformResponse } from '@/features/polls/parsing/parser.js';
 import { pollInclude } from '@/features/polls/services/repository.js';
-import type { PollMode, PollWithRelations } from '@/features/polls/core/types.js';
-import { getTierCount } from '@/features/polls/core/types.js';
+import type { PollMode, PollWithRelations, QuizAnswer, QuizQuestion } from '@/features/polls/core/types.js';
+import {
+  getQuizQuestionOptionLabels,
+  getTierCount,
+  resolveQuizAnswers,
+  resolveQuizQuestions,
+} from '@/features/polls/core/types.js';
 
 const getEffectivePollMode = (poll: { mode?: PollMode | null; singleSelect: boolean }): PollMode =>
   poll.mode ?? (poll.singleSelect ? 'single' : 'multi');
 
 const getOtherOption = (poll: Pick<PollWithRelations, 'options'>): PollWithRelations['options'][number] | null =>
   poll.options.find((option) => option.isOther) ?? null;
+
+const isQuizAnswerComplete = (answer: QuizAnswer): boolean =>
+  Boolean(answer.text?.trim()) || Boolean(answer.values && answer.values.length > 0);
+
+const buildQuizAnswerSummary = (questions: QuizQuestion[], answers: QuizAnswer[]): string[] => {
+  const questionLabels = new Map(questions.map((question, index) => [question.id, `${index + 1}. ${question.prompt}`]));
+  return answers
+    .filter(isQuizAnswerComplete)
+    .map((answer) => {
+      const label = questionLabels.get(answer.questionId) ?? answer.questionId;
+      const value = answer.text?.trim() || answer.values?.join(' | ') || 'No answer';
+      return `${label}: ${value}`;
+    });
+};
+
+export const normalizeQuizAnswersForQuestions = (questions: QuizQuestion[], answers: QuizAnswer[]): QuizAnswer[] => {
+  const questionMap = new Map(questions.map((question) => [question.id, question]));
+  const normalized: QuizAnswer[] = [];
+
+  for (const answer of answers) {
+    const question = questionMap.get(answer.questionId);
+    if (!question) {
+      continue;
+    }
+
+    if (answer.type !== question.type) {
+      throw new Error('One or more quiz answers does not match its question type.');
+    }
+
+    const allowedValues = new Set(getQuizQuestionOptionLabels(question));
+    const values = [...new Set(answer.values ?? [])].filter(Boolean);
+    const text = answer.text?.trim() ?? '';
+
+    if ((question.type === 'single_select' || question.type === 'true_false' || question.type === 'scale_1_10') && values.length > 1) {
+      throw new Error('One or more quiz questions only accepts one answer.');
+    }
+
+    if ((question.type === 'single_select' || question.type === 'multi_select' || question.type === 'true_false' || question.type === 'scale_1_10')
+      && values.some((value) => !allowedValues.has(value))) {
+      throw new Error('One or more quiz answers is not a valid option.');
+    }
+
+    normalized.push({
+      questionId: question.id,
+      type: question.type,
+      ...(values.length > 0 ? { values } : {}),
+      ...(text ? { text } : {}),
+    });
+  }
+
+  const answerMap = new Map(normalized.map((answer) => [answer.questionId, answer]));
+  const missingQuestion = questions.find((question) => question.required !== false && !isQuizAnswerComplete(answerMap.get(question.id) ?? {
+    questionId: question.id,
+    type: question.type,
+  }));
+  if (missingQuestion) {
+    throw new Error(`Answer every required quiz question before submitting. Missing: ${missingQuestion.prompt}`);
+  }
+
+  return normalized;
+};
 
 const buildResponseAuditTexts = (
   poll: Pick<PollWithRelations, 'options'>,
@@ -402,6 +468,70 @@ export const clearTierPollVotes = async (
   return result;
 };
 
+export const setQuizAnswers = async (
+  pollId: string,
+  userId: string,
+  answers: QuizAnswer[],
+): Promise<PollWithRelations> => {
+  const result = await withRedisLock(redis, `lock:poll-vote:${pollId}:${userId}`, 5_000, async () =>
+    prisma.$transaction(async (tx) => {
+      const poll = await tx.poll.findUnique({
+        where: { id: pollId },
+        include: pollInclude,
+      });
+      if (!poll) {
+        throw new Error('Poll not found.');
+      }
+      if (poll.mode !== 'quiz') {
+        throw new Error('This poll is not a quiz.');
+      }
+      if (poll.closedAt || poll.closesAt.getTime() <= Date.now()) {
+        throw new Error('This poll is already closed.');
+      }
+
+      const questions = resolveQuizQuestions(poll);
+      const normalizedAnswers = normalizeQuizAnswersForQuestions(questions, answers);
+      const previousVotes = poll.votes.filter((vote) => vote.userId === userId);
+      const previousAnswers = previousVotes.flatMap((vote) => resolveQuizAnswers(vote));
+
+      await tx.pollVote.deleteMany({ where: { pollId, userId } });
+      await tx.pollVote.create({
+        data: {
+          pollId,
+          userId,
+          quizAnswers: normalizedAnswers,
+        },
+      });
+
+      const previousSummary = buildQuizAnswerSummary(questions, previousAnswers);
+      const nextSummary = buildQuizAnswerSummary(questions, normalizedAnswers);
+      if (previousSummary.join('\n') !== nextSummary.join('\n')) {
+        await tx.pollVoteEvent.create({
+          data: {
+            pollId,
+            userId,
+            previousOptionIds: [],
+            nextOptionIds: [],
+            previousResponseTexts: previousSummary,
+            nextResponseTexts: nextSummary,
+          },
+        });
+      }
+
+      return tx.poll.findUniqueOrThrow({
+        where: { id: pollId },
+        include: pollInclude,
+      });
+    }),
+  );
+
+  if (!result) {
+    throw new Error('Another quiz submission is already in progress. Please try again.');
+  }
+
+  return result;
+};
+
 export const getPollTierAssignmentsForUser = (
   poll: PollWithRelations,
   userId: string,
@@ -477,9 +607,9 @@ export const getPollRankingForUser = (
   poll: PollWithRelations,
   userId: string,
 ): string[] => poll.votes
-  .filter((vote) => vote.userId === userId && Boolean(vote.optionId))
+  .filter((vote) => vote.userId === userId)
   .sort((left, right) => (left.rank ?? Number.MAX_SAFE_INTEGER) - (right.rank ?? Number.MAX_SAFE_INTEGER))
-  .map((vote) => vote.optionId!)
+  .flatMap((vote) => vote.optionId ? [vote.optionId] : [])
 ;
 
 export const getPollResponseForUser = (
@@ -497,6 +627,13 @@ export const getPollResponseForUser = (
     responseText: votes.find((vote) => vote.responseText?.trim())?.responseText?.trim() ?? null,
   };
 };
+
+export const getQuizAnswersForUser = (
+  poll: PollWithRelations,
+  userId: string,
+): QuizAnswer[] => poll.votes
+  .filter((vote) => vote.userId === userId)
+  .flatMap((vote) => resolveQuizAnswers(vote));
 
 export const mapOptionIdsToLabels = (
   options: PollWithRelations['options'],

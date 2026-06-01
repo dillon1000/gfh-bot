@@ -7,8 +7,8 @@ import {
 } from '@/lib/close-time.js';
 import { parseDurationToMs } from '@/lib/duration.js';
 import { normalizeEmojiInput } from '@/lib/emoji.js';
-import type { PollMode } from '@/features/polls/core/types.js';
-import { MAX_TIER_LABELS, MIN_TIER_LABELS } from '@/features/polls/core/types.js';
+import type { PollMode, QuizQuestion, QuizQuestionType } from '@/features/polls/core/types.js';
+import { DEFAULT_QUIZ_QUESTIONS, MAX_TIER_LABELS, MIN_TIER_LABELS } from '@/features/polls/core/types.js';
 
 const minChoices = 2;
 const maxChoices = 10;
@@ -19,6 +19,8 @@ const maxChoiceLength = 80;
 const maxFreeformResponseLength = 500;
 const maxGovernanceTargets = 25;
 const maxReminderOffsets = 10;
+const maxQuizQuestions = 10;
+const maxQuizPromptLength = 180;
 const minuteMs = 60_000;
 const noneReminderValue = 'none';
 const roleMentionPattern = /^<@&(?<id>\d{16,25})>$/;
@@ -65,9 +67,10 @@ export const parsePollMode = (value: string | null | undefined): PollMode => {
     case 'ranked':
     case 'freeform':
     case 'tier':
+    case 'quiz':
       return normalized;
     default:
-      throw new Error('Poll mode must be single, multi, ranked, freeform, or tier.');
+      throw new Error('Poll mode must be single, multi, ranked, freeform, tier, or quiz.');
   }
 };
 
@@ -219,14 +222,147 @@ export const parsePassChoiceIndex = (
 export const getMaxPollChoices = (mode: PollMode): number =>
   mode === 'tier' ? maxTierChoices : maxChoices;
 
+const quizTypeAliases: Record<string, QuizQuestionType> = {
+  answer: 'free_answer',
+  file: 'file_upload',
+  file_upload: 'file_upload',
+  free: 'free_answer',
+  free_answer: 'free_answer',
+  multi: 'multi_select',
+  multi_select: 'multi_select',
+  multiselect: 'multi_select',
+  scale: 'scale_1_10',
+  scale_1_10: 'scale_1_10',
+  select: 'single_select',
+  select_one: 'single_select',
+  single: 'single_select',
+  single_select: 'single_select',
+  text: 'free_answer',
+  tf: 'true_false',
+  true_false: 'true_false',
+  truefalse: 'true_false',
+  upload: 'file_upload',
+};
+
+const getQuizQuestionTypeLabel = (type: QuizQuestionType): string => {
+  switch (type) {
+    case 'single_select':
+      return 'single';
+    case 'multi_select':
+      return 'multi';
+    case 'true_false':
+      return 'true_false';
+    case 'scale_1_10':
+      return 'scale';
+    case 'free_answer':
+      return 'free';
+    case 'file_upload':
+      return 'file';
+  }
+};
+
+const parseQuizType = (value: string): QuizQuestionType => {
+  const normalized = value.trim().toLocaleLowerCase().replaceAll('-', '_').replaceAll('/', '_');
+  const type = quizTypeAliases[normalized];
+  if (!type) {
+    throw new Error('Quiz question type must be one of single, multi, true_false, scale, free, or file.');
+  }
+
+  return type;
+};
+
+const parseQuizOptions = (value: string, type: QuizQuestionType): string[] => {
+  if (type === 'true_false') {
+    return ['True', 'False'];
+  }
+
+  if (type === 'scale_1_10') {
+    return Array.from({ length: 10 }, (_, index) => String(index + 1));
+  }
+
+  if (type === 'free_answer' || type === 'file_upload') {
+    return [];
+  }
+
+  return parseChoicesCsv(value, {
+    maxChoices,
+    noun: 'options',
+  });
+};
+
+export const parseQuizQuestionsInput = (value: string | QuizQuestion[] | null | undefined): QuizQuestion[] => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  const lines = (value ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    return [...DEFAULT_QUIZ_QUESTIONS];
+  }
+
+  if (lines.length > maxQuizQuestions) {
+    throw new Error(`A quiz can include at most ${maxQuizQuestions} questions.`);
+  }
+
+  return lines.map((line, index) => {
+    const parts = line.split('|').map((part) => part.trim());
+    if (parts.length < 2 || parts.length > 3) {
+      throw new Error('Each quiz question must use "type | prompt | options". Use commas inside the options field.');
+    }
+
+    const [rawType, rawPrompt, rawOptions = ''] = parts;
+    if (!rawType || !rawPrompt) {
+      throw new Error('Each quiz question must use "type | prompt | options". Options are only required for select questions.');
+    }
+
+    if (rawPrompt.length > maxQuizPromptLength) {
+      throw new Error(`Quiz question prompts must be ${maxQuizPromptLength} characters or fewer.`);
+    }
+
+    const type = parseQuizType(rawType);
+    const options = parseQuizOptions(rawOptions, type);
+
+    if ((type === 'single_select' || type === 'multi_select') && options.length === 0) {
+      throw new Error('Single-select and multi-select quiz questions require comma-separated options.');
+    }
+
+    return {
+      id: `q${index + 1}`,
+      prompt: rawPrompt,
+      type,
+      ...(options.length > 0 ? { options } : {}),
+      required: true,
+    };
+  });
+};
+
+export const formatQuizQuestionsInput = (questions: QuizQuestion[]): string =>
+  (questions.length > 0 ? questions : [...DEFAULT_QUIZ_QUESTIONS])
+    .map((question) => [
+      getQuizQuestionTypeLabel(question.type),
+      question.prompt,
+      question.options?.join(', ') ?? '',
+    ].join(' | '))
+    .join('\n');
+
 export const resolvePassRule = (
   mode: PollMode,
   passThreshold: number | null,
   passChoiceIndex: number | null,
 ): { passThreshold: number | null; passOptionIndex: number | null } => {
-  if (mode === 'ranked' || mode === 'freeform' || mode === 'tier') {
+  if (mode === 'ranked' || mode === 'freeform' || mode === 'tier' || mode === 'quiz') {
     if (passThreshold !== null || passChoiceIndex !== null) {
-      const label = mode === 'ranked' ? 'Ranked-choice' : mode === 'freeform' ? 'Freeform' : 'Tier-list';
+      const label = mode === 'ranked'
+        ? 'Ranked-choice'
+        : mode === 'freeform'
+          ? 'Freeform'
+          : mode === 'tier'
+            ? 'Tier-list'
+            : 'Quiz';
       throw new Error(`${label} polls cannot use pass-threshold settings.`);
     }
 
@@ -413,7 +549,7 @@ export const parsePollFormInput = (input: {
   const rawChoices = Array.isArray(input.choices)
     ? input.choices.join(', ')
     : (input.choices ?? '');
-  const choices = mode === 'freeform'
+  const choices = mode === 'freeform' || mode === 'quiz'
     ? []
     : parseChoicesCsv(rawChoices, {
         maxChoices: getMaxPollChoices(mode),
@@ -421,7 +557,7 @@ export const parsePollFormInput = (input: {
       });
   const choiceEmojis = parseChoiceEmojisCsv(input.choiceEmojis, choices.length);
   const durationMs = parsePollDurationMs(input.durationText, input.now);
-  const allowOtherOption = mode !== 'ranked' && mode !== 'freeform' && mode !== 'tier' && (input.allowOtherOption ?? false);
+  const allowOtherOption = mode !== 'ranked' && mode !== 'freeform' && mode !== 'tier' && mode !== 'quiz' && (input.allowOtherOption ?? false);
 
   assertChoicesCompatibleWithOtherOption(choices, allowOtherOption);
 

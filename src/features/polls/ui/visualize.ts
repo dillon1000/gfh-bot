@@ -27,8 +27,8 @@ export async function buildPollResultDiagram(
   const { poll, results, outcome } = snapshot;
   const fileName = `poll-result-${poll.id}.png`;
 
-  if (results.kind === 'freeform') {
-    throw new Error('Freeform poll diagrams are not supported.');
+  if (results.kind === 'freeform' || results.kind === 'quiz') {
+    throw new Error('This poll mode does not support result diagrams.');
   }
 
   const buffer = results.kind === 'ranked'

@@ -10,6 +10,7 @@ import {
   parsePassThreshold,
   parsePollFormInput,
   parsePollDurationMs,
+  parseQuizQuestionsInput,
   parseQuorumPercent,
   parseReminderOffsets,
   parseReminderRoleTarget,
@@ -24,6 +25,13 @@ describe('parseChoicesCsv', () => {
 
   it('rejects duplicate choices', () => {
     expect(() => parseChoicesCsv('Yes, yes')).toThrow(/unique/);
+  });
+});
+
+describe('parseQuizQuestionsInput', () => {
+  it('rejects malformed quiz lines with extra separators', () => {
+    expect(() => parseQuizQuestionsInput('single | Pick one | A | B'))
+      .toThrow(/Use commas inside the options field/);
   });
 });
 
