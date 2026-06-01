@@ -16,6 +16,27 @@ export const chunkButtons = (buttons: ButtonBuilder[]): ActionRowBuilder<ButtonB
 export const isPollClosedOrExpired = (poll: Pick<PollWithRelations, 'closedAt' | 'closesAt'>): boolean =>
   Boolean(poll.closedAt) || poll.closesAt.getTime() <= Date.now();
 
+export type PollResultsHiddenReason = 'until-close' | 'after-close';
+
+export const getPollResultsHiddenReason = (
+  poll: Pick<PollWithRelations, 'closedAt' | 'closesAt' | 'hideResultsUntilClosed' | 'hideResultsAfterClose'>,
+): PollResultsHiddenReason | null => {
+  const closedOrExpired = isPollClosedOrExpired(poll);
+  if (poll.hideResultsUntilClosed && !closedOrExpired) {
+    return 'until-close';
+  }
+
+  if (poll.hideResultsAfterClose && closedOrExpired) {
+    return 'after-close';
+  }
+
+  return null;
+};
+
+export const arePollResultsHidden = (
+  poll: Pick<PollWithRelations, 'closedAt' | 'closesAt' | 'hideResultsUntilClosed' | 'hideResultsAfterClose'>,
+): boolean => getPollResultsHiddenReason(poll) !== null;
+
 export const isPollCancelled = (
   poll: Pick<PollWithRelations, 'closedReason'>,
 ): boolean => poll.closedReason === 'cancelled';
@@ -42,8 +63,8 @@ export const clampFieldValue = (value: string, maxLength = 1024): string =>
   value.length <= maxLength ? value : `${value.slice(0, Math.max(0, maxLength - 3))}...`;
 
 export const shouldRevealRankedResults = (
-  poll: Pick<PollWithRelations, 'closedAt' | 'closesAt' | 'mode'>,
-): boolean => poll.mode !== 'ranked' || isPollClosedOrExpired(poll);
+  poll: Pick<PollWithRelations, 'closedAt' | 'closesAt' | 'hideResultsUntilClosed' | 'hideResultsAfterClose' | 'mode'>,
+): boolean => poll.mode !== 'ranked' || (isPollClosedOrExpired(poll) && !arePollResultsHidden(poll));
 
 export const getModeLabel = (mode: PollMode): string => {
   switch (mode) {
@@ -55,6 +76,8 @@ export const getModeLabel = (mode: PollMode): string => {
       return 'Freeform';
     case 'tier':
       return 'Tier list';
+    case 'quiz':
+      return 'Quiz';
     default:
       return 'Single choice';
   }
@@ -76,6 +99,10 @@ export const getPassRuleLabel = (
 
   if (mode === 'tier') {
     return 'Not used in tier-list polls';
+  }
+
+  if (mode === 'quiz') {
+    return 'Not used in quiz polls';
   }
 
   if (!passThreshold) {
@@ -147,4 +174,3 @@ export const renderChoiceLine = (
 
   return `**${token} ${choice.label}**\n\`${bar}\` ${percent} (${choice.votes})`;
 };
-

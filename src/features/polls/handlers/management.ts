@@ -34,7 +34,7 @@ import {
   reopenPollRecord,
   setPollOptionImage,
 } from '@/features/polls/services/repository.js';
-import type { PollDraft, PollWithRelations } from '@/features/polls/core/types.js';
+import { resolveQuizQuestions, type PollDraft, type PollWithRelations } from '@/features/polls/core/types.js';
 import {
   buildTierImageUploadModal,
   buildTierImagesEditor,
@@ -97,8 +97,10 @@ const buildDraftFromPoll = (poll: PollWithRelations): PollDraft => ({
   choices: poll.options.filter((option) => !option.isOther).map((option) => option.label),
   choiceEmojis: poll.options.filter((option) => !option.isOther).map((option) => option.emoji ?? null),
   tierLabels: poll.tierLabels ?? [],
+  quizQuestions: poll.mode === 'quiz' ? resolveQuizQuestions(poll) : [],
   anonymous: poll.anonymous,
   hideResultsUntilClosed: poll.hideResultsUntilClosed,
+  hideResultsAfterClose: poll.hideResultsAfterClose ?? false,
   allowOtherOption: poll.allowOtherOption ?? false,
   quorumPercent: poll.quorumPercent,
   allowedRoleIds: [...poll.allowedRoleIds],
@@ -250,7 +252,7 @@ export const handlePollManageModal = async (
   switch (action) {
     case 'edit': {
       const question = sanitizeQuestion(interaction.fields.getTextInputValue('question'));
-      const choices = poll.mode === 'freeform'
+      const choices = poll.mode === 'freeform' || poll.mode === 'quiz'
         ? []
         : parseChoicesCsv(interaction.fields.getTextInputValue('choices'), {
             maxChoices: getMaxPollChoices(poll.mode),
@@ -259,7 +261,7 @@ export const handlePollManageModal = async (
       await editPollBeforeFirstVote(poll.id, { question, choices });
       await refreshPollMessage(client, poll.id);
       await interaction.editReply({
-        embeds: [buildFeedbackEmbed('Poll Updated', poll.mode === 'freeform' ? 'The poll question has been updated.' : 'The poll question and choices have been updated.')],
+        embeds: [buildFeedbackEmbed('Poll Updated', poll.mode === 'freeform' || poll.mode === 'quiz' ? 'The poll question has been updated.' : 'The poll question and choices have been updated.')],
       });
       return;
     }

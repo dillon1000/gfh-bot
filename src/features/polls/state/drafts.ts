@@ -1,7 +1,7 @@
 import type { Redis } from 'ioredis';
 
 import { defaultReminderOffsetsMinutes } from '@/features/polls/parsing/parser.js';
-import type { PollDraft } from '@/features/polls/core/types.js';
+import { DEFAULT_QUIZ_QUESTIONS, type PollDraft } from '@/features/polls/core/types.js';
 
 const ttlSeconds = 60 * 60 * 24;
 
@@ -15,8 +15,10 @@ export const createDefaultDraft = (): PollDraft => ({
   choices: ['Yes', 'No'],
   choiceEmojis: [null, null],
   tierLabels: [],
+  quizQuestions: [...DEFAULT_QUIZ_QUESTIONS],
   anonymous: false,
   hideResultsUntilClosed: false,
+  hideResultsAfterClose: false,
   allowOtherOption: false,
   quorumPercent: null,
   allowedRoleIds: [],

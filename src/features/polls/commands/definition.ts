@@ -38,7 +38,15 @@ export const pollCommand = new SlashCommandBuilder()
         { name: 'Ranked choice', value: 'ranked' },
         { name: 'Freeform', value: 'freeform' },
         { name: 'Tier list', value: 'tier' },
+        { name: 'Quiz', value: 'quiz' },
       ),
+  )
+  .addStringOption((option) =>
+    option
+      .setName('quiz_questions')
+      .setDescription('Quiz mode only: one per line as type | prompt | options')
+      .setRequired(false)
+      .setMaxLength(2_500),
   )
   .addStringOption((option) =>
     option
@@ -62,6 +70,12 @@ export const pollCommand = new SlashCommandBuilder()
     option
       .setName('hide_results')
       .setDescription('Hide vote counts and percentages until the poll closes')
+      .setRequired(false),
+  )
+  .addBooleanOption((option) =>
+    option
+      .setName('hide_final_results')
+      .setDescription('Keep vote counts and responses hidden after the poll closes')
       .setRequired(false),
   )
   .addIntegerOption((option) =>

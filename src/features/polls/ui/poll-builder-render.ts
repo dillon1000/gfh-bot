@@ -20,7 +20,7 @@ import {
 } from 'discord.js';
 
 import { formatDurationFromMinutes } from '@/lib/duration.js';
-import { getMaxPollChoices } from '@/features/polls/parsing/parser.js';
+import { formatQuizQuestionsInput, getMaxPollChoices } from '@/features/polls/parsing/parser.js';
 import {
   pollBuilderButtonCustomId,
   pollBuilderModalCustomId,
@@ -31,6 +31,7 @@ import { getPollChoiceEmojiDisplay, resolvePollThreadName } from '@/features/pol
 import { getModeLabel } from '@/features/polls/ui/render-helpers.js';
 import {
   DEFAULT_TIER_LABELS,
+  DEFAULT_QUIZ_QUESTIONS,
   type PollBuilderStep,
   type PollDraft,
   type PollMode,
@@ -61,6 +62,7 @@ const MODE_OPTIONS: Array<{ mode: PollMode; label: string; description: string }
   { mode: 'ranked', label: 'Ranked choice', description: 'Voters rank options; instant-runoff winner.' },
   { mode: 'freeform', label: 'Freeform', description: 'Voters submit short text responses instead of options.' },
   { mode: 'tier', label: 'Tier list', description: 'Voters place each item into a tier (S/A/B/…).' },
+  { mode: 'quiz', label: 'Quiz', description: 'Voters answer multiple question steps.' },
 ];
 
 export const getNextStep = (step: PollBuilderStep): PollBuilderStep | null => {
@@ -89,6 +91,8 @@ const getPrivateVoteLabel = (mode: PollMode): string => {
       return 'rankings';
     case 'tier':
       return 'tier placements';
+    case 'quiz':
+      return 'quiz answers';
     case 'multi':
     case 'single':
       return 'choices';
@@ -153,6 +157,13 @@ const renderTierPreview = (draft: PollDraft): string => {
   return labels.join(' · ');
 };
 
+const renderQuizPreview = (draft: PollDraft): string => {
+  const questions = draft.quizQuestions.length > 0 ? draft.quizQuestions : [...DEFAULT_QUIZ_QUESTIONS];
+  return questions
+    .map((question, index) => `${index + 1}. ${question.prompt}`)
+    .join('\n');
+};
+
 const renderRemindersPreview = (draft: PollDraft): string =>
   draft.reminderOffsets.length === 0
     ? 'No reminders'
@@ -165,7 +176,7 @@ const renderChannelsPreview = (channelIds: string[]): string =>
   channelIds.length === 0 ? '*All channels*' : channelIds.map((id) => `<#${id}>`).join(' ');
 
 const renderPassRulePreview = (draft: PollDraft): string => {
-  if (draft.mode === 'ranked' || draft.mode === 'freeform' || draft.mode === 'tier') {
+  if (draft.mode === 'ranked' || draft.mode === 'freeform' || draft.mode === 'tier' || draft.mode === 'quiz') {
     return `*Not used in ${getModeLabel(draft.mode).toLowerCase()} polls.*`;
   }
   if (!draft.passThreshold) return 'Disabled';
@@ -240,7 +251,11 @@ const addContentStep = (container: ContainerBuilder, draft: PollDraft): void => 
     sectionWithEdit(`**Question**\n${truncate(draft.question, 200)}`, 'question', { style: ButtonStyle.Primary }),
   );
 
-  if (draft.mode === 'freeform') {
+  if (draft.mode === 'quiz') {
+    container.addSectionComponents(
+      sectionWithEdit(`**Quiz questions**\n${truncate(renderQuizPreview(draft), 500)}`, 'quiz-questions', { style: ButtonStyle.Primary }),
+    );
+  } else if (draft.mode === 'freeform') {
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent('**Responses** · *Freeform polls collect short text responses.*'),
     );
@@ -263,7 +278,7 @@ const addContentStep = (container: ContainerBuilder, draft: PollDraft): void => 
     ),
   );
 
-  if (draft.mode !== 'freeform') {
+  if (draft.mode !== 'freeform' && draft.mode !== 'quiz') {
     container.addSectionComponents(
       sectionWithEdit(`**${getContentEntrySingular(draft.mode)} emojis**\n${renderEmojiPreview(draft)}`, 'emojis'),
     );
@@ -310,6 +325,13 @@ const addTimingStep = (container: ContainerBuilder, draft: PollDraft): void => {
       `**Live results:** ${draft.hideResultsUntilClosed ? 'Hidden until close' : 'Visible while open'}`,
       'hide-results',
       draft.hideResultsUntilClosed,
+    ),
+  );
+  container.addSectionComponents(
+    sectionWithToggle(
+      `**Final results:** ${draft.hideResultsAfterClose ? 'Hidden after close' : 'Shown after close'}`,
+      'hide-final-results',
+      draft.hideResultsAfterClose,
     ),
   );
 };
@@ -529,6 +551,18 @@ export const buildPollBuilderModal = (
       return modal
         .setTitle(`Edit ${label.toLowerCase()}`)
         .addLabelComponents(labelFor(label, `Comma-separated · 2-${getMaxPollChoices(draft.mode)} ${unit}s · max 80 chars each`, input));
+    }
+    case 'quiz-questions': {
+      const input = new TextInputBuilder()
+        .setCustomId('value')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(true)
+        .setValue(formatQuizQuestionsInput(draft.quizQuestions))
+        .setPlaceholder('single | Favorite color? | Red, Blue, Green')
+        .setMaxLength(2_500);
+      return modal
+        .setTitle('Edit quiz questions')
+        .addLabelComponents(labelFor('Questions', 'One per line: type | prompt | options. Types: single, multi, true_false, scale, free, file', input));
     }
     case 'tier-labels': {
       const input = new TextInputBuilder()

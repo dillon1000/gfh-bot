@@ -10,10 +10,12 @@ import {
   getGovernanceLabel,
   getModeLabel,
   getPassRuleLabel,
+  getPollResultsHiddenReason,
   getPollStatusLabel,
   getReminderLabel,
   isPollCancelled,
   isPollClosedOrExpired,
+  type PollResultsHiddenReason,
   renderChoiceLine,
   shouldRevealRankedResults,
 } from '@/features/polls/ui/render-helpers.js';
@@ -84,12 +86,27 @@ const getTimingLabel = (poll: Pick<PollWithRelations, 'closedAt' | 'closedReason
       ? `Closed <t:${Math.floor(poll.closedAt.getTime() / 1000)}:R>`
       : `Closes <t:${Math.floor(poll.closesAt.getTime() / 1000)}:R>`;
 
+const getHiddenResultsSummary = (reason: PollResultsHiddenReason): string =>
+  reason === 'after-close' ? 'hidden after close' : 'hidden until close';
+
+const getHiddenResultsSentence = (reason: PollResultsHiddenReason): string =>
+  reason === 'after-close'
+    ? 'Results are hidden after this poll closes.'
+    : 'Results are hidden until this poll closes.';
+
 const getRankedStatusLabel = (
   poll: PollWithRelations,
   results: Extract<PollComputedResults, { kind: 'ranked' }>,
   outcome: EvaluatedPollSnapshot['outcome'],
 ): string => {
   const revealRankedResults = shouldRevealRankedResults(poll);
+  const hiddenReason = getPollResultsHiddenReason(poll);
+
+  if (hiddenReason) {
+    return hiddenReason === 'after-close'
+      ? 'Round totals hidden after voting closes'
+      : 'Round totals hidden until voting closes';
+  }
 
   if (outcome.kind === 'ranked' && outcome.status === 'quorum-failed') {
     return 'Quorum not met';
@@ -106,8 +123,9 @@ const getRankedStatusLabel = (
   return 'Final rounds available below';
 };
 
-const buildCompactDetailsLines = (snapshot: EvaluatedPollSnapshot, resultsHidden: boolean): string[] => {
+const buildCompactDetailsLines = (snapshot: EvaluatedPollSnapshot, hiddenReason: PollResultsHiddenReason | null): string[] => {
   const { poll, results, outcome, electorate } = snapshot;
+  const hiddenSummary = hiddenReason ? getHiddenResultsSummary(hiddenReason) : null;
   const lines = [
     `**Poll** ${getCompactModeLabel(poll.mode)} ${getVisibilitySummaryLabel(poll)} poll started by <@${poll.authorId}>`,
   ];
@@ -118,9 +136,11 @@ const buildCompactDetailsLines = (snapshot: EvaluatedPollSnapshot, resultsHidden
       : poll.mode === 'ranked' && results.kind === 'ranked'
       ? getRankedStatusLabel(poll, results, outcome)
       : poll.mode === 'freeform'
-        ? `Responses ${resultsHidden ? 'hidden until close' : `${results.totalVoters} collected`}`
+        ? `Responses ${hiddenSummary ?? `${results.totalVoters} collected`}`
       : poll.mode === 'tier' && results.kind === 'tier'
-        ? `Tier list ${resultsHidden ? 'hidden until close' : `${results.totalVoters} ranker${results.totalVoters === 1 ? '' : 's'}`}`
+        ? `Tier list ${hiddenSummary ?? `${results.totalVoters} ranker${results.totalVoters === 1 ? '' : 's'}`}`
+      : poll.mode === 'quiz' && results.kind === 'quiz'
+        ? `Quiz ${hiddenSummary ?? `${results.totalVoters} submission${results.totalVoters === 1 ? '' : 's'}`}`
       : `Pass rule ${getPassRuleLabel(poll.mode, poll.passThreshold, poll.passOptionIndex, poll.options)}`,
   ];
 
@@ -139,7 +159,7 @@ const buildCompactDetailsLines = (snapshot: EvaluatedPollSnapshot, resultsHidden
     lines.push(`**Reminders** ${reminderLabel}`);
   }
 
-  if (resultsHidden) {
+  if (hiddenReason) {
     return lines;
   }
 
@@ -200,8 +220,9 @@ export const buildPollMessageEmbed = (
 ): EmbedBuilder => {
   const { poll, results, outcome } = snapshot;
   const revealRankedResults = shouldRevealRankedResults(poll);
-  const resultsHidden = poll.hideResultsUntilClosed && !isPollClosedOrExpired(poll);
-  const details = buildCompactDetailsLines(snapshot, resultsHidden);
+  const hiddenReason = getPollResultsHiddenReason(poll);
+  const resultsHidden = hiddenReason !== null;
+  const details = buildCompactDetailsLines(snapshot, hiddenReason);
 
   const embed = new EmbedBuilder()
     .setTitle(poll.question)
@@ -224,15 +245,15 @@ export const buildPollMessageEmbed = (
           ? 'Ranked Choice Snapshot'
           : revealRankedResults
             ? 'Final Ranked Rounds'
-            : resultsHidden
-              ? 'Ranked Choice Status'
+            : hiddenReason === 'after-close'
+              ? 'Results Hidden'
               : 'Ranked Choice Status',
         value: clampFieldValue(revealRankedResults
           ? results.rounds.length === 0
             ? 'No ballots yet.'
             : roundSummaries.join('\n\n')
-          : resultsHidden
-            ? 'Round-by-round tallies and ballot counts are hidden until this ranked-choice poll closes.'
+          : hiddenReason
+            ? getHiddenResultsSentence(hiddenReason)
             : [
                 'Round-by-round tallies are hidden until this ranked-choice poll closes.',
                 `Ballots submitted: ${results.totalVoters}`,
@@ -242,7 +263,7 @@ export const buildPollMessageEmbed = (
         name: 'Details',
         value: clampFieldValue([
           ...details,
-          `**Ballots** ${resultsHidden ? 'Hidden until close' : results.totalVoters}`,
+          `**Ballots** ${hiddenReason ? getHiddenResultsSummary(hiddenReason) : results.totalVoters}`,
           revealRankedResults && latestRound ? `**Latest Elimination** ${buildRoundEliminationLabel(poll, latestRound)}` : null,
         ]
           .filter(Boolean)
@@ -264,21 +285,41 @@ export const buildPollMessageEmbed = (
       }
       return lines.join('\n');
     };
+    const renderQuizLines = (quizResults: Extract<PollComputedResults, { kind: 'quiz' }>): string => {
+      if (quizResults.questions.length === 0) {
+        return 'No quiz questions configured.';
+      }
+
+      return quizResults.questions
+        .map((question, index) => {
+          const topChoices = question.choices
+            .filter((choice) => choice.votes > 0)
+            .sort((left, right) => right.votes - left.votes)
+            .slice(0, 3);
+          const answerSummary = topChoices.length > 0
+            ? topChoices.map((choice, choiceIndex) => renderPollChoiceLine(choice, choiceIndex)).join('\n')
+            : `${question.totalAnswers} answer${question.totalAnswers === 1 ? '' : 's'} collected`;
+          return `**${index + 1}. ${question.prompt}**\n${answerSummary}`;
+        })
+        .join('\n\n');
+    };
 
     embed.addFields(
       {
-        name: isPollCancelled(poll)
-          ? 'Results at Cancellation'
-          : poll.closedAt
+        name: resultsHidden
+          ? 'Results Hidden'
+          : isPollCancelled(poll)
+            ? 'Results at Cancellation'
+          : isPollClosedOrExpired(poll)
             ? 'Final Results'
-            : resultsHidden
-              ? 'Results Hidden'
               : 'Live Results',
-        value: resultsHidden
-          ? `${results.kind === 'freeform' ? 'Responses' : results.kind === 'tier' ? 'Tier rankings' : 'Vote counts and percentages'} are hidden until the poll closes.`
+        value: hiddenReason
+          ? getHiddenResultsSentence(hiddenReason)
           : clampFieldValue(
               results.kind === 'tier'
                 ? renderTierLines(results)
+                : results.kind === 'quiz'
+                  ? renderQuizLines(results)
                 : results.choices.length === 0
                 ? (results.kind === 'freeform' ? 'No responses yet.' : 'No votes yet.')
                 : results.choices.map((choice, index) => renderPollChoiceLine(choice, index)).join('\n\n'),
@@ -288,11 +329,11 @@ export const buildPollMessageEmbed = (
         name: 'Details',
         value: clampFieldValue([
           ...details,
-          results.kind === 'freeform' ? `**Unique Responses** ${results.uniqueResponses}` : null,
-          results.kind === 'tier' && outcome.kind === 'tier' && outcome.status === 'ranked' && outcome.topItemLabel
+          !resultsHidden && results.kind === 'freeform' ? `**Unique Responses** ${results.uniqueResponses}` : null,
+          !resultsHidden && results.kind === 'tier' && outcome.kind === 'tier' && outcome.status === 'ranked' && outcome.topItemLabel
             ? `**Top Tier** ${outcome.topTier ?? '?'} · ${outcome.topItemLabel}`
             : null,
-          outcome.kind === 'standard' && outcome.status !== 'quorum-failed' && poll.closedAt && !isPollCancelled(poll)
+          !resultsHidden && outcome.kind === 'standard' && outcome.status !== 'quorum-failed' && poll.closedAt && !isPollCancelled(poll)
             ? `**Outcome** ${outcome.status === 'passed' ? 'Passed' : outcome.status === 'failed' ? 'Failed' : 'No pass threshold'}`
             : null,
         ]
@@ -325,7 +366,7 @@ export function buildPollResultsEmbed(
   const votersByOption = buildVoterMentionsByChoice(evaluatedPoll, results);
   const uniqueVoterMentions = buildUniqueVoterMentions(evaluatedPoll);
   const revealRankedResults = shouldRevealRankedResults(poll);
-  const resultsHidden = poll.hideResultsUntilClosed && !isPollClosedOrExpired(poll);
+  const hiddenReason = getPollResultsHiddenReason(poll);
   const embed = new EmbedBuilder()
     .setTitle(`Results: ${poll.question}`)
     .setColor(getPollColor(poll))
@@ -333,11 +374,11 @@ export function buildPollResultsEmbed(
       text: `Poll ID: ${poll.id}`,
     });
 
-  if (resultsHidden) {
+  if (hiddenReason) {
     embed.setDescription(
       [
         `Status: ${getPollStatusText(poll)}`,
-        'Results are hidden until the poll closes.',
+        getHiddenResultsSentence(hiddenReason),
       ].join('\n'),
     );
     return embed;
@@ -445,6 +486,51 @@ export function buildPollResultsEmbed(
       embed.addFields({
         name: 'Voters',
         value: uniqueVoterMentions.join(', ') || 'No rankings yet',
+      });
+    }
+
+    return embed;
+  }
+
+  if (results.kind === 'quiz') {
+    embed.setDescription(
+      [
+        `Status: ${getPollStatusText(poll)}`,
+        'Mode: Quiz',
+        `Submissions: ${results.totalVoters}`,
+        `Questions: ${results.questions.length}`,
+        ...buildElectorateLines(snapshot).map(toPlainLine),
+        isPollCancelled(poll) ? 'Outcome: Poll cancelled' : null,
+        outcome.kind === 'quiz' && outcome.status === 'quorum-failed' ? 'Outcome: Quorum not met' : null,
+        poll.anonymous
+          ? 'Anonymous quiz: voter identities are shown below, but individual answers remain unattributed.'
+          : 'Non-anonymous quiz: answer details are shown below.',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    );
+
+    for (const [index, question] of results.questions.entries()) {
+      const value = question.choices.length > 0
+        ? question.choices.map((choice, choiceIndex) => renderPollChoiceLine(choice, choiceIndex)).join('\n')
+        : question.textAnswers.length === 0
+          ? 'No answers yet.'
+          : poll.anonymous
+            ? `${question.textAnswers.length} answer${question.textAnswers.length === 1 ? '' : 's'} submitted.`
+            : question.textAnswers
+                .slice(0, 10)
+                .map((answer) => `<@${answer.userId}>: ${answer.text}`)
+                .join('\n');
+      embed.addFields({
+        name: `${index + 1}. ${question.prompt}`,
+        value: clampFieldValue(value),
+      });
+    }
+
+    if (poll.anonymous) {
+      embed.addFields({
+        name: 'Voters',
+        value: uniqueVoterMentions.join(', ') || 'No submissions yet',
       });
     }
 

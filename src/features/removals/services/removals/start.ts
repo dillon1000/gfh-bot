@@ -80,6 +80,7 @@ export const startRemovalVote = async (
 					choices: [{ label: "Remove" }, { label: "Keep" }],
 					anonymous: false,
 					hideResultsUntilClosed: false,
+					hideResultsAfterClose: false,
 					allowOtherOption: false,
 					quorumPercent: null,
 					allowedRoleIds: [memberRoleId],

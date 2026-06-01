@@ -22,6 +22,7 @@ import {
 import { closePoll } from '@/features/polls/services/voting.js';
 import type { EvaluatedPollSnapshot, PollOutcome, PollWithRelations } from '@/features/polls/core/types.js';
 import { buildPollResultDiagram } from '@/features/polls/ui/visualize.js';
+import { arePollResultsHidden } from '@/features/polls/ui/render-helpers.js';
 
 const evaluatePollSnapshotForLifecycle = async (
   client: Client,
@@ -155,6 +156,14 @@ export const describePollOutcome = (
       : `${outcome.rankedItemCount} item${outcome.rankedItemCount === 1 ? '' : 's'} ranked.`;
   }
 
+  if (outcome.kind === 'quiz') {
+    if (outcome.status === 'quorum-failed' && electorate && electorate.quorumPercent !== null && electorate.turnoutPercent !== null) {
+      return `Quorum not met: turnout reached ${electorate.turnoutPercent.toFixed(1)}% against a ${electorate.quorumPercent}% requirement.`;
+    }
+
+    return `${outcome.submittedCount} quiz submission${outcome.submittedCount === 1 ? '' : 's'} collected across ${outcome.questionCount} question${outcome.questionCount === 1 ? '' : 's'}.`;
+  }
+
   if (outcome.status === 'no-threshold') {
     return `No pass threshold was configured. ${outcome.measuredChoiceLabel} finished at ${outcome.measuredPercentage.toFixed(1)}%.`;
   }
@@ -177,6 +186,7 @@ const sendPollCloseAnnouncement = async (
     return;
   }
 
+  const resultsHidden = arePollResultsHidden(poll);
   const embed = new EmbedBuilder()
     .setTitle('Poll Closed')
     .setColor(0xef4444)
@@ -185,7 +195,9 @@ const sendPollCloseAnnouncement = async (
         closedByUserId
           ? `<@${closedByUserId}> closed **${poll.question}**.`
           : `**${poll.question}** closed automatically.`,
-        describePollOutcome(outcome, snapshot),
+        resultsHidden
+          ? 'Results are hidden after this poll closes.'
+          : describePollOutcome(outcome, snapshot),
       ].join('\n\n'),
     )
     .setFooter({
@@ -193,12 +205,14 @@ const sendPollCloseAnnouncement = async (
     });
 
   let files: Array<Awaited<ReturnType<typeof buildPollResultDiagram>>['attachment']> | undefined;
-  try {
-    const diagram = await buildPollResultDiagram(snapshot);
-    embed.setImage(`attachment://${diagram.fileName}`);
-    files = [diagram.attachment];
-  } catch (error) {
-    logger.warn({ err: error, pollId: poll.id }, 'Could not generate poll close diagram');
+  if (!resultsHidden) {
+    try {
+      const diagram = await buildPollResultDiagram(snapshot);
+      embed.setImage(`attachment://${diagram.fileName}`);
+      files = [diagram.attachment];
+    } catch (error) {
+      logger.warn({ err: error, pollId: poll.id }, 'Could not generate poll close diagram');
+    }
   }
 
   await channel.send({

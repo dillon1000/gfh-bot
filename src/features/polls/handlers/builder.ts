@@ -21,6 +21,7 @@ import {
   parsePassChoiceIndex,
   parsePassThreshold,
   parsePollFormInput,
+  parseQuizQuestionsInput,
   parseQuorumPercent,
   parseReminderOffsets,
   parseReminderRoleTarget,
@@ -37,7 +38,7 @@ import {
   getNextStep,
   getPreviousStep,
 } from '@/features/polls/ui/poll-builder-render.js';
-import type { PollMode } from '@/features/polls/core/types.js';
+import { DEFAULT_QUIZ_QUESTIONS, type PollMode, type QuizQuestion } from '@/features/polls/core/types.js';
 import { validatePollGovernanceConfig } from '@/features/polls/services/governance.js';
 import { hydratePollMessage } from '@/features/polls/services/lifecycle.js';
 import { createPollRecord, deletePollRecord } from '@/features/polls/services/repository.js';
@@ -47,10 +48,12 @@ type PublishDraft = {
   description?: string;
   choices: string[];
   choiceEmojis: Array<string | null>;
-  mode: 'single' | 'multi' | 'ranked' | 'freeform' | 'tier';
+  mode: PollMode;
   anonymous: boolean;
   hideResultsUntilClosed: boolean;
+  hideResultsAfterClose: boolean;
   allowOtherOption: boolean;
+  quizQuestions?: QuizQuestion[];
   quorumPercent: number | null;
   allowedRoleIds: string[];
   blockedRoleIds: string[];
@@ -102,7 +105,9 @@ const publishPoll = async (
     allowOtherOption: draft.allowOtherOption,
     anonymous: draft.anonymous,
     hideResultsUntilClosed: draft.hideResultsUntilClosed,
+    hideResultsAfterClose: draft.hideResultsAfterClose,
     quorumPercent: draft.quorumPercent,
+    ...(draft.mode === 'quiz' && draft.quizQuestions ? { quizQuestions: draft.quizQuestions } : {}),
     allowedRoleIds: draft.allowedRoleIds,
     blockedRoleIds: draft.blockedRoleIds,
     eligibleChannelIds: draft.eligibleChannelIds,
@@ -169,12 +174,17 @@ export const handlePollCommand = async (
   );
 
   const tierLabels = parseTierLabels(interaction.options.getString('tier_labels'), parsed.mode);
+  const quizQuestions = parsed.mode === 'quiz'
+    ? parseQuizQuestionsInput(interaction.options.getString('quiz_questions'))
+    : [];
 
   const published = await publishPoll(client, interaction, {
     ...parsed,
     ...(tierLabels.length > 0 ? { tierLabels } : {}),
+    ...(quizQuestions.length > 0 ? { quizQuestions } : {}),
     anonymous: interaction.options.getBoolean('anonymous') ?? false,
     hideResultsUntilClosed: interaction.options.getBoolean('hide_results') ?? false,
+    hideResultsAfterClose: interaction.options.getBoolean('hide_final_results') ?? false,
     quorumPercent,
     allowedRoleIds: parseGovernanceRoleTargets(interaction.options.getString('allowed_roles')),
     blockedRoleIds: parseGovernanceRoleTargets(interaction.options.getString('blocked_roles')),
@@ -226,8 +236,10 @@ export const handlePollFromMessageContext = async (
     choices: ['Yes', 'No'],
     choiceEmojis: [null, null],
     tierLabels: [],
+    quizQuestions: [...DEFAULT_QUIZ_QUESTIONS],
     anonymous: false,
     hideResultsUntilClosed: false,
+    hideResultsAfterClose: false,
     allowOtherOption: false,
     quorumPercent: null,
     allowedRoleIds: [],
@@ -246,13 +258,13 @@ export const handlePollFromMessageContext = async (
   await interaction.reply(buildPollBuilderPreview(draft));
 };
 
-const POLL_MODES: ReadonlySet<PollMode> = new Set(['single', 'multi', 'ranked', 'freeform', 'tier']);
+const POLL_MODES: ReadonlySet<PollMode> = new Set(['single', 'multi', 'ranked', 'freeform', 'tier', 'quiz']);
 
 const isPollMode = (value: string): value is PollMode => POLL_MODES.has(value as PollMode);
 
 const applyModeChange = (draft: { mode: PollMode; passThreshold: number | null; passOptionIndex: number | null; allowOtherOption: boolean; tierLabels: string[] }, nextMode: PollMode): void => {
   draft.mode = nextMode;
-  if (nextMode === 'ranked' || nextMode === 'freeform' || nextMode === 'tier') {
+  if (nextMode === 'ranked' || nextMode === 'freeform' || nextMode === 'tier' || nextMode === 'quiz') {
     draft.passThreshold = null;
     draft.passOptionIndex = null;
   }
@@ -300,6 +312,7 @@ export const handlePollBuilderButton = async (
   switch (interaction.customId) {
     case pollBuilderButtonCustomId('question'):
     case pollBuilderButtonCustomId('choices'):
+    case pollBuilderButtonCustomId('quiz-questions'):
     case pollBuilderButtonCustomId('tier-labels'):
     case pollBuilderButtonCustomId('description'):
     case pollBuilderButtonCustomId('emojis'):
@@ -351,6 +364,11 @@ export const handlePollBuilderButton = async (
       await savePollDraft(redis, interaction.guildId, interaction.user.id, draft);
       await updatePollBuilderPreview(interaction);
       return;
+    case pollBuilderButtonCustomId('hide-final-results'):
+      draft.hideResultsAfterClose = !draft.hideResultsAfterClose;
+      await savePollDraft(redis, interaction.guildId, interaction.user.id, draft);
+      await updatePollBuilderPreview(interaction);
+      return;
     case pollBuilderButtonCustomId('publish'): {
       await interaction.deferUpdate();
 
@@ -367,8 +385,10 @@ export const handlePollBuilderButton = async (
       const published = await publishPoll(client, interaction, {
         ...parsed,
         ...(draft.mode === 'tier' && draft.tierLabels.length > 0 ? { tierLabels: draft.tierLabels } : {}),
+        ...(draft.mode === 'quiz' ? { quizQuestions: draft.quizQuestions } : {}),
         anonymous: draft.anonymous,
         hideResultsUntilClosed: draft.hideResultsUntilClosed,
+        hideResultsAfterClose: draft.hideResultsAfterClose,
         quorumPercent: draft.quorumPercent,
         allowedRoleIds: draft.allowedRoleIds,
         blockedRoleIds: draft.blockedRoleIds,
@@ -465,6 +485,9 @@ export const handlePollBuilderModal = async (
       if (draft.passThreshold !== null && (draft.passOptionIndex === null || draft.passOptionIndex >= draft.choices.length)) {
         draft.passOptionIndex = 0;
       }
+      break;
+    case pollBuilderModalCustomId('quiz-questions'):
+      draft.quizQuestions = parseQuizQuestionsInput(interaction.fields.getTextInputValue('value'));
       break;
     case pollBuilderModalCustomId('tier-labels'):
       draft.tierLabels = parseTierLabels(interaction.fields.getTextInputValue('value'), draft.mode);

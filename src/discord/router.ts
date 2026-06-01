@@ -73,6 +73,11 @@ import {
 } from '@/features/polls/handlers/query.js';
 import {
   handlePollChoiceButton,
+  handlePollQuizAnswerSelect,
+  handlePollQuizNavButton,
+  handlePollQuizOpenButton,
+  handlePollQuizTextButton,
+  handlePollQuizTextModal,
   handlePollRankAddButton,
   handlePollRankClearButton,
   handlePollRankOpenButton,
@@ -278,6 +283,21 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
+        if (interaction.customId.startsWith('poll:quiz:open:')) {
+          await handlePollQuizOpenButton(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:quiz:text:')) {
+          await handlePollQuizTextButton(interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:quiz:nav:')) {
+          await handlePollQuizNavButton(client, interaction);
+          return;
+        }
+
         if (interaction.customId.startsWith('poll:rank:open:')) {
           await handlePollRankOpenButton(interaction);
           return;
@@ -376,6 +396,11 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
 
+        if (interaction.customId.startsWith('poll:quiz:answer:')) {
+          await handlePollQuizAnswerSelect(interaction);
+          return;
+        }
+
         if (interaction.customId.startsWith('poll:tier:item-select:')) {
           await handlePollTierItemSelect(interaction);
           return;
@@ -435,6 +460,11 @@ export const registerInteractionRouter = (client: Client): void => {
 
         if (interaction.customId.startsWith('poll:response-modal:')) {
           await handlePollResponseModal(client, interaction);
+          return;
+        }
+
+        if (interaction.customId.startsWith('poll:quiz:text-modal:')) {
+          await handlePollQuizTextModal(interaction);
           return;
         }
 

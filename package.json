@@ -26,6 +26,8 @@
     "backfill:starboard-reactions:dist": "node dist/src/app/backfill-starboard-reactions.js",
     "backfill:poll-analytics": "tsx src/app/backfill-poll-analytics.ts",
     "backfill:poll-analytics:dist": "node dist/src/app/backfill-poll-analytics.js",
+    "backfill:poll-hide-final-results": "tsx src/app/backfill-poll-hide-final-results.ts",
+    "backfill:poll-hide-final-results:dist": "node dist/src/app/backfill-poll-hide-final-results.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",

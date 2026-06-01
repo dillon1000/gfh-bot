@@ -4,14 +4,15 @@ import type {
   PollComputedResults,
   PollOutcome,
   PollWithRelations,
+  QuizPollComputedResults,
+  QuizPollOutcome,
   RankedPollComputedResults,
   RankedPollRound,
   StandardPollComputedResults,
-  TierLabel,
   TierPollComputedResults,
   TierPollOutcome,
 } from '@/features/polls/core/types.js';
-import { getTierLabelForRank, resolveTierLabels } from '@/features/polls/core/types.js';
+import { getTierLabelForRank, resolveQuizAnswers, resolveQuizQuestions, resolveTierLabels } from '@/features/polls/core/types.js';
 
 type RankedBallot = {
   userId: string;
@@ -158,17 +159,21 @@ const buildRankedRoundTallies = (
   tallies: Map<string, number>,
   activeVotes: number,
 ) => sortByOriginalOrder(poll, [...remaining])
-  .map((optionId) => {
-    const option = poll.options.find((item) => item.id === optionId)!;
+  .flatMap((optionId) => {
+    const option = poll.options.find((item) => item.id === optionId);
+    if (!option) {
+      return [];
+    }
+
     const votes = tallies.get(optionId) ?? 0;
 
-    return {
+    return [{
       id: option.id,
       label: option.label,
       emoji: option.emoji ?? null,
       votes,
       percentage: activeVotes === 0 ? 0 : (votes / activeVotes) * 100,
-    };
+    }];
   })
   .sort((left, right) => {
     if (right.votes !== left.votes) {
@@ -293,7 +298,19 @@ const computeRankedPollResults = (poll: PollWithRelations): RankedPollComputedRe
     }
 
     if (eliminatedOptionIds.length === 0) {
-      eliminatedOptionIds = [sortByOriginalOrder(poll, tiedLast)[0]!];
+      const fallbackElimination = sortByOriginalOrder(poll, tiedLast).at(0);
+      if (!fallbackElimination) {
+        status = 'tied';
+        rounds.push({
+          round,
+          activeVotes,
+          exhaustedVotes: roundExhaustedVotes,
+          tallies: roundTallies,
+          eliminatedOptionIds: [],
+        });
+        break;
+      }
+      eliminatedOptionIds = [fallbackElimination];
     }
 
     if (eliminatedOptionIds.length >= remaining.size) {
@@ -419,6 +436,89 @@ const computeTierPollResults = (poll: PollWithRelations): TierPollComputedResult
   };
 };
 
+const getQuizOptionLabels = (question: ReturnType<typeof resolveQuizQuestions>[number]): string[] => {
+  if (question.type === 'true_false') {
+    return ['True', 'False'];
+  }
+
+  if (question.type === 'scale_1_10') {
+    return Array.from({ length: 10 }, (_, index) => String(index + 1));
+  }
+
+  return question.options ?? [];
+};
+
+const computeQuizPollResults = (poll: PollWithRelations): QuizPollComputedResults => {
+  const questions = resolveQuizQuestions(poll);
+  const questionMap = new Map(questions.map((question) => [question.id, question]));
+  const voters = new Set<string>();
+  const answersByQuestion = new Map<string, Array<{ userId: string; values: string[]; text: string }>>();
+
+  for (const vote of poll.votes) {
+    const answers = resolveQuizAnswers(vote);
+    if (answers.length === 0) {
+      continue;
+    }
+
+    voters.add(vote.userId);
+    for (const answer of answers) {
+      if (!questionMap.has(answer.questionId)) {
+        continue;
+      }
+
+      const entries = answersByQuestion.get(answer.questionId) ?? [];
+      entries.push({
+        userId: vote.userId,
+        values: answer.values ?? [],
+        text: answer.text ?? '',
+      });
+      answersByQuestion.set(answer.questionId, entries);
+    }
+  }
+
+  return {
+    kind: 'quiz',
+    totalVotes: voters.size,
+    totalVoters: voters.size,
+    questions: questions.map((question) => {
+      const answers = answersByQuestion.get(question.id) ?? [];
+      const optionLabels = getQuizOptionLabels(question);
+      const counts = new Map<string, number>();
+
+      for (const answer of answers) {
+        for (const value of answer.values) {
+          counts.set(value, (counts.get(value) ?? 0) + 1);
+        }
+      }
+
+      const totalSelections = [...counts.values()].reduce((sum, value) => sum + value, 0);
+      return {
+        questionId: question.id,
+        prompt: question.prompt,
+        type: question.type,
+        totalAnswers: answers.length,
+        choices: optionLabels.map((label) => {
+          const votes = counts.get(label) ?? 0;
+          return {
+            id: label,
+            label,
+            emoji: null,
+            votes,
+            percentage: totalSelections === 0 ? 0 : (votes / totalSelections) * 100,
+          };
+        }),
+        textAnswers: answers
+          .filter((answer) => answer.text)
+          .map((answer) => ({
+            userId: answer.userId,
+            text: answer.text,
+          })),
+      };
+    }),
+    choices: [],
+  };
+};
+
 export const computePollResults = (poll: PollWithRelations): PollComputedResults =>
   poll.mode === 'ranked'
     ? computeRankedPollResults(poll)
@@ -426,6 +526,8 @@ export const computePollResults = (poll: PollWithRelations): PollComputedResults
       ? computeFreeformPollResults(poll)
     : poll.mode === 'tier'
       ? computeTierPollResults(poll)
+    : poll.mode === 'quiz'
+      ? computeQuizPollResults(poll)
     : computeStandardPollResults(poll);
 
 export const computePollOutcome = (
@@ -472,13 +574,34 @@ export const computePollOutcome = (
     const sorted = [...ranked].sort(
       (left, right) => (left.averageRank ?? Number.POSITIVE_INFINITY) - (right.averageRank ?? Number.POSITIVE_INFINITY),
     );
-    const top = sorted[0]!;
+    const top = sorted.at(0);
+    if (!top) {
+      const outcome: TierPollOutcome = {
+        kind: 'tier',
+        status: 'no-votes',
+        topItemLabel: null,
+        topTier: null,
+        rankedItemCount: 0,
+      };
+      return outcome;
+    }
+
     const outcome: TierPollOutcome = {
       kind: 'tier',
       status: 'ranked',
       topItemLabel: top.label,
       topTier: top.consensusTier,
       rankedItemCount: ranked.length,
+    };
+    return outcome;
+  }
+
+  if (results.kind === 'quiz') {
+    const outcome: QuizPollOutcome = {
+      kind: 'quiz',
+      status: results.totalVoters === 0 ? 'no-submissions' : 'submissions-collected',
+      submittedCount: results.totalVoters,
+      questionCount: results.questions.length,
     };
     return outcome;
   }

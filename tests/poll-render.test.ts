@@ -127,6 +127,22 @@ describe('buildPollMessageEmbed', () => {
     expect(details).not.toContain('**Outcome** Failed');
   });
 
+  it('keeps final results hidden after close when configured', () => {
+    const embed = buildPollMessageEmbed(createFallbackPollSnapshot({
+      ...basePoll,
+      hideResultsAfterClose: true,
+      closedAt: new Date('2026-03-24T01:00:00.000Z'),
+      closedReason: 'closed',
+    })).toJSON();
+    const resultField = embed.fields?.find((field) => field.name === 'Results Hidden');
+    const details = embed.fields?.find((field) => field.name === 'Details')?.value ?? '';
+
+    expect(resultField?.value).toContain('Results are hidden after this poll closes.');
+    expect(resultField?.value).not.toContain('Yes');
+    expect(details).not.toContain('**Outcome**');
+    expect(embed.footer?.text).not.toContain('voter');
+  });
+
   it('re-enables voting controls for reopened polls', () => {
     const message = buildPollMessage(createFallbackPollSnapshot({
       ...basePoll,
@@ -159,5 +175,19 @@ describe('buildPollResultsEmbed', () => {
     expect(embed.fields?.find((field) => field.name === 'Voters')?.value).toContain('<@user_a>');
     expect(embed.fields?.find((field) => field.name === 'Voters')?.value).toContain('<@user_b>');
     expect(embed.description).toContain('option selections remain private');
+  });
+
+  it('does not show final answer details when final results are hidden', () => {
+    const poll = {
+      ...basePoll,
+      hideResultsAfterClose: true,
+      closedAt: new Date('2026-03-24T01:00:00.000Z'),
+      closedReason: 'closed',
+    } satisfies PollWithRelations;
+
+    const embed = buildPollResultsEmbed(poll, computePollResults(poll)).toJSON();
+
+    expect(embed.description).toContain('Results are hidden after this poll closes.');
+    expect(embed.fields).toBeUndefined();
   });
 });

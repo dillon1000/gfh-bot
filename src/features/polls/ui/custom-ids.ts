@@ -1,6 +1,7 @@
 export type PollBuilderAction =
   | 'question'
   | 'choices'
+  | 'quiz-questions'
   | 'tier-labels'
   | 'emojis'
   | 'description'
@@ -12,6 +13,7 @@ export type PollBuilderAction =
   | 'allow-other'
   | 'anonymous'
   | 'hide-results'
+  | 'hide-final-results'
   | 'step-next'
   | 'step-back'
   | 'publish'
@@ -20,6 +22,7 @@ export type PollBuilderAction =
 export type PollBuilderModalField =
   | 'question'
   | 'choices'
+  | 'quiz-questions'
   | 'tier-labels'
   | 'emojis'
   | 'description'
@@ -41,6 +44,11 @@ export const pollVoteCustomId = (pollId: string): string => `poll:vote:${pollId}
 export const pollChoiceCustomId = (pollId: string, optionId: string): string => `poll:choice:${pollId}:${optionId}`;
 export const pollResponseButtonCustomId = (pollId: string, kind: 'freeform' | 'other'): string => `poll:response:${kind}:${pollId}`;
 export const pollResponseModalCustomId = (pollId: string, kind: 'freeform' | 'other'): string => `poll:response-modal:${kind}:${pollId}`;
+export const pollQuizOpenCustomId = (pollId: string): string => `poll:quiz:open:${pollId}`;
+export const pollQuizAnswerSelectCustomId = (pollId: string, questionId: string): string => `poll:quiz:answer:${pollId}:${questionId}`;
+export const pollQuizTextButtonCustomId = (pollId: string, questionId: string): string => `poll:quiz:text:${pollId}:${questionId}`;
+export const pollQuizTextModalCustomId = (pollId: string, questionId: string): string => `poll:quiz:text-modal:${pollId}:${questionId}`;
+export const pollQuizNavCustomId = (pollId: string, action: 'prev' | 'next' | 'submit'): string => `poll:quiz:nav:${action}:${pollId}`;
 export const pollResultsCustomId = (pollId: string): string => `poll:results:${pollId}`;
 export const pollRankOpenCustomId = (pollId: string): string => `poll:rank:open:${pollId}`;
 export const pollRankAddCustomId = (pollId: string, optionId: string): string => `poll:rank:add:${pollId}:${optionId}`;
