@@ -503,7 +503,7 @@ export function buildPollResultsEmbed(
         isPollCancelled(poll) ? 'Outcome: Poll cancelled' : null,
         outcome.kind === 'quiz' && outcome.status === 'quorum-failed' ? 'Outcome: Quorum not met' : null,
         poll.anonymous
-          ? 'Anonymous quiz: voter identities are shown below, but individual answers remain unattributed.'
+          ? 'Anonymous quiz: individual answers and participant identities remain private.'
           : 'Non-anonymous quiz: answer details are shown below.',
       ]
         .filter(Boolean)
@@ -524,13 +524,6 @@ export function buildPollResultsEmbed(
       embed.addFields({
         name: `${index + 1}. ${question.prompt}`,
         value: clampFieldValue(value),
-      });
-    }
-
-    if (poll.anonymous) {
-      embed.addFields({
-        name: 'Voters',
-        value: uniqueVoterMentions.join(', ') || 'No submissions yet',
       });
     }
 

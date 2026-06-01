@@ -309,7 +309,12 @@ export const parseQuizQuestionsInput = (value: string | QuizQuestion[] | null | 
   }
 
   return lines.map((line, index) => {
-    const [rawType, rawPrompt, rawOptions = ''] = line.split('|').map((part) => part.trim());
+    const parts = line.split('|').map((part) => part.trim());
+    if (parts.length < 2 || parts.length > 3) {
+      throw new Error('Each quiz question must use "type | prompt | options". Use commas inside the options field.');
+    }
+
+    const [rawType, rawPrompt, rawOptions = ''] = parts;
     if (!rawType || !rawPrompt) {
       throw new Error('Each quiz question must use "type | prompt | options". Options are only required for select questions.');
     }

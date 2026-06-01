@@ -33,12 +33,14 @@ export const DEFAULT_QUIZ_QUESTIONS: QuizQuestion[] = [
     id: 'q1',
     prompt: 'Is this statement true?',
     type: 'true_false',
+    options: ['True', 'False'],
     required: true,
   },
   {
     id: 'q2',
     prompt: 'Pick a score from 1 to 10',
     type: 'scale_1_10',
+    options: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
     required: true,
   },
 ];
@@ -124,6 +126,18 @@ export const resolveQuizAnswers = (vote: QuizAnswersHost): QuizAnswer[] => {
       };
     })
     .filter((entry): entry is QuizAnswer => entry !== null);
+};
+
+export const getQuizQuestionOptionLabels = (question: QuizQuestion): string[] => {
+  if (question.type === 'true_false') {
+    return ['True', 'False'];
+  }
+
+  if (question.type === 'scale_1_10') {
+    return Array.from({ length: 10 }, (_, index) => String(index + 1));
+  }
+
+  return question.options ?? [];
 };
 export type PollClosedReason = 'closed' | 'cancelled';
 

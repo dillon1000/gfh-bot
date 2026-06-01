@@ -4,7 +4,12 @@ import { redis } from '@/lib/redis.js';
 import { sanitizeFreeformResponse } from '@/features/polls/parsing/parser.js';
 import { pollInclude } from '@/features/polls/services/repository.js';
 import type { PollMode, PollWithRelations, QuizAnswer, QuizQuestion } from '@/features/polls/core/types.js';
-import { getTierCount, resolveQuizAnswers, resolveQuizQuestions } from '@/features/polls/core/types.js';
+import {
+  getQuizQuestionOptionLabels,
+  getTierCount,
+  resolveQuizAnswers,
+  resolveQuizQuestions,
+} from '@/features/polls/core/types.js';
 
 const getEffectivePollMode = (poll: { mode?: PollMode | null; singleSelect: boolean }): PollMode =>
   poll.mode ?? (poll.singleSelect ? 'single' : 'multi');
@@ -26,7 +31,7 @@ const buildQuizAnswerSummary = (questions: QuizQuestion[], answers: QuizAnswer[]
     });
 };
 
-const validateQuizAnswers = (questions: QuizQuestion[], answers: QuizAnswer[]): QuizAnswer[] => {
+export const normalizeQuizAnswersForQuestions = (questions: QuizQuestion[], answers: QuizAnswer[]): QuizAnswer[] => {
   const questionMap = new Map(questions.map((question) => [question.id, question]));
   const normalized: QuizAnswer[] = [];
 
@@ -40,7 +45,7 @@ const validateQuizAnswers = (questions: QuizQuestion[], answers: QuizAnswer[]): 
       throw new Error('One or more quiz answers does not match its question type.');
     }
 
-    const allowedValues = new Set(question.options ?? []);
+    const allowedValues = new Set(getQuizQuestionOptionLabels(question));
     const values = [...new Set(answer.values ?? [])].filter(Boolean);
     const text = answer.text?.trim() ?? '';
 
@@ -485,7 +490,7 @@ export const setQuizAnswers = async (
       }
 
       const questions = resolveQuizQuestions(poll);
-      const normalizedAnswers = validateQuizAnswers(questions, answers);
+      const normalizedAnswers = normalizeQuizAnswersForQuestions(questions, answers);
       const previousVotes = poll.votes.filter((vote) => vote.userId === userId);
       const previousAnswers = previousVotes.flatMap((vote) => resolveQuizAnswers(vote));
 

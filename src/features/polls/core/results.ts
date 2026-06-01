@@ -12,7 +12,13 @@ import type {
   TierPollComputedResults,
   TierPollOutcome,
 } from '@/features/polls/core/types.js';
-import { getTierLabelForRank, resolveQuizAnswers, resolveQuizQuestions, resolveTierLabels } from '@/features/polls/core/types.js';
+import {
+  getQuizQuestionOptionLabels,
+  getTierLabelForRank,
+  resolveQuizAnswers,
+  resolveQuizQuestions,
+  resolveTierLabels,
+} from '@/features/polls/core/types.js';
 
 type RankedBallot = {
   userId: string;
@@ -436,18 +442,6 @@ const computeTierPollResults = (poll: PollWithRelations): TierPollComputedResult
   };
 };
 
-const getQuizOptionLabels = (question: ReturnType<typeof resolveQuizQuestions>[number]): string[] => {
-  if (question.type === 'true_false') {
-    return ['True', 'False'];
-  }
-
-  if (question.type === 'scale_1_10') {
-    return Array.from({ length: 10 }, (_, index) => String(index + 1));
-  }
-
-  return question.options ?? [];
-};
-
 const computeQuizPollResults = (poll: PollWithRelations): QuizPollComputedResults => {
   const questions = resolveQuizQuestions(poll);
   const questionMap = new Map(questions.map((question) => [question.id, question]));
@@ -482,11 +476,16 @@ const computeQuizPollResults = (poll: PollWithRelations): QuizPollComputedResult
     totalVoters: voters.size,
     questions: questions.map((question) => {
       const answers = answersByQuestion.get(question.id) ?? [];
-      const optionLabels = getQuizOptionLabels(question);
+      const optionLabels = getQuizQuestionOptionLabels(question);
+      const validOptionLabels = new Set(optionLabels);
       const counts = new Map<string, number>();
 
       for (const answer of answers) {
         for (const value of answer.values) {
+          if (!validOptionLabels.has(value)) {
+            continue;
+          }
+
           counts.set(value, (counts.get(value) ?? 0) + 1);
         }
       }

@@ -11,6 +11,7 @@ import {
 } from 'discord.js';
 
 import { redis } from '@/lib/redis.js';
+import { withRedisLock } from '@/lib/locks.js';
 import { deleteQuizDraft, getQuizDraft, saveQuizDraft, type QuizDraft } from '@/features/polls/state/quiz-drafts.js';
 import { deletePollRankDraft, getPollRankDraft, savePollRankDraft } from '@/features/polls/state/rank-drafts.js';
 import { buildFeedbackEmbed } from '@/lib/feedback-embeds.js';
@@ -228,6 +229,19 @@ const getValidatedQuizPoll = async (
   return poll;
 };
 
+const withQuizDraftLock = async <T>(
+  pollId: string,
+  userId: string,
+  operation: () => Promise<T>,
+): Promise<T> => {
+  const result = await withRedisLock(redis, `lock:poll-quiz-draft:${pollId}:${userId}`, 5_000, operation);
+  if (result === null) {
+    throw new Error('Another quiz update is already in progress. Please try again.');
+  }
+
+  return result;
+};
+
 const getQuizDraftOrCurrentAnswers = async (
   pollId: string,
   userId: string,
@@ -299,16 +313,23 @@ export const handlePollQuizAnswerSelect = async (
     throw new Error('Quiz question not found.');
   }
 
-  const draft = await getQuizDraftOrCurrentAnswers(pollId, interaction.user.id);
-  const nextDraft = {
-    ...draft,
-    answers: upsertQuizAnswer(draft.answers, {
-      questionId,
-      type: question.type,
-      values: [...interaction.values],
-    }),
-  };
-  await saveQuizDraft(redis, pollId, interaction.user.id, nextDraft);
+  if (question.type === 'free_answer' || question.type === 'file_upload') {
+    throw new Error('This quiz question does not accept selection answers.');
+  }
+
+  const nextDraft = await withQuizDraftLock(pollId, interaction.user.id, async () => {
+    const draft = await getQuizDraftOrCurrentAnswers(pollId, interaction.user.id);
+    const updated = {
+      ...draft,
+      answers: upsertQuizAnswer(draft.answers, {
+        questionId,
+        type: question.type,
+        values: [...interaction.values],
+      }),
+    };
+    await saveQuizDraft(redis, pollId, interaction.user.id, updated);
+    return updated;
+  });
   await updateQuizVotingMessage(interaction, pollId, nextDraft);
 };
 
@@ -369,17 +390,20 @@ export const handlePollQuizTextModal = async (
     throw new Error('This quiz question does not accept text answers.');
   }
 
-  const draft = await getQuizDraftOrCurrentAnswers(pollId, interaction.user.id);
   const text = interaction.fields.getTextInputValue('answer').trim();
-  const nextDraft = {
-    ...draft,
-    answers: upsertQuizAnswer(draft.answers, {
-      questionId,
-      type: question.type,
-      ...(text ? { text } : {}),
-    }),
-  };
-  await saveQuizDraft(redis, pollId, interaction.user.id, nextDraft);
+  const nextDraft = await withQuizDraftLock(pollId, interaction.user.id, async () => {
+    const draft = await getQuizDraftOrCurrentAnswers(pollId, interaction.user.id);
+    const updated = {
+      ...draft,
+      answers: upsertQuizAnswer(draft.answers, {
+        questionId,
+        type: question.type,
+        ...(text ? { text } : {}),
+      }),
+    };
+    await saveQuizDraft(redis, pollId, interaction.user.id, updated);
+    return updated;
+  });
   await updateQuizVotingMessage(interaction, pollId, nextDraft);
 };
 
@@ -395,19 +419,27 @@ export const handlePollQuizNavButton = async (
   const poll = await getValidatedQuizPoll(pollId, { requireOpen: true });
   await assertUserCanVoteInPoll(client, poll, interaction.user.id);
   const questions = resolveQuizQuestions(poll);
-  const draft = await getQuizDraftOrCurrentAnswers(pollId, interaction.user.id);
 
   if (action === 'submit') {
-    const incompleteIndex = getFirstIncompleteQuizQuestionIndex(questions, draft.answers);
-    if (incompleteIndex !== -1) {
-      const nextDraft = { ...draft, currentIndex: incompleteIndex };
-      await saveQuizDraft(redis, pollId, interaction.user.id, nextDraft);
-      await updateQuizVotingMessage(interaction, pollId, nextDraft, 'Answer this question before submitting.');
+    const result = await withQuizDraftLock(pollId, interaction.user.id, async () => {
+      const draft = await getQuizDraftOrCurrentAnswers(pollId, interaction.user.id);
+      const incompleteIndex = getFirstIncompleteQuizQuestionIndex(questions, draft.answers);
+      if (incompleteIndex !== -1) {
+        const nextDraft = { ...draft, currentIndex: incompleteIndex };
+        await saveQuizDraft(redis, pollId, interaction.user.id, nextDraft);
+        return { kind: 'incomplete' as const, draft: nextDraft };
+      }
+
+      await setQuizAnswers(pollId, interaction.user.id, draft.answers);
+      await deleteQuizDraft(redis, pollId, interaction.user.id);
+      return { kind: 'submitted' as const };
+    });
+
+    if (result.kind === 'incomplete') {
+      await updateQuizVotingMessage(interaction, pollId, result.draft, 'Answer this question before submitting.');
       return;
     }
 
-    await setQuizAnswers(pollId, interaction.user.id, draft.answers);
-    await deleteQuizDraft(redis, pollId, interaction.user.id);
     await refreshPollMessage(client, pollId);
     await interaction.update({
       embeds: [buildFeedbackEmbed('Quiz Submitted', 'Your quiz answers have been recorded.')],
@@ -416,11 +448,15 @@ export const handlePollQuizNavButton = async (
     return;
   }
 
-  const nextIndex = action === 'prev'
-    ? Math.max(0, draft.currentIndex - 1)
-    : Math.min(Math.max(0, questions.length - 1), draft.currentIndex + 1);
-  const nextDraft = { ...draft, currentIndex: nextIndex };
-  await saveQuizDraft(redis, pollId, interaction.user.id, nextDraft);
+  const nextDraft = await withQuizDraftLock(pollId, interaction.user.id, async () => {
+    const draft = await getQuizDraftOrCurrentAnswers(pollId, interaction.user.id);
+    const nextIndex = action === 'prev'
+      ? Math.max(0, draft.currentIndex - 1)
+      : Math.min(Math.max(0, questions.length - 1), draft.currentIndex + 1);
+    const updated = { ...draft, currentIndex: nextIndex };
+    await saveQuizDraft(redis, pollId, interaction.user.id, updated);
+    return updated;
+  });
   await updateQuizVotingMessage(interaction, pollId, nextDraft);
 };
 

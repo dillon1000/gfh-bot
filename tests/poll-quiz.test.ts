@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
+import { buildPollExportCsv } from '@/features/polls/core/export.js';
 import { buildPollResultsEmbed } from '@/features/polls/ui/poll-embeds.js';
 import { buildPollMessage } from '@/features/polls/ui/poll-responses.js';
 import { computePollOutcome, computePollResults } from '@/features/polls/core/results.js';
 import { parseQuizQuestionsInput } from '@/features/polls/parsing/parser.js';
+import { normalizeQuizAnswersForQuestions } from '@/features/polls/services/voting.js';
+import { DEFAULT_QUIZ_QUESTIONS, getQuizQuestionOptionLabels } from '@/features/polls/core/types.js';
 import type { PollWithRelations } from '@/features/polls/core/types.js';
 
 const poll = {
@@ -144,6 +147,60 @@ describe('quiz poll parsing', () => {
       },
     ]);
   });
+
+  it('rejects malformed quiz lines with extra separators', () => {
+    expect(() => parseQuizQuestionsInput('single | Favorite color? | Red, Blue | Green'))
+      .toThrow(/type \| prompt \| options/);
+  });
+
+  it('resolves default true/false and scale options for validation and rendering', () => {
+    const [trueFalseQuestion, scaleQuestion] = DEFAULT_QUIZ_QUESTIONS;
+    if (!trueFalseQuestion || !scaleQuestion) {
+      throw new Error('Expected default quiz questions.');
+    }
+
+    expect(getQuizQuestionOptionLabels(trueFalseQuestion)).toEqual(['True', 'False']);
+    expect(getQuizQuestionOptionLabels(scaleQuestion)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+  });
+
+  it('accepts true/false and scale answers even when stored questions have no explicit options', () => {
+    expect(normalizeQuizAnswersForQuestions([
+      {
+        id: 'q1',
+        prompt: 'Is this true?',
+        type: 'true_false',
+        required: true,
+      },
+      {
+        id: 'q2',
+        prompt: 'Pick a score',
+        type: 'scale_1_10',
+        required: true,
+      },
+    ], [
+      {
+        questionId: 'q1',
+        type: 'true_false',
+        values: ['True'],
+      },
+      {
+        questionId: 'q2',
+        type: 'scale_1_10',
+        values: ['7'],
+      },
+    ])).toEqual([
+      {
+        questionId: 'q1',
+        type: 'true_false',
+        values: ['True'],
+      },
+      {
+        questionId: 'q2',
+        type: 'scale_1_10',
+        values: ['7'],
+      },
+    ]);
+  });
 });
 
 describe('quiz poll results', () => {
@@ -171,6 +228,37 @@ describe('quiz poll results', () => {
     ]);
   });
 
+  it('ignores malformed persisted quiz option values in percentages', () => {
+    const badVote: PollWithRelations['votes'][number] = {
+      id: 'vote_bad',
+      pollId: 'poll_quiz_1',
+      optionId: null,
+      userId: 'user_bad',
+      rank: null,
+      tierRank: null,
+      responseText: null,
+      quizAnswers: [
+        { questionId: 'q2', type: 'multi_select', values: ['A', 'Z'] },
+      ],
+      createdAt: new Date('2026-03-24T00:00:00.000Z'),
+    };
+    const results = computePollResults({
+      ...poll,
+      votes: [...poll.votes, badVote],
+    });
+
+    expect(results.kind).toBe('quiz');
+    if (results.kind !== 'quiz') {
+      throw new Error('Expected quiz results.');
+    }
+
+    expect(results.questions[1]?.choices.map((choice) => [choice.label, choice.votes, choice.percentage.toFixed(1)])).toEqual([
+      ['A', 3, '75.0'],
+      ['B', 0, '0.0'],
+      ['C', 1, '25.0'],
+    ]);
+  });
+
   it('renders quiz controls and result details', () => {
     const message = buildPollMessage(poll, computePollResults(poll));
     const controls = message.components[0]?.toJSON();
@@ -183,6 +271,21 @@ describe('quiz poll results', () => {
     expect(embed.fields?.[2]?.value).toContain('<@user_a>: Because it helps.');
   });
 
+  it('does not list participant identities in anonymous quiz results', () => {
+    const results = computePollResults({
+      ...poll,
+      anonymous: true,
+    });
+    const embed = buildPollResultsEmbed({
+      ...poll,
+      anonymous: true,
+    }, results).toJSON();
+
+    expect(embed.description).toContain('participant identities remain private');
+    expect(JSON.stringify(embed)).not.toContain('<@user_a>');
+    expect(JSON.stringify(embed)).not.toContain('Voters');
+  });
+
   it('reports quiz outcome summaries', () => {
     const results = computePollResults(poll);
     expect(computePollOutcome(poll, results)).toEqual({
@@ -191,5 +294,54 @@ describe('quiz poll results', () => {
       submittedCount: 2,
       questionCount: 3,
     });
+  });
+
+  it('exports anonymous quiz answers without per-user answer bundles', () => {
+    const csv = buildPollExportCsv({
+      ...poll,
+      anonymous: true,
+      votes: [
+        ...poll.votes,
+        {
+          id: 'vote_3',
+          pollId: 'poll_quiz_1',
+          optionId: null,
+          userId: 'user_c',
+          rank: null,
+          tierRank: null,
+          responseText: null,
+          quizAnswers: [
+            { questionId: 'q3', type: 'free_answer', text: '  because it helps.  ' },
+          ],
+          createdAt: new Date('2026-03-24T00:00:00.000Z'),
+        },
+      ],
+    });
+
+    expect(csv).toContain('quiz_question_id,quiz_question,answer,vote_count,percentage,total_answers');
+    expect(csv).not.toContain('user_id,user_mention');
+    expect(csv).not.toContain('user_a');
+    expect(csv).not.toContain('<@user_a>');
+    expect(csv).toContain('"True",1,50.0,2');
+    expect(csv).toContain('"Because it helps.",2,66.7,3');
+  });
+
+  it('neutralizes spreadsheet formulas in quiz CSV exports', () => {
+    const firstVote = poll.votes.at(0);
+    if (!firstVote) {
+      throw new Error('Expected quiz vote fixture.');
+    }
+
+    const csv = buildPollExportCsv({
+      ...poll,
+      votes: [{
+        ...firstVote,
+        quizAnswers: [
+          { questionId: 'q3', type: 'free_answer', text: '=HYPERLINK("https://example.test","click")' },
+        ],
+      }],
+    });
+
+    expect(csv).toContain('"\'=HYPERLINK(""https://example.test"",""click"")"');
   });
 });

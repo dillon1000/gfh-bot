@@ -8,7 +8,7 @@ import {
 } from 'discord.js';
 
 import type { PollWithRelations, QuizAnswer, QuizQuestion } from '@/features/polls/core/types.js';
-import { resolveQuizQuestions } from '@/features/polls/core/types.js';
+import { getQuizQuestionOptionLabels, resolveQuizQuestions } from '@/features/polls/core/types.js';
 import {
   pollQuizAnswerSelectCustomId,
   pollQuizNavCustomId,
@@ -38,18 +38,6 @@ export const getFirstIncompleteQuizQuestionIndex = (
 ): number => questions.findIndex((question) =>
   question.required !== false && !answerIsComplete(getAnswerForQuestion(answers, question.id)),
 );
-
-const getQuestionOptions = (question: QuizQuestion): string[] => {
-  if (question.type === 'true_false') {
-    return ['True', 'False'];
-  }
-
-  if (question.type === 'scale_1_10') {
-    return Array.from({ length: 10 }, (_, index) => String(index + 1));
-  }
-
-  return question.options ?? [];
-};
 
 const getQuestionTypeLabel = (question: QuizQuestion): string => {
   switch (question.type) {
@@ -85,7 +73,7 @@ const buildSelectRow = (
   question: QuizQuestion,
   answer: QuizAnswer | null,
 ): ActionRowBuilder<StringSelectMenuBuilder> | null => {
-  const options = getQuestionOptions(question);
+  const options = getQuizQuestionOptionLabels(question);
   if (options.length === 0) {
     return null;
   }

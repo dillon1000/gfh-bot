@@ -174,8 +174,12 @@ export const handlePollCommand = async (
   );
 
   const tierLabels = parseTierLabels(interaction.options.getString('tier_labels'), parsed.mode);
+  const quizQuestionsInput = interaction.options.getString('quiz_questions');
+  if (parsed.mode === 'quiz' && !quizQuestionsInput?.trim()) {
+    throw new Error('Quiz polls created with /poll require quiz_questions. Use /poll-builder for a guided quiz draft.');
+  }
   const quizQuestions = parsed.mode === 'quiz'
-    ? parseQuizQuestionsInput(interaction.options.getString('quiz_questions'))
+    ? parseQuizQuestionsInput(quizQuestionsInput)
     : [];
 
   const published = await publishPoll(client, interaction, {
@@ -262,7 +266,17 @@ const POLL_MODES: ReadonlySet<PollMode> = new Set(['single', 'multi', 'ranked', 
 
 const isPollMode = (value: string): value is PollMode => POLL_MODES.has(value as PollMode);
 
-const applyModeChange = (draft: { mode: PollMode; passThreshold: number | null; passOptionIndex: number | null; allowOtherOption: boolean; tierLabels: string[] }, nextMode: PollMode): void => {
+const applyModeChange = (
+  draft: {
+    mode: PollMode;
+    passThreshold: number | null;
+    passOptionIndex: number | null;
+    allowOtherOption: boolean;
+    tierLabels: string[];
+    quizQuestions: QuizQuestion[];
+  },
+  nextMode: PollMode,
+): void => {
   draft.mode = nextMode;
   if (nextMode === 'ranked' || nextMode === 'freeform' || nextMode === 'tier' || nextMode === 'quiz') {
     draft.passThreshold = null;
@@ -273,6 +287,9 @@ const applyModeChange = (draft: { mode: PollMode; passThreshold: number | null; 
   }
   if (nextMode !== 'tier') {
     draft.tierLabels = [];
+  }
+  if (nextMode === 'quiz' && draft.quizQuestions.length === 0) {
+    draft.quizQuestions = [...DEFAULT_QUIZ_QUESTIONS];
   }
 };
 
