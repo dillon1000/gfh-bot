@@ -16,6 +16,7 @@ import { getMarketById } from "@/features/markets/services/records.js";
 import { scheduleMarketRefresh } from "@/features/markets/services/scheduler.js";
 import { cancelMarket } from "@/features/markets/services/trading/cancel.js";
 import { resolveMarket } from "@/features/markets/services/trading/resolution.js";
+import type { MarketWithRelations } from "@/features/markets/core/types.js";
 import {
 	parseOutcomeSelection,
 	parseOutcomeSelections,
@@ -32,10 +33,48 @@ import {
 } from "@/features/markets/handlers/interactions/session.js";
 import {
 	parseMarketSessionId,
+	parseMarketResolveModalCustomId,
 	parseSimpleMarketId,
 	parseTradeModalCustomId,
 	validateEvidenceUrl,
 } from "@/features/markets/handlers/interactions/shared.js";
+
+const resolveOutcomesFromIndexes = (
+	market: MarketWithRelations,
+	outcomeIndexes: number[],
+): MarketWithRelations["outcomes"] | null => {
+	if (outcomeIndexes.length === 0) {
+		return null;
+	}
+
+	if (market.contractMode === "independent_binary_set") {
+		throw new Error(
+			"Independent markets resolve outcome-by-outcome with /market resolve-outcome.",
+		);
+	}
+
+	const expectedCount = isCompetitiveMultiWinnerMarketMode(market)
+		? resolveMarketWinnerCount(market)
+		: 1;
+	if (outcomeIndexes.length !== expectedCount) {
+		throw new Error(
+			`Choose exactly ${expectedCount} winning outcome${expectedCount === 1 ? "" : "s"}.`,
+		);
+	}
+
+	if (new Set(outcomeIndexes).size !== outcomeIndexes.length) {
+		throw new Error("Choose distinct winning outcomes.");
+	}
+
+	return outcomeIndexes.map((index) => {
+		const outcome = market.outcomes[index];
+		if (!outcome) {
+			throw new Error("Selected winning outcome is no longer available.");
+		}
+
+		return outcome;
+	});
+};
 
 export const handleMarketModal = async (
 	client: Client,
@@ -93,21 +132,26 @@ export const handleMarketModal = async (
 		return;
 	}
 
-	const resolveMarketId = parseSimpleMarketId(
-		"market:resolve-modal",
-		interaction.customId,
-	);
-	if (resolveMarketId) {
-		const market = await getMarketById(resolveMarketId);
+	const resolveRequest = parseMarketResolveModalCustomId(interaction.customId);
+	if (resolveRequest) {
+		const market = await getMarketById(resolveRequest.marketId);
 		if (!market) {
 			throw new Error("Market not found.");
 		}
 
-		const winningOutcomeInput =
-			interaction.fields.getTextInputValue("winning_outcome");
-		const winningOutcomes = isCompetitiveMultiWinnerMarketMode(market)
-			? parseOutcomeSelections(winningOutcomeInput, market.outcomes)
-			: [parseOutcomeSelection(winningOutcomeInput, market.outcomes)];
+		const selectedOutcomes = resolveOutcomesFromIndexes(
+			market,
+			resolveRequest.outcomeIndexes,
+		);
+		const winningOutcomes =
+			selectedOutcomes ??
+			(() => {
+				const winningOutcomeInput =
+					interaction.fields.getTextInputValue("winning_outcome");
+				return isCompetitiveMultiWinnerMarketMode(market)
+					? parseOutcomeSelections(winningOutcomeInput, market.outcomes)
+					: [parseOutcomeSelection(winningOutcomeInput, market.outcomes)];
+			})();
 		const resolved = await resolveMarket({
 			marketId: market.id,
 			actorId: interaction.user.id,

@@ -121,7 +121,14 @@ export const marketResolveButtonCustomId = (marketId: string): string =>
 	`market:resolve:${marketId}`;
 export const marketCancelButtonCustomId = (marketId: string): string =>
 	`market:cancel:${marketId}`;
-export const marketResolveModalCustomId = (marketId: string): string =>
-	`market:resolve-modal:${marketId}`;
+export const marketResolveSelectCustomId = (marketId: string): string =>
+	`market:resolve-select:${marketId}`;
+export const marketResolveModalCustomId = (
+	marketId: string,
+	outcomeIndexes: number[] = [],
+): string =>
+	outcomeIndexes.length > 0
+		? `market:resolve-modal:${marketId}:${outcomeIndexes.join(",")}`
+		: `market:resolve-modal:${marketId}`;
 export const marketCancelModalCustomId = (marketId: string): string =>
 	`market:cancel-modal:${marketId}`;
