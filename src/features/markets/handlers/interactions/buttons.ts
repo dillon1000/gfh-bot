@@ -3,13 +3,13 @@ import { MessageFlags, type ButtonInteraction } from "discord.js";
 import { redis } from "@/lib/redis.js";
 import {
 	buildMarketCancelModal,
+	buildMarketResolveSelector,
 	buildMarketSessionAmountModal,
 	buildMarketTradeModal,
 	buildMarketTradeSelector,
 } from "@/features/markets/ui/render/trades.js";
 import { buildMarketStatusEmbed } from "@/features/markets/ui/render/market.js";
 import { buildPortfolioMessage } from "@/features/markets/ui/render/portfolio.js";
-import { buildMarketResolveModal } from "@/features/markets/ui/render/trades.js";
 import {
 	deleteMarketTradeQuoteSession,
 	getMarketTradeQuoteSession,
@@ -558,7 +558,18 @@ export const handleMarketButton = async (
 		interaction.customId,
 	);
 	if (resolveMarketId) {
-		await interaction.showModal(buildMarketResolveModal(resolveMarketId));
+		const market = await getMarketById(resolveMarketId);
+		if (!market) {
+			throw new Error("Market not found.");
+		}
+
+		await interaction.reply({
+			flags: MessageFlags.Ephemeral,
+			...buildMarketResolveSelector(market),
+			allowedMentions: {
+				parse: [],
+			},
+		});
 		return;
 	}
 

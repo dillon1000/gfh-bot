@@ -142,6 +142,33 @@ export const parseSimpleMarketId = (
 	return match?.[1] ?? null;
 };
 
+export const parseMarketResolveModalCustomId = (
+	customId: string,
+): { marketId: string; outcomeIndexes: number[] } | null => {
+	const match = /^market:resolve-modal:([^:]+)(?::([0-9]+(?:,[0-9]+)*))?$/.exec(
+		customId,
+	);
+	if (!match?.[1]) {
+		return null;
+	}
+
+	const outcomeIndexes = match[2]
+		? match[2].split(",").map((value) => Number(value))
+		: [];
+	if (
+		outcomeIndexes.some(
+			(index) => !Number.isInteger(index) || index < 0,
+		)
+	) {
+		return null;
+	}
+
+	return {
+		marketId: match[1],
+		outcomeIndexes,
+	};
+};
+
 export const parseQuoteSessionId = (
 	prefix: "market:quote-confirm" | "market:quote-cancel",
 	customId: string,

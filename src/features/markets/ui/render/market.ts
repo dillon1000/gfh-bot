@@ -366,8 +366,8 @@ export const buildMarketResolvePrompt = (
 			market.contractMode === "independent_binary_set"
 				? `Trading on **${market.title}** is closed. Resolve remaining outcomes with **/market resolve-outcome** and a value between 0 and 1, or cancel to refund positions.`
 				: market.contractMode === "competitive_multi_winner"
-					? `Trading on **${market.title}** is closed. Choose **Resolve** and provide exactly ${resolveMarketWinnerCount(market)} winners (comma-separated), or **Cancel** to refund positions.`
-					: `Trading on **${market.title}** is closed. Choose **Resolve** to pick a winner or **Cancel** to refund positions.`,
+					? `Trading on **${market.title}** is closed. Choose **Resolve** and select exactly ${resolveMarketWinnerCount(market)} winners, or **Cancel** to refund positions.`
+					: `Trading on **${market.title}** is closed. Choose **Resolve** to select a winner or **Cancel** to refund positions.`,
 			0x60a5fa,
 		),
 	],

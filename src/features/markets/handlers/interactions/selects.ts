@@ -1,6 +1,14 @@
 import type { StringSelectMenuInteraction } from "discord.js";
 
-import { buildMarketTradeModal } from "@/features/markets/ui/render/trades.js";
+import {
+	buildMarketResolveModal,
+	buildMarketTradeModal,
+} from "@/features/markets/ui/render/trades.js";
+import type { MarketWithRelations } from "@/features/markets/core/types.js";
+import {
+	isCompetitiveMultiWinnerMarketMode,
+	resolveMarketWinnerCount,
+} from "@/features/markets/core/shared.js";
 import { getMarketById } from "@/features/markets/services/records.js";
 import { marketPortfolioSelectCustomId } from "@/features/markets/ui/custom-ids.js";
 import {
@@ -17,6 +25,39 @@ import {
 	parseTradeSelectCustomId,
 } from "@/features/markets/handlers/interactions/shared.js";
 import { buildProtectionEntryMessage } from "@/features/markets/handlers/interactions/protection.js";
+
+const resolveSelectedOutcomeIndexes = (
+	market: MarketWithRelations,
+	values: string[],
+): number[] => {
+	if (market.contractMode === "independent_binary_set") {
+		throw new Error(
+			"Independent markets resolve outcome-by-outcome with /market resolve-outcome.",
+		);
+	}
+
+	const expectedCount = isCompetitiveMultiWinnerMarketMode(market)
+		? resolveMarketWinnerCount(market)
+		: 1;
+	if (values.length !== expectedCount) {
+		throw new Error(
+			`Choose exactly ${expectedCount} winning outcome${expectedCount === 1 ? "" : "s"}.`,
+		);
+	}
+
+	const indexes = values.map((value) =>
+		market.outcomes.findIndex((outcome) => outcome.id === value),
+	);
+	if (indexes.some((index) => index < 0)) {
+		throw new Error("Choose a valid market outcome.");
+	}
+
+	if (new Set(indexes).size !== indexes.length) {
+		throw new Error("Choose distinct winning outcomes.");
+	}
+
+	return indexes;
+};
 
 export const handleMarketSelect = async (
 	interaction: StringSelectMenuInteraction,
@@ -80,6 +121,25 @@ export const handleMarketSelect = async (
 		});
 		await interaction.update(
 			await buildRootMarketInteractionSessionResponse(nextSession),
+		);
+		return;
+	}
+
+	const resolveMarketId = parseSimpleMarketId(
+		"market:resolve-select",
+		interaction.customId,
+	);
+	if (resolveMarketId) {
+		const market = await getMarketById(resolveMarketId);
+		if (!market) {
+			throw new Error("Market not found.");
+		}
+
+		await interaction.showModal(
+			buildMarketResolveModal(
+				market.id,
+				resolveSelectedOutcomeIndexes(market, interaction.values),
+			),
 		);
 		return;
 	}

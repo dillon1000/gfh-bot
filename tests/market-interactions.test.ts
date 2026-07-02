@@ -485,6 +485,55 @@ const createModalInteraction = (customId: string, amount = "25") => ({
 	reply: vi.fn(),
 });
 
+const collectObjectsByCustomId = (
+	value: unknown,
+	customId: string,
+): Record<string, unknown>[] => {
+	const matches: Record<string, unknown>[] = [];
+	const visit = (entry: unknown): void => {
+		if (Array.isArray(entry)) {
+			for (const item of entry) visit(item);
+			return;
+		}
+
+		if (!entry || typeof entry !== "object") {
+			return;
+		}
+
+		const record = entry as Record<string, unknown>;
+		if (record.custom_id === customId) {
+			matches.push(record);
+		}
+
+		for (const child of Object.values(record)) {
+			visit(child);
+		}
+	};
+
+	visit(value);
+	return matches;
+};
+
+const toBuilderJson = (value: unknown): unknown => {
+	if (Array.isArray(value)) {
+		return value.map((entry) => toBuilderJson(entry));
+	}
+
+	if (!value || typeof value !== "object") {
+		return value;
+	}
+
+	const record = value as Record<string, unknown>;
+	if (typeof record.toJSON === "function") {
+		const candidate = record as { toJSON: () => unknown };
+		return toBuilderJson(candidate.toJSON());
+	}
+
+	return Object.fromEntries(
+		Object.entries(record).map(([key, entry]) => [key, toBuilderJson(entry)]),
+	);
+};
+
 describe("market interactions", () => {
 	beforeEach(() => {
 		env.DISCORD_ADMIN_USER_IDS = [...defaultAdminUserIds];
@@ -961,6 +1010,96 @@ describe("market interactions", () => {
 		).rejects.toThrow("Evidence URL must be a valid http or https URL.");
 
 		expect(resolveMarket).not.toHaveBeenCalled();
+	});
+
+	it("opens an outcome dropdown when resolving a market from the button", async () => {
+		const interaction = createButtonInteraction("market:resolve:market_1");
+		getMarketById.mockResolvedValue(baseMarket);
+
+		await handleMarketButton(interaction as never);
+
+		expect(getMarketById).toHaveBeenCalledWith("market_1");
+		expect(interaction.reply).toHaveBeenCalledWith(
+			expect.objectContaining({
+				flags: 64,
+				components: expect.any(Array),
+			}),
+		);
+
+		const reply = interaction.reply.mock.calls[0]?.[0];
+		const select = collectObjectsByCustomId(
+			toBuilderJson(reply),
+			"market:resolve-select:market_1",
+		)[0];
+		expect(select).toEqual(
+			expect.objectContaining({
+				custom_id: "market:resolve-select:market_1",
+				min_values: 1,
+				max_values: 1,
+			}),
+		);
+
+		const options = Array.isArray(select?.options) ? select.options : [];
+		expect(
+			options.map((option) => (option as Record<string, unknown>).value),
+		).toEqual(["outcome_yes", "outcome_no"]);
+	});
+
+	it("opens the resolution details modal after selecting a winning outcome", async () => {
+		const interaction = createStringSelectInteraction(
+			"market:resolve-select:market_1",
+			["outcome_no"],
+		);
+		getMarketById.mockResolvedValue(baseMarket);
+
+		await handleMarketSelect(interaction as never);
+
+		expect(interaction.showModal).toHaveBeenCalledTimes(1);
+		const modal = toBuilderJson(interaction.showModal.mock.calls[0]?.[0]);
+		expect(modal).toEqual(
+			expect.objectContaining({
+				custom_id: "market:resolve-modal:market_1:1",
+				title: "Resolve Market",
+			}),
+		);
+		expect(
+			collectObjectsByCustomId(modal, "winning_outcome"),
+		).toHaveLength(0);
+	});
+
+	it("uses the selected winning outcome when submitting resolution details", async () => {
+		const interaction = {
+			customId: "market:resolve-modal:market_1:1",
+			user: {
+				id: "user_1",
+			},
+			fields: {
+				getTextInputValue: vi.fn((name: string) => {
+					if (name === "note") return "Final result posted.";
+					if (name === "evidence_url") return "https://example.com/final";
+					return "";
+				}),
+			},
+			memberPermissions: null,
+			inGuild: () => true,
+			reply: vi.fn(),
+		};
+		getMarketById.mockResolvedValue(baseMarket);
+
+		await handleMarketModal({} as never, interaction as never);
+
+		expect(resolveMarket).toHaveBeenCalledWith(
+			expect.objectContaining({
+				marketId: "market_1",
+				actorId: "user_1",
+				winningOutcomeId: "outcome_no",
+				note: "Final result posted.",
+				evidenceUrl: "https://example.com/final",
+			}),
+		);
+		expect(interaction.fields.getTextInputValue).not.toHaveBeenCalledWith(
+			"winning_outcome",
+		);
 	});
 
 	it("shows a quote preview instead of executing a buy trade immediately", async () => {

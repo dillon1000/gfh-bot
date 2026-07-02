@@ -26,6 +26,7 @@ import {
 	marketProtectionSelectCustomId,
 	marketQuickTradeButtonCustomId,
 	marketResolveModalCustomId,
+	marketResolveSelectCustomId,
 	marketTradeModalCustomId,
 	marketTradeQuoteCancelCustomId,
 	marketTradeQuoteConfirmCustomId,
@@ -111,6 +112,55 @@ export const buildMarketTradeSelector = (
 							label: `${index + 1}. ${entry.label}`,
 							value: entry.outcomeId,
 							description: `Net shares: ${entry.shares.toFixed(2)}`,
+						})),
+					),
+			),
+		],
+	};
+};
+
+export const buildMarketResolveSelector = (
+	market: MarketWithRelations,
+): {
+	embeds: [EmbedBuilder];
+	components: ActionRowBuilder<StringSelectMenuBuilder>[];
+} => {
+	if (market.contractMode === "independent_binary_set") {
+		return {
+			embeds: [
+				buildMarketStatusEmbed(
+					"Resolve Market",
+					"Independent markets resolve outcome-by-outcome with /market resolve-outcome.",
+					0x60a5fa,
+				),
+			],
+			components: [],
+		};
+	}
+
+	const winnerCount =
+		market.contractMode === "competitive_multi_winner"
+			? resolveMarketWinnerCount(market)
+			: 1;
+	const maxValues = Math.min(winnerCount, market.outcomes.length);
+	const description =
+		market.contractMode === "competitive_multi_winner"
+			? `Select exactly ${winnerCount} winning outcomes. You can add a note and evidence URL next.`
+			: "Select the winning outcome. You can add a note and evidence URL next.";
+
+	return {
+		embeds: [buildMarketStatusEmbed("Resolve Market", description, 0x57f287)],
+		components: [
+			new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+				new StringSelectMenuBuilder()
+					.setCustomId(marketResolveSelectCustomId(market.id))
+					.setPlaceholder("Select winning outcome")
+					.setMinValues(maxValues)
+					.setMaxValues(maxValues)
+					.addOptions(
+						market.outcomes.map((outcome, index) => ({
+							label: `${index + 1}. ${truncateLabel(outcome.label, 90)}`,
+							value: outcome.id,
 						})),
 					),
 			),
@@ -240,11 +290,16 @@ export const buildMarketSessionAmountModal = (
 		);
 };
 
-export const buildMarketResolveModal = (marketId: string): ModalBuilder =>
-	new ModalBuilder()
-		.setCustomId(marketResolveModalCustomId(marketId))
-		.setTitle("Resolve Market")
-		.addComponents(
+export const buildMarketResolveModal = (
+	marketId: string,
+	outcomeIndexes: number[] = [],
+): ModalBuilder => {
+	const modal = new ModalBuilder()
+		.setCustomId(marketResolveModalCustomId(marketId, outcomeIndexes))
+		.setTitle("Resolve Market");
+
+	if (outcomeIndexes.length === 0) {
+		modal.addComponents(
 			new ActionRowBuilder<TextInputBuilder>().addComponents(
 				new TextInputBuilder()
 					.setCustomId("winning_outcome")
@@ -253,23 +308,28 @@ export const buildMarketResolveModal = (marketId: string): ModalBuilder =>
 					.setRequired(true)
 					.setPlaceholder("1 or exact label; comma-separated for multi-winner"),
 			),
-			new ActionRowBuilder<TextInputBuilder>().addComponents(
-				new TextInputBuilder()
-					.setCustomId("note")
-					.setLabel("Resolution note")
-					.setStyle(TextInputStyle.Paragraph)
-					.setRequired(false)
-					.setMaxLength(500),
-			),
-			new ActionRowBuilder<TextInputBuilder>().addComponents(
-				new TextInputBuilder()
-					.setCustomId("evidence_url")
-					.setLabel("Evidence URL")
-					.setStyle(TextInputStyle.Short)
-					.setRequired(false)
-					.setPlaceholder("https://example.com"),
-			),
 		);
+	}
+
+	return modal.addComponents(
+		new ActionRowBuilder<TextInputBuilder>().addComponents(
+			new TextInputBuilder()
+				.setCustomId("note")
+				.setLabel("Resolution note")
+				.setStyle(TextInputStyle.Paragraph)
+				.setRequired(false)
+				.setMaxLength(500),
+		),
+		new ActionRowBuilder<TextInputBuilder>().addComponents(
+			new TextInputBuilder()
+				.setCustomId("evidence_url")
+				.setLabel("Evidence URL")
+				.setStyle(TextInputStyle.Short)
+				.setRequired(false)
+				.setPlaceholder("https://example.com"),
+		),
+	);
+};
 
 export const buildMarketCancelModal = (marketId: string): ModalBuilder =>
 	new ModalBuilder()
