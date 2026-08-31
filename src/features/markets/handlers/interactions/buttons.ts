@@ -529,13 +529,13 @@ export const handleMarketButton = async (
 		interaction.customId,
 	);
 	if (detailsMarketId) {
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 		const market = await getMarketById(detailsMarketId);
 		if (!market) {
 			throw new Error("Market not found.");
 		}
 
-		await interaction.reply({
-			flags: MessageFlags.Ephemeral,
+		await interaction.editReply({
 			...(await buildMarketViewResponse(market)),
 			allowedMentions: {
 				parse: [],

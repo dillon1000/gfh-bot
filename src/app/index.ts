@@ -38,6 +38,10 @@ type StartupTask = {
   run: () => Promise<void>;
 };
 
+type ClosableWorker = {
+  close: () => Promise<void>;
+};
+
 const runStartupTasks = async (tasks: StartupTask[]): Promise<void> => {
   const startedAt = Date.now();
   let failedTaskCount = 0;
@@ -94,8 +98,22 @@ const client = new Client({
 registerInteractionRouter(client);
 registerAuditLogEventHandlers(client);
 
+let workers: ClosableWorker[] = [];
+
 client.once(Events.ClientReady, async (readyClient) => {
   logger.info({ user: readyClient.user.tag }, 'Discord client ready');
+  workers = [
+    startPollWorker(client),
+    startPollReminderWorker(client),
+    startRemovalVoteWorker(client),
+    startMarketCloseWorker(client),
+    startMarketRefreshWorker(client),
+    startMarketGraceWorker(client),
+    startMarketLiquidityWorker(client),
+    startCasinoTableTimeoutWorker(client),
+    startCasinoTableIdleCloseWorker(client),
+    startCasinoBotWorker(client),
+  ];
   await runStartupTasks([
     {
       name: 'apply-configured-presence',
@@ -218,29 +236,9 @@ client.on(Events.MessageDelete, async (message) => {
   }
 });
 
-const worker = startPollWorker(client);
-const reminderWorker = startPollReminderWorker(client);
-const removalVoteWorker = startRemovalVoteWorker(client);
-const marketCloseWorker = startMarketCloseWorker(client);
-const marketRefreshWorker = startMarketRefreshWorker(client);
-const marketGraceWorker = startMarketGraceWorker(client);
-const marketLiquidityWorker = startMarketLiquidityWorker(client);
-const casinoTableTimeoutWorker = startCasinoTableTimeoutWorker(client);
-const casinoTableIdleCloseWorker = startCasinoTableIdleCloseWorker(client);
-const casinoBotWorker = startCasinoBotWorker(client);
-
 registerShutdownHandler(async () => {
   await Promise.allSettled([
-    worker.close(),
-    reminderWorker.close(),
-    removalVoteWorker.close(),
-    marketCloseWorker.close(),
-    marketRefreshWorker.close(),
-    marketGraceWorker.close(),
-    marketLiquidityWorker.close(),
-    casinoTableTimeoutWorker.close(),
-    casinoTableIdleCloseWorker.close(),
-    casinoBotWorker.close(),
+    ...workers.map((worker) => worker.close()),
     closeAllQueues(),
     quitRedis(),
     disconnectPrisma(),

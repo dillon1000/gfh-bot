@@ -10,6 +10,7 @@ import {
   type ModalSubmitInteraction,
 } from 'discord.js';
 
+import { logger } from '@/app/logger.js';
 import { redis } from '@/lib/redis.js';
 import { withRedisLock } from '@/lib/locks.js';
 import { deleteQuizDraft, getQuizDraft, saveQuizDraft, type QuizDraft } from '@/features/polls/state/quiz-drafts.js';
@@ -39,6 +40,12 @@ import { isPollClosedOrExpired } from '@/features/polls/ui/render-helpers.js';
 import { resolveQuizQuestions } from '@/features/polls/core/types.js';
 import { buildQuizVotingMessage, getFirstIncompleteQuizQuestionIndex, upsertQuizAnswer } from '@/features/polls/ui/quiz-voting.js';
 
+const refreshPollAfterVote = (client: Client, pollId: string): void => {
+  void refreshPollMessage(client, pollId).catch((error: unknown) => {
+    logger.error({ err: error, pollId }, 'Failed to refresh poll after vote');
+  });
+};
+
 export const handlePollVoteSelect = async (
   client: Client,
   interaction: StringSelectMenuInteraction,
@@ -67,12 +74,11 @@ export const handlePollVoteSelect = async (
     selectedOptionIds: nextSelections,
     allowTextClear: true,
   });
-  await refreshPollMessage(client, pollId);
-
   await interaction.editReply({
     embeds: [buildFeedbackEmbed('Vote Recorded', 'Your vote has been updated.')],
     components: [buildRationalePromptRow(pollId)],
   });
+  refreshPollAfterVote(client, pollId);
 };
 
 export const handlePollChoiceButton = async (
@@ -100,7 +106,6 @@ export const handlePollChoiceButton = async (
   const nextOptionIds = resolveSingleSelectVoteToggle(currentOptionIds, optionId);
 
   await setPollVotes(pollId, interaction.user.id, nextOptionIds);
-  await refreshPollMessage(client, pollId);
   await interaction.editReply({
     embeds: [
       buildFeedbackEmbed(
@@ -110,6 +115,7 @@ export const handlePollChoiceButton = async (
     ],
     components: nextOptionIds.length === 0 ? [] : [buildRationalePromptRow(pollId)],
   });
+  refreshPollAfterVote(client, pollId);
 };
 
 const buildPollResponseModal = (
@@ -200,7 +206,6 @@ export const handlePollResponseModal = async (
     });
   }
 
-  await refreshPollMessage(client, pollId);
   await interaction.editReply({
     embeds: [
       buildFeedbackEmbed(
@@ -210,6 +215,7 @@ export const handlePollResponseModal = async (
     ],
     components: responseText ? [buildRationalePromptRow(pollId)] : [],
   });
+  refreshPollAfterVote(client, pollId);
 };
 
 const getValidatedQuizPoll = async (
@@ -440,11 +446,11 @@ export const handlePollQuizNavButton = async (
       return;
     }
 
-    await refreshPollMessage(client, pollId);
     await interaction.update({
       embeds: [buildFeedbackEmbed('Quiz Submitted', 'Your quiz answers have been recorded.')],
       components: [buildRationalePromptRow(pollId)],
     });
+    refreshPollAfterVote(client, pollId);
     return;
   }
 
@@ -582,8 +588,8 @@ export const handlePollRankClearButton = async (
   await getValidatedRankedPoll(pollId, { requireOpen: true });
   await savePollRankDraft(redis, pollId, interaction.user.id, []);
   await clearPollVotes(pollId, interaction.user.id);
-  await refreshPollMessage(client, pollId);
   await updateRankedChoiceEditor(interaction, pollId);
+  refreshPollAfterVote(client, pollId);
 };
 
 const getValidatedTierPoll = async (
@@ -672,13 +678,12 @@ export const handlePollTierSelect = async (
     await setPollTierVote(pollId, interaction.user.id, optionId, tierRank);
   }
 
-  await refreshPollMessage(client, pollId);
-
   const updatedPoll = await getValidatedTierPoll(pollId);
   const assignments = getPollTierAssignmentsForUser(updatedPoll, interaction.user.id);
   await interaction.update(
     buildTierVotingMessage(updatedPoll, assignments, isPollClosedOrExpired(updatedPoll), optionId),
   );
+  refreshPollAfterVote(client, pollId);
 };
 
 export const handlePollTierClearButton = async (
@@ -694,12 +699,11 @@ export const handlePollTierClearButton = async (
   await assertUserCanVoteInPoll(client, poll, interaction.user.id);
 
   await clearTierPollVotes(pollId, interaction.user.id);
-  await refreshPollMessage(client, pollId);
-
   const updatedPoll = await getValidatedTierPoll(pollId);
   await interaction.update(
     buildTierVotingMessage(updatedPoll, new Map(), isPollClosedOrExpired(updatedPoll)),
   );
+  refreshPollAfterVote(client, pollId);
 };
 
 export const handlePollRankSubmitButton = async (
@@ -722,9 +726,9 @@ export const handlePollRankSubmitButton = async (
 
   await setPollVotes(pollId, interaction.user.id, ranking);
   await deletePollRankDraft(redis, pollId, interaction.user.id);
-  await refreshPollMessage(client, pollId);
   await interaction.update({
     embeds: [buildFeedbackEmbed('Ranked Ballot Recorded', 'Your ranked ballot has been updated.')],
     components: [buildRationalePromptRow(pollId)],
   });
+  refreshPollAfterVote(client, pollId);
 };

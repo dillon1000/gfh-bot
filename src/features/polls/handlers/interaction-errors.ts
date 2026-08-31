@@ -23,7 +23,11 @@ export const handlePollInteractionError = async (
   const message = error instanceof Error ? error.message : 'Something went wrong.';
 
   if (interaction.isRepliable()) {
-    if (interaction.replied || interaction.deferred) {
+    if (interaction.deferred) {
+      await interaction.editReply({
+        embeds: [buildFeedbackEmbed('Poll Error', message, 0xef4444)],
+      }).catch(() => undefined);
+    } else if (interaction.replied) {
       await interaction.followUp({
         flags: MessageFlags.Ephemeral,
         embeds: [buildFeedbackEmbed('Poll Error', message, 0xef4444)],
