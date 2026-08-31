@@ -1,4 +1,7 @@
 import { createHmac, randomUUID } from 'node:crypto';
+import { mkdtemp, open, rm, type FileHandle } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
   MessageFlags,
@@ -18,7 +21,7 @@ import type {
 import { hashRationaleUser } from '@/features/polls/services/rationales.js';
 import { prisma } from '@/lib/prisma.js';
 import { dataExportQueue } from '@/lib/queue.js';
-import { isR2Configured, uploadPrivateJsonToR2 } from '@/lib/r2.js';
+import { isR2Configured, uploadPrivateJsonFileToR2 } from '@/lib/r2.js';
 import { redis } from '@/lib/redis.js';
 
 export const requestDataCommand = new SlashCommandBuilder()
@@ -37,6 +40,9 @@ const passportCompletionResponseSchema = z.object({
 const dataExportSource = 'gfh-bot';
 const dataExportSourceLabel = 'GFH Bot';
 const dataExportLinkLifetimeMs = 24 * 60 * 60 * 1_000;
+// Small batches and one-megabyte write chunks bound export memory on low-cost hosts.
+const dataExportQueryBatchSize = 500;
+const dataExportWriteChunkCharacters = 1_000_000;
 // BullMQ accepts 1 through 2^21, with larger numbers processed after smaller priorities.
 export const dataExportQueuePriority = 2_097_152;
 
@@ -226,195 +232,193 @@ const findTransientUserData = async (userId: string): Promise<TransientUserRecor
   return records.sort((left, right) => left.key.localeCompare(right.key));
 };
 
-const findEmbeddedUserData = async (userId: string): Promise<{
-  auditLogEntries: Array<Omit<GuildEventLogEntry, 'payload'> & { payload: unknown }>;
-  casinoTableHands: Array<Omit<CasinoTableHand, 'snapshot'> & { snapshot: unknown }>;
-  pollInfluenceSnapshots: Array<
-    Omit<PollInfluenceSnapshot, 'earlyVoters' | 'voterTimeline'> & {
-      earlyVoters: unknown;
-      voterTimeline: unknown;
-    }
-  >;
-}> => {
-  const variables = { userId };
-  const [auditLogEntries, casinoTableHands, pollInfluenceSnapshots] = await Promise.all([
-    prisma.$queryRaw<GuildEventLogEntry[]>`
-      SELECT * FROM "GuildEventLogEntry"
-      WHERE jsonb_path_exists(
-        "payload",
-        '$.** ? (@ == $userId)',
-        ${JSON.stringify(variables)}::jsonb
-      )
-      ORDER BY "occurredAt" ASC
-    `,
-    prisma.$queryRaw<CasinoTableHand[]>`
-      SELECT * FROM "CasinoTableHand"
-      WHERE jsonb_path_exists(
-        "snapshot",
-        '$.** ? (@ == $userId)',
-        ${JSON.stringify(variables)}::jsonb
-      )
-      ORDER BY "startedAt" ASC
-    `,
-    prisma.$queryRaw<PollInfluenceSnapshot[]>`
-      SELECT * FROM "PollInfluenceSnapshot"
-      WHERE jsonb_path_exists(
-        "earlyVoters",
-        '$.** ? (@ == $userId)',
-        ${JSON.stringify(variables)}::jsonb
-      ) OR jsonb_path_exists(
-        "voterTimeline",
-        '$.** ? (@ == $userId)',
-        ${JSON.stringify(variables)}::jsonb
-      )
-      ORDER BY "computedAt" ASC
-    `,
-  ]);
+/** Appends JSON array records in bounded chunks and returns whether the array has content. */
+export const appendJsonRecords = async (
+  file: FileHandle,
+  records: readonly unknown[],
+  hasPreviousRecord = false,
+): Promise<boolean> => {
+  let chunk = '';
 
-  return {
-    auditLogEntries: auditLogEntries.map(({ payload, ...entry }) => ({
-      ...entry,
-      payload: filterPersonalJson(payload, userId),
-    })),
-    casinoTableHands: casinoTableHands.map(({ snapshot, ...hand }) => ({
-      ...hand,
-      snapshot: filterPersonalJson(snapshot, userId),
-    })),
-    pollInfluenceSnapshots: pollInfluenceSnapshots.map(
-      ({ earlyVoters, voterTimeline, ...snapshot }) => ({
-        ...snapshot,
-        earlyVoters: filterPersonalJson(earlyVoters, userId),
-        voterTimeline: filterPersonalJson(voterTimeline, userId),
-      }),
-    ),
-  };
+  for (const record of records) {
+    const serialized = JSON.stringify(record);
+    if (serialized === undefined) {
+      throw new TypeError('Data export records must be JSON serializable.');
+    }
+
+    const entry = `${hasPreviousRecord ? ',' : ''}${serialized}`;
+    if (chunk && chunk.length + entry.length > dataExportWriteChunkCharacters) {
+      await file.writeFile(chunk);
+      chunk = '';
+    }
+    chunk += entry;
+    hasPreviousRecord = true;
+  }
+
+  if (chunk) {
+    await file.writeFile(chunk);
+  }
+  return hasPreviousRecord;
+};
+
+type ExportAuditLogEntry = Omit<GuildEventLogEntry, 'payload'> & { payload: unknown };
+type AuditLogCursor = Pick<GuildEventLogEntry, 'id' | 'occurredAt'>;
+
+/** Reads one stable page of matching audit events for the streaming export writer. */
+const findAuditLogBatch = async (
+  userId: string,
+  cursor?: AuditLogCursor,
+): Promise<ExportAuditLogEntry[]> => {
+  const variables = JSON.stringify({ userId });
+  const entries = cursor
+    ? await prisma.$queryRaw<GuildEventLogEntry[]>`
+        SELECT * FROM "GuildEventLogEntry"
+        WHERE jsonb_path_exists("payload", '$.** ? (@ == $userId)', ${variables}::jsonb)
+          AND ("occurredAt", "id") > (${cursor.occurredAt}, ${cursor.id})
+        ORDER BY "occurredAt" ASC, "id" ASC
+        LIMIT ${dataExportQueryBatchSize}
+      `
+    : await prisma.$queryRaw<GuildEventLogEntry[]>`
+        SELECT * FROM "GuildEventLogEntry"
+        WHERE jsonb_path_exists("payload", '$.** ? (@ == $userId)', ${variables}::jsonb)
+        ORDER BY "occurredAt" ASC, "id" ASC
+        LIMIT ${dataExportQueryBatchSize}
+      `;
+
+  return entries.map(({ payload, ...entry }) => ({
+    ...entry,
+    payload: filterPersonalJson(payload, userId),
+  }));
+};
+
+const findCasinoTableHands = async (userId: string) => {
+  const variables = JSON.stringify({ userId });
+  const hands = await prisma.$queryRaw<CasinoTableHand[]>`
+    SELECT * FROM "CasinoTableHand"
+    WHERE jsonb_path_exists("snapshot", '$.** ? (@ == $userId)', ${variables}::jsonb)
+    ORDER BY "startedAt" ASC
+  `;
+  return hands.map(({ snapshot, ...hand }) => ({
+    ...hand,
+    snapshot: filterPersonalJson(snapshot, userId),
+  }));
+};
+
+const findPollInfluenceSnapshots = async (userId: string) => {
+  const variables = JSON.stringify({ userId });
+  const snapshots = await prisma.$queryRaw<PollInfluenceSnapshot[]>`
+    SELECT * FROM "PollInfluenceSnapshot"
+    WHERE jsonb_path_exists("earlyVoters", '$.** ? (@ == $userId)', ${variables}::jsonb)
+      OR jsonb_path_exists("voterTimeline", '$.** ? (@ == $userId)', ${variables}::jsonb)
+    ORDER BY "computedAt" ASC
+  `;
+  return snapshots.map(({ earlyVoters, voterTimeline, ...snapshot }) => ({
+    ...snapshot,
+    earlyVoters: filterPersonalJson(earlyVoters, userId),
+    voterTimeline: filterPersonalJson(voterTimeline, userId),
+  }));
 };
 
 /**
- * Collects durable records associated with a Discord user across all guilds.
- * The function reads only; a database or serialization failure rejects the export without uploading partial data.
+ * Writes durable and transient user records to disk one section at a time.
+ * Database, serialization, and filesystem failures reject the export before upload.
  */
-export const buildUserDataExport = async (userId: string): Promise<Record<string, unknown>> => {
-  const pollGuilds = await prisma.poll.findMany({
-    distinct: ['guildId'],
-    select: { guildId: true },
-  });
-  const rationaleHashes = pollGuilds.map(({ guildId }) => hashRationaleUser(guildId, userId));
+export const writeUserDataExport = async (userId: string, filePath: string): Promise<void> => {
+  const file = await open(filePath, 'w');
+  let firstSection = true;
 
-  const [
-    polls,
-    pollVotes,
-    pollVoteEvents,
-    starboardEntries,
-    starboardReactions,
-    reactionRolePanels,
-    removalVoteRequests,
-    removalVoteSupports,
-    markets,
-    marketActionReceipts,
-    marketForecastRecords,
-    marketOutcomes,
-    marketTrades,
-    marketLossProtections,
-    marketPositions,
-    marketAccounts,
-    casinoRoundRecords,
-    casinoTables,
-    casinoTableSeats,
-    casinoTableActions,
-    casinoUserStats,
-    pollRationales,
-    pollRationaleVotes,
-    userVotingProfiles,
-    guildCoVoteEdges,
-    guildMessageSnapshots,
-    embedded,
-    transientRedisRecords,
-  ] = await Promise.all([
-    prisma.poll.findMany({ where: { authorId: userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.pollVote.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.pollVoteEvent.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.starboardEntry.findMany({ where: { authorId: userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.starboardReaction.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.reactionRolePanel.findMany({ where: { createdById: userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.removalVoteRequest.findMany({ where: { targetUserId: userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.removalVoteSupport.findMany({ where: { supporterId: userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.market.findMany({
-      where: { OR: [{ creatorId: userId }, { resolvedByUserId: userId }] },
-      orderBy: { createdAt: 'asc' },
-    }),
-    prisma.marketActionReceipt.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.marketForecastRecord.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.marketOutcome.findMany({ where: { resolvedByUserId: userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.marketTrade.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.marketLossProtection.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.marketPosition.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.marketAccount.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.casinoRoundRecord.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.casinoTable.findMany({
+  const startSection = async (name: string) => {
+    await file.writeFile(`${firstSection ? '' : ','}${JSON.stringify(name)}:[`);
+    firstSection = false;
+  };
+  const writeSection = async (name: string, records: readonly unknown[]) => {
+    await startSection(name);
+    await appendJsonRecords(file, records);
+    await file.writeFile(']');
+  };
+
+  try {
+    await file.writeFile(
+      `{"generatedAt":${JSON.stringify(new Date().toISOString())},"userId":${JSON.stringify(userId)},"records":{`,
+    );
+
+    const pollGuilds = await prisma.poll.findMany({
+      distinct: ['guildId'],
+      select: { guildId: true },
+    });
+    const rationaleHashes = pollGuilds.map(({ guildId }) => hashRationaleUser(guildId, userId));
+
+    await writeSection('polls', await prisma.poll.findMany({ where: { authorId: userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('pollVotes', await prisma.pollVote.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('pollVoteEvents', await prisma.pollVoteEvent.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('pollRationales', await prisma.pollRationale.findMany({ where: { userIdHash: { in: rationaleHashes } }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('pollRationaleVotes', await prisma.pollRationaleVote.findMany({ where: { voterIdHash: { in: rationaleHashes } }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('userVotingProfiles', await prisma.userVotingProfile.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('pollInfluenceSnapshots', await findPollInfluenceSnapshots(userId));
+    await writeSection('guildCoVoteEdges', await prisma.guildCoVoteEdge.findMany({ where: { OR: [{ userIdA: userId }, { userIdB: userId }] }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('starboardEntries', await prisma.starboardEntry.findMany({ where: { authorId: userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('starboardReactions', await prisma.starboardReaction.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('reactionRolePanels', await prisma.reactionRolePanel.findMany({ where: { createdById: userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('removalVoteRequests', await prisma.removalVoteRequest.findMany({ where: { targetUserId: userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('removalVoteSupports', await prisma.removalVoteSupport.findMany({ where: { supporterId: userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('markets', await prisma.market.findMany({ where: { OR: [{ creatorId: userId }, { resolvedByUserId: userId }] }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('marketActionReceipts', await prisma.marketActionReceipt.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('marketForecastRecords', await prisma.marketForecastRecord.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('marketOutcomes', await prisma.marketOutcome.findMany({ where: { resolvedByUserId: userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('marketTrades', await prisma.marketTrade.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('marketLossProtections', await prisma.marketLossProtection.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('marketPositions', await prisma.marketPosition.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('marketAccounts', await prisma.marketAccount.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('casinoRoundRecords', await prisma.casinoRoundRecord.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }));
+
+    const casinoTables = await prisma.casinoTable.findMany({
       where: { OR: [{ hostUserId: userId }, { seats: { some: { userId } } }] },
       orderBy: { createdAt: 'asc' },
-    }),
-    prisma.casinoTableSeat.findMany({ where: { userId }, orderBy: { joinedAt: 'asc' } }),
-    prisma.casinoTableAction.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.casinoUserStat.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.pollRationale.findMany({
-      where: { userIdHash: { in: rationaleHashes } },
-      orderBy: { createdAt: 'asc' },
-    }),
-    prisma.pollRationaleVote.findMany({
-      where: { voterIdHash: { in: rationaleHashes } },
-      orderBy: { createdAt: 'asc' },
-    }),
-    prisma.userVotingProfile.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
-    prisma.guildCoVoteEdge.findMany({
-      where: { OR: [{ userIdA: userId }, { userIdB: userId }] },
-      orderBy: { createdAt: 'asc' },
-    }),
-    prisma.guildMessageSnapshot.findMany({ where: { authorId: userId }, orderBy: { createdAt: 'asc' } }),
-    findEmbeddedUserData(userId),
-    findTransientUserData(userId),
-  ]);
+    });
+    await writeSection('casinoTables', casinoTables.map(({ state, ...table }) => ({
+      ...table,
+      state: filterPersonalJson(state, userId),
+    })));
+    await writeSection('casinoTableSeats', await prisma.casinoTableSeat.findMany({ where: { userId }, orderBy: { joinedAt: 'asc' } }));
+    await writeSection('casinoTableHands', await findCasinoTableHands(userId));
+    await writeSection('casinoTableActions', await prisma.casinoTableAction.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }));
+    await writeSection('casinoUserStats', await prisma.casinoUserStat.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }));
 
-  return {
-    generatedAt: new Date().toISOString(),
-    userId,
-    records: {
-      polls,
-      pollVotes,
-      pollVoteEvents,
-      pollRationales,
-      pollRationaleVotes,
-      userVotingProfiles,
-      pollInfluenceSnapshots: embedded.pollInfluenceSnapshots,
-      guildCoVoteEdges,
-      starboardEntries,
-      starboardReactions,
-      reactionRolePanels,
-      removalVoteRequests,
-      removalVoteSupports,
-      markets,
-      marketActionReceipts,
-      marketForecastRecords,
-      marketOutcomes,
-      marketTrades,
-      marketLossProtections,
-      marketPositions,
-      marketAccounts,
-      casinoRoundRecords,
-      casinoTables: casinoTables.map(({ state, ...table }) => ({
-        ...table,
-        state: filterPersonalJson(state, userId),
-      })),
-      casinoTableSeats,
-      casinoTableHands: embedded.casinoTableHands,
-      casinoTableActions,
-      casinoUserStats,
-      guildMessageSnapshots,
-      auditLogEntries: embedded.auditLogEntries,
-      transientRedisRecords,
-    },
-  };
+    await startSection('guildMessageSnapshots');
+    let messageCursor: string | undefined;
+    let hasMessage = false;
+    while (true) {
+      const messages = await prisma.guildMessageSnapshot.findMany({
+        where: { authorId: userId },
+        orderBy: { messageId: 'asc' },
+        take: dataExportQueryBatchSize,
+        ...(messageCursor ? { cursor: { messageId: messageCursor }, skip: 1 } : {}),
+      });
+      if (messages.length === 0) break;
+      hasMessage = await appendJsonRecords(file, messages, hasMessage);
+      messageCursor = messages.at(-1)?.messageId;
+      if (messages.length < dataExportQueryBatchSize) break;
+    }
+    await file.writeFile(']');
+
+    await startSection('auditLogEntries');
+    let auditCursor: AuditLogCursor | undefined;
+    let hasAuditEntry = false;
+    while (true) {
+      const entries = await findAuditLogBatch(userId, auditCursor);
+      if (entries.length === 0) break;
+      hasAuditEntry = await appendJsonRecords(file, entries, hasAuditEntry);
+      const lastEntry = entries.at(-1);
+      auditCursor = lastEntry ? { id: lastEntry.id, occurredAt: lastEntry.occurredAt } : undefined;
+      if (entries.length < dataExportQueryBatchSize) break;
+    }
+    await file.writeFile(']');
+
+    await writeSection('transientRedisRecords', await findTransientUserData(userId));
+    await file.writeFile('}}');
+  } finally {
+    await file.close();
+  }
 };
 
 /**
@@ -455,15 +459,18 @@ export const handleRequestDataCommand = async (
 /** Builds one queued export and sends its completion message to the Discord user. */
 export const processUserDataExport = async (client: Client, userId: string): Promise<void> => {
   const user = await client.users.fetch(userId);
+  let exportDirectory: string | undefined;
   try {
     if (!isR2Configured()) {
       throw new Error('Private data export storage is not configured.');
     }
     const fileName = `gfh-data-${userId}.json`;
-    const data = await buildUserDataExport(userId);
-    const url = await uploadPrivateJsonToR2(
+    exportDirectory = await mkdtemp(join(tmpdir(), 'gfh-data-export-'));
+    const filePath = join(exportDirectory, fileName);
+    await writeUserDataExport(userId, filePath);
+    const url = await uploadPrivateJsonFileToR2(
       `data-exports/${userId}.json`,
-      JSON.stringify(data, null, 2),
+      filePath,
       fileName,
     );
     const completedAt = new Date();
@@ -490,5 +497,9 @@ export const processUserDataExport = async (client: Client, userId: string): Pro
       logger.warn({ err: dmError, userId }, 'Could not DM user after data export failure');
     });
     throw error;
+  } finally {
+    if (exportDirectory) {
+      await rm(exportDirectory, { recursive: true, force: true });
+    }
   }
 };

@@ -1,6 +1,11 @@
+import { mkdtemp, open, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
+  appendJsonRecords,
   filterPersonalJson,
   isPersonalRedisRecord,
   dataExportQueuePriority,
@@ -42,5 +47,27 @@ describe('requestDataCommand', () => {
 
   it('uses BullMQ lowest priority for data export jobs', () => {
     expect(dataExportQueuePriority).toBe(2 ** 21);
+  });
+
+  it('appends valid JSON records across streamed batches', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'gfh-data-export-test-'));
+    const filePath = join(directory, 'records.json');
+    const file = await open(filePath, 'w');
+
+    try {
+      await file.writeFile('[');
+      const hasRecords = await appendJsonRecords(file, [{ id: 'one' }]);
+      await appendJsonRecords(file, [{ id: 'two', content: 'hello, world' }], hasRecords);
+      await file.writeFile(']');
+      await file.close();
+
+      expect(JSON.parse(await readFile(filePath, 'utf8'))).toEqual([
+        { id: 'one' },
+        { id: 'two', content: 'hello, world' },
+      ]);
+    } finally {
+      await file.close().catch(() => undefined);
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });
