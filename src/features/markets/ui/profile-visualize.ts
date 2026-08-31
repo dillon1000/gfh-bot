@@ -22,6 +22,7 @@ import {
 
 import type { MarketForecastProfileDetails } from '@/features/markets/core/types.js';
 import { formatBrier, formatMoney } from '@/features/markets/ui/render/shared.js';
+import { setBoundedCacheEntry } from '@/lib/bounded-cache.js';
 
 const width = 1320;
 const height = 1280;
@@ -62,6 +63,7 @@ const iconNames = {
 } as const;
 
 const imageCache = new Map<string, Promise<LoadedImage | null>>();
+const maxCachedImages = 100;
 
 const compactDateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
@@ -233,7 +235,7 @@ const loadTablerIcon = async (
       .replaceAll('currentColor', tint))
     .then((svg) => loadImage(Buffer.from(svg)));
 
-  imageCache.set(cacheKey, pending);
+  setBoundedCacheEntry(imageCache, cacheKey, pending, maxCachedImages);
   return pending;
 };
 
@@ -256,7 +258,7 @@ const loadAvatarImage = async (
     })
     .catch(() => null);
 
-  imageCache.set(avatarUrl, pending);
+  setBoundedCacheEntry(imageCache, avatarUrl, pending, maxCachedImages);
   return pending;
 };
 

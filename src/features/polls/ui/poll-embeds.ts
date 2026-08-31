@@ -408,7 +408,7 @@ export function buildPollResultsEmbed(
     );
 
     if (revealRankedResults) {
-      for (const round of results.rounds) {
+      for (const round of results.rounds.slice(0, 25)) {
         embed.addFields({
           name: `Round ${round.round}`,
           value: clampFieldValue([
@@ -449,7 +449,7 @@ export function buildPollResultsEmbed(
         .join('\n'),
     );
 
-    for (const item of ranked) {
+    for (const item of ranked.slice(0, unranked.length > 0 ? 24 : 25)) {
       const distribution = Object.entries(item.tierDistribution)
         .filter(([, count]) => count > 0)
         .map(([tier, count]) => `${tier}: ${count}`)
@@ -492,7 +492,7 @@ export function buildPollResultsEmbed(
         .join('\n'),
     );
 
-    for (const [index, question] of results.questions.entries()) {
+    for (const [index, question] of results.questions.slice(0, 25).entries()) {
       const value = question.choices.length > 0
         ? question.choices.map((choice, choiceIndex) => renderPollChoiceLine(choice, choiceIndex)).join('\n')
         : question.textAnswers.length === 0
@@ -531,7 +531,7 @@ export function buildPollResultsEmbed(
       .join('\n'),
   );
 
-  for (const [index, choice] of results.choices.entries()) {
+  for (const [index, choice] of results.choices.slice(0, 25).entries()) {
     const voterMentions = poll.anonymous
       ? null
       : (votersByOption.get(choice.id) ?? []).join(', ') || 'No votes yet';
