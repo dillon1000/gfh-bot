@@ -44,9 +44,6 @@ const buildVoterMentionsByChoice = (
   return votersByOption;
 };
 
-const buildUniqueVoterMentions = (poll: PollWithRelations): string[] =>
-  [...new Set(poll.votes.map((vote) => vote.userId))].map((userId) => `<@${userId}>`);
-
 const renderPollChoiceLine = (choice: PollComputedResults['choices'][number], index: number): string =>
   renderChoiceLine(choice, index, renderPollBar, getPollChoiceEmojiDisplay);
 
@@ -364,7 +361,6 @@ export function buildPollResultsEmbed(
     : createFallbackPollSnapshot(snapshotOrPoll, providedResults);
   const { poll, evaluatedPoll, results, outcome } = snapshot;
   const votersByOption = buildVoterMentionsByChoice(evaluatedPoll, results);
-  const uniqueVoterMentions = buildUniqueVoterMentions(evaluatedPoll);
   const revealRankedResults = shouldRevealRankedResults(poll);
   const hiddenReason = getPollResultsHiddenReason(poll);
   const embed = new EmbedBuilder()
@@ -406,7 +402,7 @@ export function buildPollResultsEmbed(
               : `Outcome: ${results.status === 'tied' ? 'Tied / inconclusive' : 'No winner yet'}`
           : 'Round-by-round ranked results stay hidden until voting closes.',
         poll.anonymous
-          ? 'Anonymous poll: voters may be listed overall, but ballot rankings stay private.'
+          ? 'Anonymous poll: participant identities and ballot rankings stay private.'
           : 'Non-anonymous poll: ordered ballot changes are available in audit history.',
       ].join('\n'),
     );
@@ -422,13 +418,6 @@ export function buildPollResultsEmbed(
           ].join('\n')),
         });
       }
-    }
-
-    if (poll.anonymous) {
-      embed.addFields({
-        name: 'Voters',
-        value: uniqueVoterMentions.join(', ') || 'No ballots yet',
-      });
     }
 
     return embed;
@@ -453,7 +442,7 @@ export function buildPollResultsEmbed(
           ? `Top: ${outcome.topItemLabel} (${outcome.topTier ?? '?'})`
           : null,
         poll.anonymous
-          ? 'Anonymous poll: voter identities are shown below, but individual rankings remain private.'
+          ? 'Anonymous poll: participant identities and individual rankings stay private.'
           : 'Non-anonymous poll: voter identities are shown below.',
       ]
         .filter(Boolean)
@@ -479,13 +468,6 @@ export function buildPollResultsEmbed(
       embed.addFields({
         name: 'Unranked',
         value: clampFieldValue(unranked.map((item) => `· ${item.label}`).join('\n')),
-      });
-    }
-
-    if (poll.anonymous) {
-      embed.addFields({
-        name: 'Voters',
-        value: uniqueVoterMentions.join(', ') || 'No rankings yet',
       });
     }
 
@@ -542,7 +524,7 @@ export function buildPollResultsEmbed(
       outcome.kind === 'standard' && outcome.status === 'quorum-failed' ? 'Outcome: Quorum not met' : null,
       outcome.kind === 'freeform' && outcome.status === 'quorum-failed' ? 'Outcome: Quorum not met' : null,
       poll.anonymous
-        ? `Anonymous poll: voter identities are shown below, but ${results.kind === 'freeform' ? 'individual responses remain unattributed.' : 'option selections remain private.'}`
+        ? `Anonymous poll: participant identities and ${results.kind === 'freeform' ? 'individual responses' : 'option selections'} stay private.`
         : 'Non-anonymous poll: voter identities are shown below.',
     ]
       .filter(Boolean)
@@ -572,13 +554,6 @@ export function buildPollResultsEmbed(
     embed.addFields({
       name: 'Responses',
       value: 'No responses yet.',
-    });
-  }
-
-  if (poll.anonymous) {
-    embed.addFields({
-      name: 'Voters',
-      value: uniqueVoterMentions.join(', ') || 'No ballots yet',
     });
   }
 

@@ -30,6 +30,7 @@ export const computeGuildBellwethers = async (
     where: {
       guildId,
       closedAt: { not: null },
+      anonymous: false,
       ...(since ? { closesAt: { gte: since } } : {}),
     },
     select: { id: true, createdAt: true, closesAt: true, closedAt: true },
@@ -155,9 +156,9 @@ export const computePollInfluenceSnapshot = async (
 ): Promise<PollInfluenceSnapshotEntry | null> => {
   const poll = await prisma.poll.findUnique({
     where: { id: pollId },
-    select: { id: true, guildId: true, createdAt: true, closesAt: true, closedAt: true },
+    select: { id: true, guildId: true, anonymous: true, createdAt: true, closesAt: true, closedAt: true },
   });
-  if (!poll) return null;
+  if (!poll || poll.anonymous) return null;
 
   const [events, finalVotes] = await Promise.all([
     prisma.pollVoteEvent.findMany({

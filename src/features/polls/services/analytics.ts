@@ -137,8 +137,10 @@ const buildVoterAndChannelActivity = (
   const channelStats = new Map<string, PollAnalyticsChannelEntry>();
 
   for (const { poll, voterIds, voterCount } of pollsWithStats) {
-    for (const userId of voterIds) {
-      participationCounts.set(userId, (participationCounts.get(userId) ?? 0) + 1);
+    if (!poll.anonymous) {
+      for (const userId of voterIds) {
+        participationCounts.set(userId, (participationCounts.get(userId) ?? 0) + 1);
+      }
     }
 
     const entry = channelStats.get(poll.channelId) ?? {

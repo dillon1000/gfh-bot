@@ -93,8 +93,12 @@ const assertPollExportAvailable = (
 };
 
 const assertPollAuditAvailable = (
-  poll: Parameters<typeof getPollResultsHiddenReason>[0],
+  poll: Parameters<typeof getPollResultsHiddenReason>[0] & { anonymous: boolean },
 ): void => {
+  if (poll.anonymous) {
+    throw new Error('Vote audit history is not available for anonymous polls.');
+  }
+
   const hiddenReason = getPollResultsHiddenReason(poll);
   if (!hiddenReason) {
     return;

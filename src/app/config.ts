@@ -58,6 +58,7 @@ const envSchema = z.object({
 		.enum(["fatal", "error", "warn", "info", "debug", "trace"])
 		.default("info"),
 	POLL_CREATION_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(10),
+	POLL_RATIONALE_SALT: optionalNonEmptyString(),
 	MEOW_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(5),
 	SEARCH_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(5),
 	MARKET_DEFAULT_TIMEZONE: z.string().min(1).default("America/Chicago"),

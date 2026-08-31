@@ -104,7 +104,7 @@ export type ArchetypeBreakdown = {
 
 export const computeGuildArchetypes = async (guildId: string): Promise<ArchetypeBreakdown[]> => {
   const polls: PollLike[] = await prisma.poll.findMany({
-    where: { guildId, closedAt: { not: null } },
+    where: { guildId, closedAt: { not: null }, anonymous: false },
     select: { id: true, guildId: true, createdAt: true, closesAt: true, closedAt: true },
   });
   if (polls.length === 0) return [];

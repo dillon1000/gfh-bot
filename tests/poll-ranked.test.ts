@@ -140,7 +140,7 @@ describe('ranked-choice poll results', () => {
     });
 
     expect(csv).toContain('round,outcome,winner');
-    expect(csv).toContain('<@user_a> | <@user_b> | <@user_c> | <@user_d>');
+    expect(csv).not.toContain('<@user_a>');
     expect(csv).not.toContain('rank_1,rank_2,rank_3');
   });
 });

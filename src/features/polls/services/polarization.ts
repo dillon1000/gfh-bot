@@ -106,7 +106,7 @@ export const computeGuildCoVoteEdges = async (
 ): Promise<FactionEdge[]> => {
   const minShared = options?.minSharedPolls ?? 2;
   const polls = await prisma.poll.findMany({
-    where: { guildId, closedAt: { not: null } },
+    where: { guildId, closedAt: { not: null }, anonymous: false },
     select: { id: true },
   });
   if (polls.length === 0) return [];

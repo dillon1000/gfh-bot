@@ -160,9 +160,9 @@ describe('buildPollAnalyticsSnapshotFromPolls', () => {
       ['poll_recent_2', 2, null],
     ]);
     expect(snapshot.mostActiveVoters).toEqual([
-      { userId: 'user_a', pollsParticipated: 3 },
+      { userId: 'user_a', pollsParticipated: 2 },
       { userId: 'user_b', pollsParticipated: 1 },
-      { userId: 'user_c', pollsParticipated: 1 },
+      { userId: 'user_d', pollsParticipated: 1 },
     ]);
     expect(snapshot.channelActivity).toEqual([
       { channelId: 'channel_alpha', pollCount: 2, participationCount: 5 },

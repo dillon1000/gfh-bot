@@ -1,8 +1,9 @@
-import { createHash } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 
+import { env } from '@/app/config.js';
 import { prisma } from '@/lib/prisma.js';
 
-const RATIONALE_SALT = process.env.POLL_RATIONALE_SALT ?? 'gfh-rationale-default-salt';
+const rationaleSecret = env.POLL_RATIONALE_SALT ?? env.DISCORD_TOKEN;
 const MAX_RATIONALE_LENGTH = 280;
 const STOP_WORDS = new Set([
   'the', 'a', 'an', 'and', 'or', 'but', 'if', 'is', 'are', 'was', 'were', 'be', 'been',
@@ -19,7 +20,7 @@ const STOP_WORDS = new Set([
 ]);
 
 export const hashRationaleUser = (guildId: string, userId: string): string =>
-  createHash('sha256').update(`${RATIONALE_SALT}:${guildId}:${userId}`).digest('hex').slice(0, 32);
+  createHmac('sha256', rationaleSecret).update(`${guildId}:${userId}`).digest('hex').slice(0, 32);
 
 export const sanitizeRationaleText = (raw: string): string => {
   const trimmed = raw.replace(/\s+/g, ' ').trim();

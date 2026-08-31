@@ -199,6 +199,8 @@ model Poll {
   votes          PollVote[]
   voteEvents     PollVoteEvent[]
   @@index([guildId, channelId])
+  @@index([guildId, createdAt])
+  @@index([guildId, channelId, createdAt])
   @@index([closesAt, closedAt])
 }
 
