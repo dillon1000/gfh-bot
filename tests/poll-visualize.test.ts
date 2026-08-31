@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { computePollOutcome, computePollResults } from '@/features/polls/core/results.js';
 import type { PollWithRelations } from '@/features/polls/core/types.js';
 import { buildPollResultDiagram, getStandardPollSummary } from '@/features/polls/ui/visualize.js';
+import { getSingleChoiceLead } from '@/features/polls/ui/visualize/standard.js';
 
 const standardPoll = {
   id: 'poll_standard_1',
@@ -89,6 +90,18 @@ const rankedPoll = {
 } satisfies PollWithRelations;
 
 describe('buildPollResultDiagram', () => {
+  it('reports the top-two margin for single-choice polls', () => {
+    const results = computePollResults(standardPoll);
+    if (results.kind !== 'standard') {
+      throw new Error('Expected standard poll results.');
+    }
+
+    expect(getSingleChoiceLead(results)).toEqual({
+      value: '33.3 pts',
+      label: 'Yes over No',
+    });
+  });
+
   it('labels open threshold polls as passing or failing in the summary', () => {
     const openPoll: PollWithRelations = {
       ...standardPoll,
@@ -112,6 +125,8 @@ describe('buildPollResultDiagram', () => {
     expect(diagram.fileName).toBe('poll-result-poll_standard_1.png');
     const buffer = diagram.attachment.attachment as Buffer;
     expect(buffer.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    expect(buffer.readUInt32BE(16)).toBe(1440);
+    expect(buffer.readUInt32BE(20)).toBe(912);
   }, 15_000);
 
   it('renders a PNG diagram for ranked polls', async () => {

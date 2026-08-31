@@ -28,6 +28,8 @@ import {
 
 const width = 1200;
 const height = 760;
+// Renders the 1200x760 layout at 1440x912; higher values increase attachment size.
+const outputScale = 1.2;
 const background = '#15181d';
 const border = '#2b313a';
 const text = '#f4f7fb';
@@ -48,6 +50,7 @@ const seriesPalette = schemeTableau10.concat([
 ]);
 
 const tablerIconNames = {
+  margin: 'chart-bar',
   voters: 'users',
   votes: 'checks',
   state: 'clock',
@@ -301,16 +304,20 @@ const isPollOpen = (
   poll: Pick<PollWithRelations, 'closedAt' | 'closesAt'>,
 ): boolean => poll.closedAt === null && poll.closesAt.getTime() > Date.now();
 
-const getLeadingStandardChoices = (
+const sortStandardChoices = (
   results: Extract<PollComputedResults, { kind: 'standard' }>,
-) => {
-  const sorted = [...results.choices].sort((left, right) => {
+) => [...results.choices].sort((left, right) => {
     if (right.votes !== left.votes) {
       return right.votes - left.votes;
     }
 
     return left.label.localeCompare(right.label);
   });
+
+const getLeadingStandardChoices = (
+  results: Extract<PollComputedResults, { kind: 'standard' }>,
+) => {
+  const sorted = sortStandardChoices(results);
   const leader = sorted[0] ?? null;
 
   if (!leader) {
@@ -480,6 +487,36 @@ const buildSnapshots = (
   return snapshots;
 };
 
+/** Returns the percentage-point gap between the top two choices. */
+export const getSingleChoiceLead = (
+  results: Extract<PollComputedResults, { kind: 'standard' }>,
+): Pick<MetadataItem, 'label' | 'value'> => {
+  if (results.totalVotes === 0) {
+    return { value: '—', label: 'No lead yet' };
+  }
+
+  const [leader, runnerUp] = sortStandardChoices(results);
+  if (!leader) {
+    return { value: '—', label: 'No lead yet' };
+  }
+
+  if (runnerUp?.votes === leader.votes) {
+    const matchup = `${leader.label} · ${runnerUp.label}`;
+    return {
+      value: 'Tied',
+      label: matchup.length <= 18 ? matchup : 'Top choices tied',
+    };
+  }
+
+  const matchup = runnerUp
+    ? `${leader.label} over ${runnerUp.label}`
+    : leader.label;
+  return {
+    value: `${(leader.percentage - (runnerUp?.percentage ?? 0)).toFixed(1)} pts`,
+    label: matchup.length <= 18 ? matchup : 'Lead over #2',
+  };
+};
+
 const buildMetadata = (
   poll: PollWithRelations,
   results: Extract<PollComputedResults, { kind: 'standard' }>,
@@ -498,6 +535,18 @@ const buildMetadata = (
   const thresholdLabel = poll.passThreshold != null
     ? `Threshold · ${truncate(poll.options[poll.passOptionIndex ?? 0]?.label ?? '', 14)}`
     : 'No threshold set';
+  const voteMetric: MetadataItem = poll.singleSelect
+    ? {
+        icon: 'margin',
+        ...getSingleChoiceLead(results),
+        accent: text,
+      }
+    : {
+        icon: 'votes',
+        value: compactNumberFormatter.format(results.totalVotes),
+        label: `Vote${results.totalVotes === 1 ? '' : 's'}`,
+        accent: text,
+      };
 
   return [
     {
@@ -506,12 +555,7 @@ const buildMetadata = (
       label: `Voter${results.totalVoters === 1 ? '' : 's'}`,
       accent: text,
     },
-    {
-      icon: 'votes',
-      value: compactNumberFormatter.format(results.totalVotes),
-      label: `Vote${results.totalVotes === 1 ? '' : 's'}`,
-      accent: text,
-    },
+    voteMetric,
     {
       icon: 'state',
       value: stateValue,
@@ -707,8 +751,9 @@ export const buildStandardPollPng = async (
   electorate?: EvaluatedPollSnapshot['electorate'],
 ): Promise<Buffer> => {
   ensurePublicSansLoaded();
-  const canvas = createCanvas(width, height);
+  const canvas = createCanvas(width * outputScale, height * outputScale);
   const context = canvas.getContext('2d');
+  context.scale(outputScale, outputScale);
   const generatedAt = new Date();
   const summary = getStandardPollSummary(poll, results, outcome, electorate);
 
@@ -746,9 +791,12 @@ export const buildStandardPollPng = async (
 
   const titleBlockHeight = 40 * titleLines.length;
   const subtitleY = 58 + titleBlockHeight;
+  const pollCounts = poll.singleSelect
+    ? `${results.totalVoters} voter${results.totalVoters === 1 ? '' : 's'} · ${poll.options.length} choice${poll.options.length === 1 ? '' : 's'}`
+    : `${results.totalVoters} voter${results.totalVoters === 1 ? '' : 's'} · ${results.totalVotes} vote${results.totalVotes === 1 ? '' : 's'}`;
   drawLabel(
     context,
-    `Standard poll · ${results.totalVoters} voter${results.totalVoters === 1 ? '' : 's'} · ${results.totalVotes} vote${results.totalVotes === 1 ? '' : 's'}`,
+    `Standard poll · ${pollCounts}`,
     68,
     subtitleY,
     {
