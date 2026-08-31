@@ -1,11 +1,34 @@
 import { randomUUID } from "node:crypto";
 
 import type { Redis } from "ioredis";
+import { z } from "zod";
 
 import type { MarketQuoteSession } from "@/features/markets/core/types.js";
 
 // Keep quote sessions short-lived so confirmations use current pricing.
 const ttlSeconds = 60 * 2;
+const quoteSessionBaseSchema = z.object({
+	sessionId: z.string().min(1),
+	userId: z.string().min(1),
+	guildId: z.string().min(1),
+	marketId: z.string().min(1),
+	marketTitle: z.string().min(1),
+	outcomeId: z.string().min(1),
+	outcomeLabel: z.string().min(1),
+	expiresAt: z.iso.datetime(),
+});
+const quoteSessionSchema = z.discriminatedUnion("kind", [
+	quoteSessionBaseSchema.extend({
+		kind: z.literal("trade"),
+		action: z.enum(["buy", "sell", "short", "cover"]),
+		amount: z.number().finite().positive(),
+		amountMode: z.enum(["points", "shares"]),
+	}).passthrough(),
+	quoteSessionBaseSchema.extend({
+		kind: z.literal("protection"),
+		targetCoverage: z.number().finite().min(0).max(1),
+	}).passthrough(),
+]);
 const getSessionKey = (sessionId: string): string =>
 	`market-quote-session:${sessionId}`;
 const wrongUserResult = "__market_quote_wrong_user__";
@@ -21,6 +44,9 @@ const claimSessionScript = `
 	redis.call("DEL", KEYS[1])
 	return value
 `;
+
+const parseSession = (value: string): MarketQuoteSession =>
+	quoteSessionSchema.parse(JSON.parse(value)) as MarketQuoteSession;
 
 export const createMarketTradeQuoteSessionId = (): string => randomUUID();
 
@@ -46,7 +72,7 @@ export const getMarketTradeQuoteSession = async (
 		return null;
 	}
 
-	return JSON.parse(value) as MarketQuoteSession;
+	return parseSession(value);
 };
 
 export const claimMarketTradeQuoteSession = async (
@@ -73,7 +99,7 @@ export const claimMarketTradeQuoteSession = async (
 		throw new Error("Quote session returned an invalid value.");
 	}
 
-	return JSON.parse(value) as MarketQuoteSession;
+	return parseSession(value);
 };
 
 export const deleteMarketTradeQuoteSession = async (

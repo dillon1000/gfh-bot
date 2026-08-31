@@ -1,10 +1,23 @@
 import { randomUUID } from "node:crypto";
 
 import type { Redis } from "ioredis";
+import { z } from "zod";
 
 import type { MarketInteractionSession } from "@/features/markets/core/types.js";
 
 const ttlSeconds = 60 * 2;
+const sessionSchema = z.object({
+	sessionId: z.string().min(1),
+	userId: z.string().min(1),
+	marketId: z.string().min(1),
+	mode: z.enum(["trade", "manage"]),
+	selectedOutcomeId: z.string().nullable(),
+	selectedAction: z.string().nullable(),
+	amountInput: z.string().nullable(),
+	targetCoverage: z.number().finite().nullable(),
+	preview: z.unknown().nullable(),
+	expiresAt: z.iso.datetime(),
+}).passthrough();
 const getSessionKey = (sessionId: string): string =>
 	`market-interaction-session:${sessionId}`;
 const wrongUserResult = "__market_interaction_wrong_user__";
@@ -20,6 +33,9 @@ const claimSessionScript = `
 	redis.call("DEL", KEYS[1])
 	return value
 `;
+
+const parseSession = (value: string): MarketInteractionSession =>
+	sessionSchema.parse(JSON.parse(value)) as MarketInteractionSession;
 
 export const createMarketInteractionSessionId = (): string => randomUUID();
 
@@ -45,7 +61,7 @@ export const getMarketInteractionSession = async (
 		return null;
 	}
 
-	return JSON.parse(value) as MarketInteractionSession;
+	return parseSession(value);
 };
 
 export const claimMarketInteractionSession = async (
@@ -72,7 +88,7 @@ export const claimMarketInteractionSession = async (
 		throw new Error("Market session returned an invalid value.");
 	}
 
-	return JSON.parse(value) as MarketInteractionSession;
+	return parseSession(value);
 };
 
 export const deleteMarketInteractionSession = async (
