@@ -553,7 +553,7 @@ const drawResultBars = (
   const rowHeight = Math.min(58, bounds.height / Math.max(1, series.length));
   const contentHeight = rowHeight * series.length;
   const startY = bounds.y + (bounds.height - contentHeight) / 2;
-  const barHeight = Math.min(20, Math.max(12, rowHeight - 16));
+  const barHeight = Math.min(28, rowHeight - 10);
 
   series.forEach((entry, index) => {
     const centerY = startY + rowHeight * (index + 0.5);
@@ -734,10 +734,6 @@ export const buildStandardPollPng = async (
 
   context.fillStyle = background;
   context.fillRect(0, 0, width, height);
-
-  context.lineWidth = 1;
-  context.strokeStyle = border;
-  context.strokeRect(28, 28, width - 56, height - 56);
 
   context.font = `700 34px ${fontStack}`;
   const titleLines = wrapText(context, poll.question, 620, 2);
