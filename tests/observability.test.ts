@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
 import { getRequestID, runInTrace } from '@/app/observability.js';
-import { addRequestIDToEmbeds } from '@/discord/observability.js';
+import { addRequestIDToEmbeds, redactDiscordRoute } from '@/discord/observability.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -48,6 +48,15 @@ describe('observability', () => {
       },
     });
     expect(body.data.embeds[0]?.footer.text).toBe('Request ID: old-id');
+  });
+
+  it('redacts credentials from Discord REST routes', () => {
+    expect(redactDiscordRoute('/interactions/123/interaction-secret/callback')).toBe(
+      '/interactions/:id/:token/callback',
+    );
+    expect(redactDiscordRoute('/webhooks/123/webhook-secret/messages/@original')).toBe(
+      '/webhooks/:id/:token/messages/@original',
+    );
   });
 
   it('streams Pino records to the configured OTLP logs endpoint', async () => {

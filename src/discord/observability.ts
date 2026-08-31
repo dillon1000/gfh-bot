@@ -90,6 +90,12 @@ export const getInteractionTraceDetails = (
   };
 };
 
+/** Replaces Discord route credentials before attributes leave the process. */
+export const redactDiscordRoute = (route: string): string =>
+  route
+    .replace(/^\/interactions\/[^/]+\/[^/]+/u, '/interactions/:id/:token')
+    .replace(/^\/webhooks\/[^/]+\/[^/?]+/u, '/webhooks/:id/:token');
+
 /** Traces all Discord REST calls and decorates every outgoing embed with its request ID. */
 export const instrumentDiscordREST = (client: Client): void => {
   if (!client.rest?.request) {
@@ -103,7 +109,7 @@ export const instrumentDiscordREST = (client: Client): void => {
       'discord.rest.request',
       {
         'http.request.method': options.method,
-        'url.route': options.fullRoute,
+        'url.route': redactDiscordRoute(options.fullRoute),
       },
       () => {
         const requestID = getRequestID();
