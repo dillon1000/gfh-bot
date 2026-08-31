@@ -1,6 +1,6 @@
 import type { PermissionsBitField } from "discord.js";
 
-import { prisma } from "@/lib/prisma.js";
+import { runSerializableTransaction } from "@/lib/run-serializable-transaction.js";
 import { ensureMarketAccountTx } from "@/features/markets/services/account.js";
 import {
 	assertCanCancelMarket,
@@ -24,7 +24,7 @@ export const cancelMarket = async (input: {
 	market: MarketWithRelations;
 	refunds: MarketCancellationRefund[];
 }> =>
-	prisma.$transaction(async (tx) => {
+	runSerializableTransaction(async (tx) => {
 		const market = await getMarketForUpdate(tx, input.marketId);
 		if (!market) {
 			throw new Error("Market not found.");

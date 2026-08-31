@@ -34,10 +34,12 @@ const {
 	notifyMarketResolved,
 	refreshMarketMessage,
 	saveMarketTradeQuoteSession,
+	claimMarketTradeQuoteSession,
 	getMarketTradeQuoteSession,
 	deleteMarketTradeQuoteSession,
 	createMarketInteractionSessionId,
 	saveMarketInteractionSession,
+	claimMarketInteractionSession,
 	getMarketInteractionSession,
 	deleteMarketInteractionSession,
 	calculateLossProtectionQuote,
@@ -79,10 +81,12 @@ const {
 	notifyMarketResolved: vi.fn(),
 	refreshMarketMessage: vi.fn(),
 	saveMarketTradeQuoteSession: vi.fn(),
+	claimMarketTradeQuoteSession: vi.fn(),
 	getMarketTradeQuoteSession: vi.fn(),
 	deleteMarketTradeQuoteSession: vi.fn(),
 	createMarketInteractionSessionId: vi.fn(() => "session_1"),
 	saveMarketInteractionSession: vi.fn(),
+	claimMarketInteractionSession: vi.fn(),
 	getMarketInteractionSession: vi.fn(),
 	deleteMarketInteractionSession: vi.fn(),
 	calculateLossProtectionQuote: vi.fn(),
@@ -172,6 +176,7 @@ vi.mock("../src/features/markets/services/trading/cancel.js", () => ({
 vi.mock("../src/features/markets/state/quote-session-store.js", () => ({
 	createMarketTradeQuoteSessionId: vi.fn(() => "quote_session_1"),
 	saveMarketTradeQuoteSession,
+	claimMarketTradeQuoteSession,
 	getMarketTradeQuoteSession,
 	deleteMarketTradeQuoteSession,
 }));
@@ -179,6 +184,7 @@ vi.mock("../src/features/markets/state/quote-session-store.js", () => ({
 vi.mock("../src/features/markets/state/interaction-session-store.js", () => ({
 	createMarketInteractionSessionId,
 	saveMarketInteractionSession,
+	claimMarketInteractionSession,
 	getMarketInteractionSession,
 	deleteMarketInteractionSession,
 }));
@@ -568,10 +574,12 @@ describe("market interactions", () => {
 		announceMarketUpdate.mockReset();
 		notifyMarketResolved.mockReset();
 		saveMarketTradeQuoteSession.mockReset();
+		claimMarketTradeQuoteSession.mockReset();
 		getMarketTradeQuoteSession.mockReset();
 		deleteMarketTradeQuoteSession.mockReset();
 		createMarketInteractionSessionId.mockReset();
 		saveMarketInteractionSession.mockReset();
+		claimMarketInteractionSession.mockReset();
 		getMarketInteractionSession.mockReset();
 		deleteMarketInteractionSession.mockReset();
 		calculateLossProtectionQuote.mockReset();
@@ -687,7 +695,7 @@ describe("market interactions", () => {
 			userId: "user_2",
 			bankroll: 1250,
 		});
-		getMarketTradeQuoteSession.mockResolvedValue({
+		claimMarketTradeQuoteSession.mockResolvedValue({
 			sessionId: "quote_session_1",
 			action: "buy",
 			guildId: "guild_1",
@@ -712,6 +720,12 @@ describe("market interactions", () => {
 			maxLossIfNotChosen: 50,
 			expiresAt: new Date("2099-03-29T01:00:00.000Z").toISOString(),
 		});
+		claimMarketInteractionSession.mockImplementation(
+			async (_redis, _sessionId, userId) => {
+				const session = await getMarketInteractionSession();
+				return session?.userId === userId ? session : null;
+			},
+		);
 		deleteMarketTradeQuoteSession.mockResolvedValue(undefined);
 		executeMarketTrade.mockResolvedValue({
 			market: baseMarket,
@@ -1335,9 +1349,10 @@ describe("market interactions", () => {
 
 		await handleMarketButton(interaction as never);
 
-		expect(getMarketTradeQuoteSession).toHaveBeenCalledWith(
+		expect(claimMarketTradeQuoteSession).toHaveBeenCalledWith(
 			{},
 			"quote_session_1",
+			"user_1",
 		);
 		expect(executeMarketTrade).toHaveBeenCalledWith({
 			marketId: "market_1",
@@ -1346,11 +1361,9 @@ describe("market interactions", () => {
 			action: "buy",
 			amount: 50,
 			amountMode: "points",
+			executionId: "quote_session_1",
 		});
-		expect(deleteMarketTradeQuoteSession).toHaveBeenCalledWith(
-			{},
-			"quote_session_1",
-		);
+		expect(deleteMarketTradeQuoteSession).not.toHaveBeenCalled();
 		expect(interaction.update).toHaveBeenCalledWith(
 			expect.objectContaining({
 				embeds: expect.any(Array),
@@ -1575,10 +1588,12 @@ describe("market interactions", () => {
 			action: "buy",
 			amount: 25,
 			amountMode: "points",
+			executionId: "session_1",
 		});
-		expect(deleteMarketInteractionSession).toHaveBeenCalledWith(
+		expect(claimMarketInteractionSession).toHaveBeenCalledWith(
 			{},
 			"session_1",
+			"user_1",
 		);
 		expect(interaction.update).toHaveBeenCalledWith(
 			expect.objectContaining({

@@ -40,7 +40,7 @@ export const createLossProtectionQuotePreview = async (input: {
     incrementalInsuredCostBasis: quote.incrementalInsuredCostBasis,
     premium: quote.premium,
     payoutIfLoses: quote.payoutIfLoses,
-    expiresAt: new Date(Date.now() + (10 * 60 * 1_000)).toISOString(),
+    expiresAt: new Date(Date.now() + (2 * 60 * 1_000)).toISOString(),
   });
 
   return buildLossProtectionQuoteMessage(sessionId, quote);

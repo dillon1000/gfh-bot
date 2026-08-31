@@ -1,6 +1,5 @@
 import type { PermissionsBitField } from "discord.js";
 
-import { prisma } from "@/lib/prisma.js";
 import { runSerializableTransaction } from "@/lib/run-serializable-transaction.js";
 import { ensureMarketAccountTx } from "@/features/markets/services/account.js";
 import { persistForecastRecordsTx } from "@/features/markets/services/forecast/records.js";
@@ -247,7 +246,7 @@ export const resolveMarket = async (input: {
 	evidenceUrl?: string | null;
 	permissions?: PermissionsBitField | Readonly<PermissionsBitField> | null;
 }): Promise<MarketResolutionResult> =>
-	prisma.$transaction(async (tx) => {
+	runSerializableTransaction(async (tx) => {
 		const resolvedAt = new Date();
 		const market = await getMarketForUpdate(tx, input.marketId);
 		if (!market) {
