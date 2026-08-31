@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { computePollOutcome, computePollResults } from '@/features/polls/core/results.js';
 import type { PollWithRelations } from '@/features/polls/core/types.js';
 import { buildPollResultDiagram, getStandardPollSummary } from '@/features/polls/ui/visualize.js';
-import { getParliamentRowSeatCounts } from '@/features/polls/ui/visualize/standard.js';
 
 const standardPoll = {
   id: 'poll_standard_1',
@@ -88,17 +87,6 @@ const rankedPoll = {
     { id: 'vote_9', pollId: 'poll_ranked_diagram_1', optionId: 'option_2', userId: 'user_c', rank: 3, createdAt: new Date('2026-03-24T00:00:00.000Z') },
   ],
 } satisfies PollWithRelations;
-
-describe('getParliamentRowSeatCounts', () => {
-  it('uses one seat per vote through 100 and a gauge above 100', () => {
-    expect(getParliamentRowSeatCounts(3)).toEqual([3]);
-
-    const fullParliament = getParliamentRowSeatCounts(100);
-    expect(fullParliament).toHaveLength(5);
-    expect(fullParliament?.reduce((total, seats) => total + seats, 0)).toBe(100);
-    expect(getParliamentRowSeatCounts(101)).toBeNull();
-  });
-});
 
 describe('buildPollResultDiagram', () => {
   it('labels open threshold polls as passing or failing in the summary', () => {

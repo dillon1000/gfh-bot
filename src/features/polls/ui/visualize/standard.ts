@@ -35,10 +35,6 @@ const muted = '#a3adba';
 const quiet = '#66707d';
 const fontFamily = 'Public Sans';
 const fontStack = `'${fontFamily}', 'DejaVu Sans', 'Noto Sans', 'Liberation Sans', sans-serif`;
-const MAX_PARLIAMENT_SEATS = 100;
-const MAX_PARLIAMENT_ROWS = 5;
-// A 32-pixel arc step keeps sparse rows compact and individual seats distinct.
-const parliamentSeatSpacing = 32;
 
 const seriesPalette = schemeTableau10.concat([
   '#7cb7ff',
@@ -80,6 +76,7 @@ type SeriesPoint = {
 type OptionSeries = {
   label: string;
   color: string;
+  votes: number;
   latestPercentage: number;
   points: SeriesPoint[];
 };
@@ -483,43 +480,6 @@ const buildSnapshots = (
   return snapshots;
 };
 
-/** Returns exact vote-seat rows through 100 votes, or null for share-gauge mode. */
-export const getParliamentRowSeatCounts = (
-  totalVotes: number,
-): number[] | null => {
-  if (totalVotes <= 0) {
-    return [];
-  }
-
-  if (totalVotes > MAX_PARLIAMENT_SEATS) {
-    return null;
-  }
-
-  const rowCount = Math.ceil(
-    totalVotes / (MAX_PARLIAMENT_SEATS / MAX_PARLIAMENT_ROWS),
-  );
-  const weights = Array.from({ length: rowCount }, (_, index) => index + 1);
-  const totalWeight = weights.reduce((total, weight) => total + weight, 0);
-  const quotas = weights.map((weight) => (weight / totalWeight) * totalVotes);
-  const seats = quotas.map(Math.floor);
-  const remainingSeats =
-    totalVotes - seats.reduce((total, count) => total + count, 0);
-  const remainderOrder = weights
-    .map((_, index) => index)
-    .sort((left, right) => {
-      const difference =
-        ((quotas[right] ?? 0) - (seats[right] ?? 0)) -
-        ((quotas[left] ?? 0) - (seats[left] ?? 0));
-      return difference || left - right;
-    });
-
-  for (const index of remainderOrder.slice(0, remainingSeats)) {
-    seats[index] = (seats[index] ?? 0) + 1;
-  }
-
-  return seats;
-};
-
 const buildMetadata = (
   poll: PollWithRelations,
   results: Extract<PollComputedResults, { kind: 'standard' }>,
@@ -580,77 +540,65 @@ const fillCircle = (
   context.fill();
 };
 
-// Angular seat order keeps each option in a contiguous parliamentary bloc.
-const drawParliamentSeats = (
-  context: SKRSContext2D,
-  bounds: ChartBounds,
-  series: OptionSeries[],
-  voteCounts: number[],
-  rowSeatCounts: number[],
-): void => {
-  const centerX = bounds.x + bounds.width / 2;
-  const outerSeatCount = rowSeatCounts.at(-1) ?? 1;
-  const outerRadius = Math.min(
-    bounds.height - 16,
-    bounds.width / 2 - 16,
-    ((outerSeatCount - 1) * parliamentSeatSpacing) / Math.PI,
-  );
-  const centerY = bounds.y + bounds.height / 2 + outerRadius / 2;
-  const positions = rowSeatCounts
-    .flatMap((seatCount) => {
-      const radius = outerRadius * (seatCount / outerSeatCount);
-      return Array.from({ length: seatCount }, (_, index) => {
-        const angle = seatCount === 1
-          ? Math.PI * 1.5
-          : Math.PI + (Math.PI * index) / (seatCount - 1);
-        return {
-          angle,
-          radius,
-          x: centerX + Math.cos(angle) * radius,
-          y: centerY + Math.sin(angle) * radius,
-        };
-      });
-    })
-    .sort((left, right) => left.angle - right.angle || right.radius - left.radius);
-  const seatColors = series.flatMap((entry, index) =>
-    Array.from({ length: voteCounts[index] ?? 0 }, () => entry.color),
-  );
-
-  positions.forEach((position, index) => {
-    fillCircle(context, position.x, position.y, 8.5, seatColors[index] ?? quiet);
-  });
-};
-
-const drawParliamentShareGauge = (
+// Capped row height centers short lists while ten-option polls use the full chart.
+const drawResultBars = (
   context: SKRSContext2D,
   bounds: ChartBounds,
   series: OptionSeries[],
 ): void => {
-  const lineWidth = 44;
-  const centerX = bounds.x + bounds.width / 2;
-  const radius = Math.min(
-    bounds.height - lineWidth - 8,
-    bounds.width / 2 - lineWidth / 2 - 16,
-  );
-  const centerY = bounds.y + bounds.height / 2 + radius / 2;
-  let startAngle = Math.PI;
+  const labelWidth = 238;
+  const valueWidth = 190;
+  const barX = bounds.x + labelWidth;
+  const barWidth = bounds.width - labelWidth - valueWidth;
+  const rowHeight = Math.min(58, bounds.height / Math.max(1, series.length));
+  const contentHeight = rowHeight * series.length;
+  const startY = bounds.y + (bounds.height - contentHeight) / 2;
+  const barHeight = Math.min(20, Math.max(12, rowHeight - 16));
 
-  context.save();
-  context.lineCap = 'butt';
-  context.lineWidth = lineWidth;
   series.forEach((entry, index) => {
-    const endAngle = index === series.length - 1
-      ? Math.PI * 2
-      : Math.min(Math.PI * 2, startAngle + entry.latestPercentage * Math.PI);
-    if (endAngle > startAngle) {
-      context.beginPath();
-      context.strokeStyle = entry.color;
-      context.arc(centerX, centerY, radius, startAngle, endAngle);
-      context.stroke();
+    const centerY = startY + rowHeight * (index + 0.5);
+    context.font = `500 16px ${fontStack}`;
+    const label = truncateToWidth(
+      context,
+      entry.label,
+      labelWidth - 20,
+    );
+    drawLabel(context, label, bounds.x, centerY, {
+      font: `500 16px ${fontStack}`,
+      color: text,
+      baseline: 'middle',
+    });
+
+    context.fillStyle = border;
+    context.fillRect(
+      barX,
+      centerY - barHeight / 2,
+      barWidth,
+      barHeight,
+    );
+    if (entry.latestPercentage > 0) {
+      context.fillStyle = entry.color;
+      context.fillRect(
+        barX,
+        centerY - barHeight / 2,
+        Math.max(5, barWidth * entry.latestPercentage),
+        barHeight,
+      );
     }
-    startAngle = endAngle;
+
+    drawLabel(
+      context,
+      `${entry.votes.toLocaleString('en-US')} vote${entry.votes === 1 ? '' : 's'} · ${formatPercent(entry.latestPercentage * 100)}`,
+      bounds.x + bounds.width,
+      centerY,
+      {
+        font: `700 14px ${fontStack}`,
+        color: muted,
+        align: 'right',
+        baseline: 'middle',
+      },
+    );
   });
-  context.restore();
 };
 
 const drawSparkline = (
@@ -728,61 +676,6 @@ const drawMetadataItem = async (
   });
 };
 
-const drawLegend = (
-  context: SKRSContext2D,
-  series: OptionSeries[],
-  x: number,
-  y: number,
-  maxWidth: number,
-): void => {
-  const columns = series.length > 3 ? 2 : Math.max(1, series.length);
-  const columnGap = 18;
-  const itemWidth = Math.floor(
-    (maxWidth - columnGap * (columns - 1)) / columns,
-  );
-  const rowHeight = 22;
-
-  series.forEach((entry, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    const itemX = x + column * (itemWidth + columnGap);
-    const itemY = y + row * rowHeight;
-
-    context.strokeStyle = entry.color;
-    context.lineWidth = 3;
-    context.beginPath();
-    context.moveTo(itemX, itemY + 9);
-    context.lineTo(itemX + 18, itemY + 9);
-    context.stroke();
-    fillCircle(context, itemX + 9, itemY + 9, 4, entry.color);
-
-    const labelX = itemX + 28;
-    const labelY = itemY + 14;
-    context.font = `700 14px ${fontStack}`;
-    const value = `${(entry.latestPercentage * 100).toFixed(1)}%`;
-    const valueWidth = context.measureText(value).width;
-    const label = truncateToWidth(
-      context,
-      entry.label,
-      Math.max(46, itemWidth - 44 - valueWidth - 8),
-    );
-    drawLabel(context, label, labelX, labelY, {
-      font: `15px ${fontStack}`,
-      color: text,
-    });
-    const labelWidth = context.measureText(label).width;
-    drawLabel(context, value, labelX + labelWidth + 8, labelY, {
-      font: `700 14px ${fontStack}`,
-      color: muted,
-    });
-  });
-};
-
-const getLegendRowCount = (series: OptionSeries[]): number => {
-  const columns = series.length > 3 ? 2 : Math.max(1, series.length);
-  return Math.ceil(series.length / columns);
-};
-
 const drawEmptyState = (
   context: SKRSContext2D,
   bounds: ChartBounds,
@@ -829,6 +722,7 @@ export const buildStandardPollPng = async (
     return {
       label: option.label,
       color: seriesPalette[index % seriesPalette.length] ?? neutral,
+      votes: choice?.votes ?? 0,
       latestPercentage: choice ? choice.percentage / 100 : 0,
       points: snapshots.map((snapshot) => ({
         time: snapshot.at.getTime(),
@@ -836,12 +730,6 @@ export const buildStandardPollPng = async (
       })),
     };
   });
-
-  const voteCounts = poll.options.map(
-    (option) =>
-      results.choices.find((choice) => choice.id === option.id)?.votes ?? 0,
-  );
-  const parliamentRows = getParliamentRowSeatCounts(results.totalVotes);
   const metadata = buildMetadata(poll, results, summary);
 
   context.fillStyle = background;
@@ -886,55 +774,32 @@ export const buildStandardPollPng = async (
     ),
   );
 
-  const legendX = 68;
-  const legendMaxWidth = 560;
-  const legendY = subtitleY + 28;
-  const legendRows = getLegendRowCount(series);
-  const legendHeight = legendRows * 22;
-  drawLegend(context, series, legendX, legendY, legendMaxWidth);
-
-  const parliamentBounds: ChartBounds = {
-    x: 116,
-    y: legendY + legendHeight + 42,
-    width: 1000,
-    height: 576 - (legendY + legendHeight + 42),
+  const barChartBounds: ChartBounds = {
+    x: 68,
+    y: 206,
+    width: 1064,
+    height: 360,
   };
   const sparklineBounds: ChartBounds = {
-    x: parliamentBounds.x,
+    x: 116,
     y: 626,
-    width: parliamentBounds.width,
+    width: 1000,
     height: 62,
   };
 
-  drawLabel(
-    context,
-    parliamentRows === null
-      ? `VOTE SHARE · ${compactNumberFormatter.format(results.totalVotes)} VOTES`
-      : `VOTE PARLIAMENT · ${results.totalVotes} SEAT${results.totalVotes === 1 ? '' : 'S'}`,
-    parliamentBounds.x,
-    parliamentBounds.y - 18,
-    {
-      font: `700 12px ${fontStack}`,
-      color: quiet,
-    },
-  );
+  drawLabel(context, 'RESULTS', barChartBounds.x, barChartBounds.y - 18, {
+    font: `700 12px ${fontStack}`,
+    color: quiet,
+  });
   drawLabel(context, 'VOTE SHARE OVER TIME', sparklineBounds.x, sparklineBounds.y - 18, {
     font: `700 12px ${fontStack}`,
     color: quiet,
   });
 
   if (results.totalVotes === 0) {
-    drawEmptyState(context, parliamentBounds, poll);
-  } else if (parliamentRows === null) {
-    drawParliamentShareGauge(context, parliamentBounds, series);
+    drawEmptyState(context, barChartBounds, poll);
   } else {
-    drawParliamentSeats(
-      context,
-      parliamentBounds,
-      series,
-      voteCounts,
-      parliamentRows,
-    );
+    drawResultBars(context, barChartBounds, series);
   }
 
   if (results.totalVotes > 0) {
