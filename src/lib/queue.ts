@@ -1,4 +1,4 @@
-import { Queue } from "bullmq";
+import { Queue, type JobsOptions } from "bullmq";
 
 import { createLazyProxy } from "@/lib/lazy.js";
 import { getBullConnectionOptions } from "@/lib/redis.js";
@@ -16,6 +16,7 @@ export const casinoTableIdleCloseQueueName = "casino-table-idle-close";
 
 const createQueueState = <Data, ResultType, NameType extends string>(
 	name: string,
+	jobOptions?: Pick<JobsOptions, "attempts" | "backoff">,
 ) =>
 	createLazyProxy(
 		() =>
@@ -24,6 +25,7 @@ const createQueueState = <Data, ResultType, NameType extends string>(
 				defaultJobOptions: {
 					removeOnComplete: true,
 					removeOnFail: 100,
+					...jobOptions,
 				},
 			}),
 	);
@@ -37,12 +39,16 @@ type QueueState<Data, ResultType, NameType extends string> = {
 
 const pollCloseQueueState = createQueueState<{ pollId: string }, void, "close">(
 	pollCloseQueueName,
+	{ attempts: 3, backoff: { type: "exponential", delay: 1_000 } },
 );
 const pollReminderQueueState = createQueueState<
 	{ reminderId: string },
 	void,
 	"remind"
->(pollReminderQueueName);
+>(pollReminderQueueName, {
+	attempts: 3,
+	backoff: { type: "exponential", delay: 1_000 },
+});
 const removalVoteStartQueueState = createQueueState<
 	{ requestId: string },
 	void,
@@ -57,7 +63,10 @@ const marketRefreshQueueState = createQueueState<
 	{ marketId: string },
 	void,
 	"refresh"
->(marketRefreshQueueName);
+>(marketRefreshQueueName, {
+	attempts: 3,
+	backoff: { type: "exponential", delay: 1_000 },
+});
 const marketGraceQueueState = createQueueState<
 	{ marketId: string },
 	void,

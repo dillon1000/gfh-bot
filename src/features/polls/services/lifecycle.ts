@@ -246,42 +246,50 @@ export const sendPollReminder = async (client: Client, reminderId: string): Prom
       return;
     }
 
-    const channel = await client.channels.fetch(reminder.poll.channelId).catch(() => null);
-    if (!channel?.isTextBased() || !('messages' in channel)) {
+    const claimedAt = new Date();
+    const claim = await prisma.pollReminder.updateMany({
+      where: { id: reminder.id, sentAt: null },
+      data: { sentAt: claimedAt },
+    });
+    if (claim.count !== 1) {
       return;
     }
 
-    const originalMessage = await channel.messages.fetch(reminder.poll.messageId).catch(() => null);
-    if (!originalMessage) {
-      return;
+    try {
+      const channel = await client.channels.fetch(reminder.poll.channelId);
+      if (!channel?.isTextBased() || !('messages' in channel)) {
+        throw new Error('Poll reminder channel is unavailable.');
+      }
+
+      const originalMessage = await channel.messages.fetch(reminder.poll.messageId);
+      if (!originalMessage) {
+        throw new Error('Poll reminder message is unavailable.');
+      }
+
+      await originalMessage.reply({
+        ...(reminder.poll.reminderRoleId ? { content: `<@&${reminder.poll.reminderRoleId}>` } : {}),
+        embeds: [
+          new EmbedBuilder()
+            .setTitle('Poll Closing Soon')
+            .setDescription(`Voting on **${reminder.poll.question}** closes <t:${Math.floor(reminder.poll.closesAt.getTime() / 1000)}:R>. Cast your vote before it ends.`)
+            .setColor(0xf59e0b)
+            .setFooter({
+              text: `Reminder: ${formatDurationFromMinutes(reminder.offsetMinutes)} before close`,
+            }),
+        ],
+        allowedMentions: {
+          parse: [],
+          ...(reminder.poll.reminderRoleId ? { roles: [reminder.poll.reminderRoleId] } : {}),
+          repliedUser: false,
+        },
+      });
+    } catch (error) {
+      await prisma.pollReminder.updateMany({
+        where: { id: reminder.id, sentAt: claimedAt },
+        data: { sentAt: null },
+      });
+      throw error;
     }
-
-    await originalMessage.reply({
-      ...(reminder.poll.reminderRoleId ? { content: `<@&${reminder.poll.reminderRoleId}>` } : {}),
-      embeds: [
-        new EmbedBuilder()
-          .setTitle('Poll Closing Soon')
-          .setDescription(`Voting on **${reminder.poll.question}** closes <t:${Math.floor(reminder.poll.closesAt.getTime() / 1000)}:R>. Cast your vote before it ends.`)
-          .setColor(0xf59e0b)
-          .setFooter({
-            text: `Reminder: ${formatDurationFromMinutes(reminder.offsetMinutes)} before close`,
-          }),
-      ],
-      allowedMentions: {
-        parse: [],
-        ...(reminder.poll.reminderRoleId ? { roles: [reminder.poll.reminderRoleId] } : {}),
-        repliedUser: false,
-      },
-    });
-
-    await prisma.pollReminder.update({
-      where: {
-        id: reminder.id,
-      },
-      data: {
-        sentAt: new Date(),
-      },
-    });
   });
 };
 
