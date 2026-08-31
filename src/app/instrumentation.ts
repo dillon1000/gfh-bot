@@ -5,7 +5,6 @@ import { NodeSDK } from '@opentelemetry/sdk-node';
 
 process.env.OTEL_SERVICE_NAME ??= 'gfh-bot';
 process.env.OTEL_METRICS_EXPORTER ??= 'none';
-process.env.OTEL_LOGS_EXPORTER ??= 'none';
 
 if (
   !process.env.OTEL_TRACES_EXPORTER
@@ -15,11 +14,21 @@ if (
   process.env.OTEL_TRACES_EXPORTER = 'none';
 }
 
+if (
+  !process.env.OTEL_LOGS_EXPORTER
+  && !process.env.OTEL_EXPORTER_OTLP_ENDPOINT
+  && !process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+) {
+  process.env.OTEL_LOGS_EXPORTER = 'none';
+}
+
 const telemetrySDK = new NodeSDK({
   instrumentations: [
     getNodeAutoInstrumentations({
       '@opentelemetry/instrumentation-fs': { enabled: false },
-      '@opentelemetry/instrumentation-pino': { enabled: false },
+      '@opentelemetry/instrumentation-pino': {
+        logKeys: { traceId: 'traceID', spanId: 'spanID', traceFlags: 'traceFlags' },
+      },
     }),
   ],
 });
