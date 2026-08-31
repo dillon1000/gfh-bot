@@ -462,6 +462,8 @@ const createButtonInteraction = (customId: string) => ({
 	},
 	showModal: vi.fn(),
 	reply: vi.fn(),
+	deferReply: vi.fn(),
+	editReply: vi.fn(),
 	update: vi.fn(),
 	deferUpdate: vi.fn(),
 });
@@ -489,6 +491,8 @@ const createModalInteraction = (customId: string, amount = "25") => ({
 	memberPermissions: null,
 	inGuild: () => true,
 	reply: vi.fn(),
+	deferReply: vi.fn(),
+	editReply: vi.fn(),
 });
 
 const collectObjectsByCustomId = (
@@ -1097,6 +1101,8 @@ describe("market interactions", () => {
 			memberPermissions: null,
 			inGuild: () => true,
 			reply: vi.fn(),
+			deferReply: vi.fn(),
+			editReply: vi.fn(),
 		};
 		getMarketById.mockResolvedValue(baseMarket);
 
@@ -1183,7 +1189,7 @@ describe("market interactions", () => {
 				avatarUrl: "https://cdn.discordapp.test/avatar.png",
 			}),
 		);
-		expect(interaction.reply).toHaveBeenCalledWith(
+		expect(interaction.editReply).toHaveBeenCalledWith(
 			expect.objectContaining({
 				embeds: expect.arrayContaining([
 					expect.objectContaining({
@@ -1217,7 +1223,7 @@ describe("market interactions", () => {
 			}),
 			"Could not build market forecast profile diagram",
 		);
-		expect(interaction.reply).toHaveBeenCalledWith(
+		expect(interaction.editReply).toHaveBeenCalledWith(
 			expect.objectContaining({
 				embeds: expect.any(Array),
 			}),
@@ -1244,7 +1250,7 @@ describe("market interactions", () => {
 		await handleMarketCommand({} as never, interaction as never);
 
 		expect(buildMarketForecastProfileDiagram).not.toHaveBeenCalled();
-		expect(interaction.reply).toHaveBeenCalledWith(
+		expect(interaction.editReply).toHaveBeenCalledWith(
 			expect.objectContaining({
 				embeds: expect.any(Array),
 			}),
@@ -1647,9 +1653,8 @@ describe("market interactions", () => {
 
 		await handleMarketButton(interaction as never);
 
-		expect(interaction.reply).toHaveBeenCalledWith(
+		expect(interaction.editReply).toHaveBeenCalledWith(
 			expect.objectContaining({
-				flags: 64,
 				embeds: expect.any(Array),
 			}),
 		);
