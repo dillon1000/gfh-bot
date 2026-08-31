@@ -262,28 +262,15 @@ export const appendJsonRecords = async (
 };
 
 type ExportAuditLogEntry = Omit<GuildEventLogEntry, 'payload'> & { payload: unknown };
-type AuditLogCursor = Pick<GuildEventLogEntry, 'id' | 'occurredAt'>;
 
-/** Reads one stable page of matching audit events for the streaming export writer. */
-const findAuditLogBatch = async (
-  userId: string,
-  cursor?: AuditLogCursor,
-): Promise<ExportAuditLogEntry[]> => {
+/** Reads matching audit events as the largest in-memory section of the streamed export. */
+const findAuditLogEntries = async (userId: string): Promise<ExportAuditLogEntry[]> => {
   const variables = JSON.stringify({ userId });
-  const entries = cursor
-    ? await prisma.$queryRaw<GuildEventLogEntry[]>`
-        SELECT * FROM "GuildEventLogEntry"
-        WHERE jsonb_path_exists("payload", '$.** ? (@ == $userId)', ${variables}::jsonb)
-          AND ("occurredAt", "id") > (${cursor.occurredAt}, ${cursor.id})
-        ORDER BY "occurredAt" ASC, "id" ASC
-        LIMIT ${dataExportQueryBatchSize}
-      `
-    : await prisma.$queryRaw<GuildEventLogEntry[]>`
-        SELECT * FROM "GuildEventLogEntry"
-        WHERE jsonb_path_exists("payload", '$.** ? (@ == $userId)', ${variables}::jsonb)
-        ORDER BY "occurredAt" ASC, "id" ASC
-        LIMIT ${dataExportQueryBatchSize}
-      `;
+  const entries = await prisma.$queryRaw<GuildEventLogEntry[]>`
+    SELECT * FROM "GuildEventLogEntry"
+    WHERE jsonb_path_exists("payload", '$.** ? (@ == $userId)', ${variables}::jsonb)
+    ORDER BY "occurredAt" ASC, "id" ASC
+  `;
 
   return entries.map(({ payload, ...entry }) => ({
     ...entry,
@@ -401,18 +388,7 @@ export const writeUserDataExport = async (userId: string, filePath: string): Pro
     }
     await file.writeFile(']');
 
-    await startSection('auditLogEntries');
-    let auditCursor: AuditLogCursor | undefined;
-    let hasAuditEntry = false;
-    while (true) {
-      const entries = await findAuditLogBatch(userId, auditCursor);
-      if (entries.length === 0) break;
-      hasAuditEntry = await appendJsonRecords(file, entries, hasAuditEntry);
-      const lastEntry = entries.at(-1);
-      auditCursor = lastEntry ? { id: lastEntry.id, occurredAt: lastEntry.occurredAt } : undefined;
-      if (entries.length < dataExportQueryBatchSize) break;
-    }
-    await file.writeFile(']');
+    await writeSection('auditLogEntries', await findAuditLogEntries(userId));
 
     await writeSection('transientRedisRecords', await findTransientUserData(userId));
     await file.writeFile('}}');
