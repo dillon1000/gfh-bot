@@ -69,7 +69,7 @@ describe('buildPollExportCsv', () => {
     expect(csv).toContain('"passed"');
   });
 
-  it('includes only all-voter identities for anonymous polls', () => {
+  it('does not include voter identities for anonymous polls', () => {
     const csv = buildPollExportCsv({
       ...poll,
       anonymous: true,
@@ -86,7 +86,7 @@ describe('buildPollExportCsv', () => {
       ],
     });
 
-    expect(csv).toContain('<@user_a> | <@user_b>');
-    expect(csv).not.toContain('"<@user_a>"');
+    expect(csv).not.toContain('<@user_a>');
+    expect(csv).not.toContain('<@user_b>');
   });
 });

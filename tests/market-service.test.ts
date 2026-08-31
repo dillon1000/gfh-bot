@@ -1,7 +1,9 @@
+import { PermissionFlagsBits, PermissionsBitField } from "discord.js";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { prisma, transaction } = vi.hoisted(() => {
 	const transactionClient = {
+		$queryRaw: vi.fn(),
 		guildConfig: {
 			upsert: vi.fn(),
 		},
@@ -40,6 +42,9 @@ const { prisma, transaction } = vi.hoisted(() => {
 			upsert: vi.fn(),
 			update: vi.fn(),
 			deleteMany: vi.fn(),
+		},
+		marketActionReceipt: {
+			create: vi.fn(),
 		},
 	};
 
@@ -318,6 +323,7 @@ describe("market service", () => {
 
 	beforeEach(() => {
 		prisma.$transaction.mockReset();
+		transaction.$queryRaw.mockReset();
 		transaction.guildConfig.upsert.mockReset();
 		transaction.market.findUnique.mockReset();
 		transaction.market.findUniqueOrThrow.mockReset();
@@ -336,6 +342,7 @@ describe("market service", () => {
 		transaction.marketLossProtection.upsert.mockReset();
 		transaction.marketLossProtection.update.mockReset();
 		transaction.marketLossProtection.deleteMany.mockReset();
+		transaction.marketActionReceipt.create.mockReset();
 		prisma.guildConfig.findUnique.mockReset();
 		prisma.marketAccount.findUnique.mockReset();
 		prisma.marketForecastRecord.findMany.mockReset();
@@ -369,6 +376,8 @@ describe("market service", () => {
 		});
 		prisma.marketAccount.findUnique.mockResolvedValue(baseAccount);
 		prisma.marketForecastRecord.findMany.mockResolvedValue([]);
+		transaction.$queryRaw.mockResolvedValue([{ id: "market_1" }]);
+		transaction.marketActionReceipt.create.mockResolvedValue(undefined);
 		transaction.market.update
 			.mockResolvedValueOnce({
 				...market,
@@ -454,6 +463,92 @@ describe("market service", () => {
 			}),
 		);
 		expect(result.outcome.settlementValue).toBe(0);
+	});
+
+	it("allows creators to trade with a unique execution receipt", async () => {
+		runTransaction();
+
+		await executeMarketTrade({
+			marketId: "market_1",
+			userId: "user_1",
+			outcomeId: "outcome_yes",
+			action: "buy",
+			amount: 50,
+			executionId: "session_1",
+		});
+
+		expect(transaction.marketActionReceipt.create).toHaveBeenCalledWith({
+			data: {
+				id: "session_1",
+				marketId: "market_1",
+				userId: "user_1",
+				action: "trade",
+			},
+		});
+	});
+
+	it("requires trading to close before full resolution", async () => {
+		runTransaction();
+
+		await expect(
+			resolveMarket({
+				marketId: "market_1",
+				actorId: "user_1",
+				winningOutcomeId: "outcome_yes",
+			}),
+		).rejects.toThrow("Close trading before resolving this market.");
+
+		expect(transaction.market.update).not.toHaveBeenCalled();
+	});
+
+	it("requires a moderator to resolve creator exposure", async () => {
+		const closedMarketWithCreatorTrade = {
+			...market,
+			tradingClosedAt: new Date("2099-03-30T00:00:00.000Z"),
+			trades: [
+				{
+					id: "creator_trade",
+					marketId: "market_1",
+					outcomeId: "outcome_yes",
+					userId: "user_1",
+					side: "buy" as const,
+					cashDelta: -10,
+					shareDelta: 12,
+					feeCharged: 0,
+					probabilitySnapshot: 0.52,
+					cumulativeVolume: 10,
+					createdAt: new Date("2099-03-29T01:00:00.000Z"),
+				},
+			],
+		};
+		transaction.market.findUnique.mockResolvedValue(
+			closedMarketWithCreatorTrade,
+		);
+		runTransaction();
+
+		await expect(
+			resolveMarket({
+				marketId: "market_1",
+				actorId: "user_1",
+				winningOutcomeId: "outcome_yes",
+			}),
+		).rejects.toThrow(
+			"A moderator must resolve a market where the creator has traded.",
+		);
+
+		transaction.market.update.mockResolvedValue({
+			...closedMarketWithCreatorTrade,
+			resolvedAt: new Date("2099-03-30T12:00:00.000Z"),
+			winningOutcomeId: "outcome_yes",
+		});
+		await expect(
+			resolveMarket({
+				marketId: "market_1",
+				actorId: "moderator_1",
+				winningOutcomeId: "outcome_yes",
+				permissions: new PermissionsBitField(PermissionFlagsBits.ManageGuild),
+			}),
+		).resolves.toEqual(expect.objectContaining({ payouts: [] }));
 	});
 
 	it("appends outcomes to an open market without disturbing existing outcomes", async () => {
@@ -1723,6 +1818,7 @@ describe("market service", () => {
 		const resolvedAt = new Date("2099-03-30T12:00:00.000Z");
 		const threeOutcomeMarket = {
 			...market,
+			tradingClosedAt: resolvedAt,
 			outcomes: [
 				{ ...market.outcomes[0], id: "outcome_a", label: "A" },
 				{ ...market.outcomes[1], id: "outcome_b", label: "B" },

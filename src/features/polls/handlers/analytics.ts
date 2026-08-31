@@ -16,6 +16,7 @@ export const handlePollAnalyticsCommand = async (
     throw new Error('Poll analytics can only be queried inside a server.');
   }
 
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const channel = interaction.options.getChannel('channel', false, [
     ChannelType.GuildAnnouncement,
     ChannelType.GuildText,
@@ -30,8 +31,7 @@ export const handlePollAnalyticsCommand = async (
     limit: interaction.options.getInteger('limit'),
   });
 
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
+  await interaction.editReply({
     embeds: [buildPollAnalyticsEmbed(snapshot)],
     allowedMentions: {
       parse: [],

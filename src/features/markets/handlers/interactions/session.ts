@@ -14,6 +14,7 @@ import { getMarketById } from "@/features/markets/services/records.js";
 import { calculateLossProtectionQuote } from "@/features/markets/services/trading/protection.js";
 import { calculateMarketTradeQuote } from "@/features/markets/services/trading/quotes.js";
 import {
+	claimMarketInteractionSession,
 	createMarketInteractionSessionId,
 	deleteMarketInteractionSession,
 	getMarketInteractionSession,
@@ -23,7 +24,7 @@ import { buildMarketStatusEmbed } from "@/features/markets/ui/render/market.js";
 import { buildMarketInteractionSessionMessage } from "@/features/markets/ui/render/trades.js";
 import { parseTradeInputAmount } from "@/features/markets/handlers/interactions/shared.js";
 
-const sessionTtlMs = 10 * 60 * 1_000;
+const sessionTtlMs = 2 * 60 * 1_000;
 
 const getExpiresAt = (): string =>
 	new Date(Date.now() + sessionTtlMs).toISOString();
@@ -145,6 +146,18 @@ export const getRootMarketInteractionSession = async (
 
 	if (session.userId !== userId) {
 		throw new Error("That session belongs to a different user.");
+	}
+
+	return session;
+};
+
+export const claimRootMarketInteractionSession = async (
+	sessionId: string,
+	userId: string,
+): Promise<MarketInteractionSession> => {
+	const session = await claimMarketInteractionSession(redis, sessionId, userId);
+	if (!session) {
+		throw new Error("Session expired. Open Trade or Manage Position again.");
 	}
 
 	return session;

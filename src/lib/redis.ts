@@ -4,7 +4,7 @@ import { env } from '@/app/config.js';
 import { createLazyProxy } from '@/lib/lazy.js';
 
 const createConfiguredRedis = (): Redis => new Redis(env.REDIS_URL, {
-  maxRetriesPerRequest: null,
+  maxRetriesPerRequest: 2,
   enableReadyCheck: true,
 });
 
@@ -26,9 +26,6 @@ export const quitRedis = async (): Promise<void> => {
 };
 
 export const redis = redisState.proxy;
-
-export const createRedisConnection = (): Redis =>
-  createConfiguredRedis();
 
 export const getBullConnectionOptions = (): {
   host: string;

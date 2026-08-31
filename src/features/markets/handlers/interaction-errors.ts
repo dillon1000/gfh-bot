@@ -24,7 +24,14 @@ export const handleMarketInteractionError = async (
     return;
   }
 
-  if (interaction.replied || interaction.deferred) {
+  if (interaction.deferred) {
+    await interaction.editReply({
+      embeds: [buildMarketStatusEmbed('Market Error', message, 0xef4444)],
+    }).catch(() => undefined);
+    return;
+  }
+
+  if (interaction.replied) {
     await interaction.followUp({
       flags: MessageFlags.Ephemeral,
       embeds: [buildMarketStatusEmbed('Market Error', message, 0xef4444)],

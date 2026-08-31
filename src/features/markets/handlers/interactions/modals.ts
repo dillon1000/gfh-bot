@@ -134,6 +134,7 @@ export const handleMarketModal = async (
 
 	const resolveRequest = parseMarketResolveModalCustomId(interaction.customId);
 	if (resolveRequest) {
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 		const market = await getMarketById(resolveRequest.marketId);
 		if (!market) {
 			throw new Error("Market not found.");
@@ -168,11 +169,7 @@ export const handleMarketModal = async (
 				? { permissions: interaction.memberPermissions ?? null }
 				: {}),
 		});
-		await clearMarketLifecycle(market.id);
-		await refreshMarketMessage(client, market.id);
-		await notifyMarketResolved(client, resolved);
-		await interaction.reply({
-			flags: MessageFlags.Ephemeral,
+		await interaction.editReply({
 			embeds: [
 				buildMarketStatusEmbed(
 					"Market Resolved",
@@ -183,6 +180,9 @@ export const handleMarketModal = async (
 				),
 			],
 		});
+		await clearMarketLifecycle(market.id);
+		await refreshMarketMessage(client, market.id);
+		await notifyMarketResolved(client, resolved);
 		return;
 	}
 
@@ -191,6 +191,7 @@ export const handleMarketModal = async (
 		interaction.customId,
 	);
 	if (cancelMarketId) {
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 		const market = await getMarketById(cancelMarketId);
 		if (!market) {
 			throw new Error("Market not found.");
@@ -205,6 +206,15 @@ export const handleMarketModal = async (
 			...(interaction.inGuild()
 				? { permissions: interaction.memberPermissions ?? null }
 				: {}),
+		});
+		await interaction.editReply({
+			embeds: [
+				buildMarketStatusEmbed(
+					"Market Cancelled",
+					`Cancelled **${market.title}** and refunded open positions.`,
+					0xf59e0b,
+				),
+			],
 		});
 		await clearMarketLifecycle(market.id);
 		await refreshMarketMessage(client, market.id);
@@ -221,16 +231,6 @@ export const handleMarketModal = async (
 				.join("\n"),
 			0xf59e0b,
 		);
-		await interaction.reply({
-			flags: MessageFlags.Ephemeral,
-			embeds: [
-				buildMarketStatusEmbed(
-					"Market Cancelled",
-					`Cancelled **${market.title}** and refunded open positions.`,
-					0xf59e0b,
-				),
-			],
-		});
 		return;
 	}
 

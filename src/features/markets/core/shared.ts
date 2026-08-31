@@ -301,13 +301,24 @@ export const getPricingShares = (market: MarketWithRelations): number[] =>
 export const getMarketForUpdate = async (
 	tx: Prisma.TransactionClient,
 	marketId: string,
-): Promise<MarketWithRelations | null> =>
-	tx.market.findUnique({
+): Promise<MarketWithRelations | null> => {
+	const lockedRows = await tx.$queryRaw<Array<Pick<Market, "id">>>`
+		SELECT "id"
+		FROM "Market"
+		WHERE "id" = ${marketId}
+		FOR UPDATE
+	`;
+	if (lockedRows.length === 0) {
+		return null;
+	}
+
+	return tx.market.findUnique({
 		where: {
 			id: marketId,
 		},
 		include: marketInclude,
 	});
+};
 
 export const assertMarketEditable = (
 	market: MarketWithRelations,
@@ -471,6 +482,13 @@ export const getPositionUninsuredCostBasis = (
 	insuredCostBasis: number,
 ): number => roundCurrency(Math.max(0, costBasis - insuredCostBasis));
 
+const creatorHasMarketExposure = (market: MarketWithRelations): boolean =>
+	market.trades.some((trade) => trade.userId === market.creatorId) ||
+	market.positions.some((position) => position.userId === market.creatorId) ||
+	(market.lossProtections ?? []).some(
+		(protection) => protection.userId === market.creatorId,
+	);
+
 export const assertCanResolveMarket = (
 	market: MarketWithRelations,
 	actorId: string,
@@ -484,7 +502,21 @@ export const assertCanResolveMarket = (
 		throw new Error("This market is already resolved.");
 	}
 
-	if (actorId === market.creatorId || canModerateMarkets(permissions)) {
+	if (!market.tradingClosedAt && market.closeAt.getTime() > Date.now()) {
+		throw new Error("Close trading before resolving this market.");
+	}
+
+	if (canModerateMarkets(permissions)) {
+		return;
+	}
+
+	if (actorId === market.creatorId) {
+		if (creatorHasMarketExposure(market)) {
+			throw new Error(
+				"A moderator must resolve a market where the creator has traded.",
+			);
+		}
+
 		return;
 	}
 
@@ -504,7 +536,17 @@ export const assertCanResolveOutcome = (
 		throw new Error("Resolved markets cannot resolve additional outcomes.");
 	}
 
-	if (actorId === market.creatorId || canModerateMarkets(permissions)) {
+	if (canModerateMarkets(permissions)) {
+		return;
+	}
+
+	if (actorId === market.creatorId) {
+		if (creatorHasMarketExposure(market)) {
+			throw new Error(
+				"A moderator must resolve outcomes where the creator has traded.",
+			);
+		}
+
 		return;
 	}
 

@@ -90,6 +90,9 @@ const sortOutcomeEntries = <
 		return left.label.localeCompare(right.label);
 	});
 
+const clampEmbedFieldValue = (value: string): string =>
+	value.length <= 1_024 ? value : `${value.slice(0, 1_021)}...`;
+
 const buildDetailsFields = (
 	market: MarketWithRelations,
 ): Array<{ name: string; value: string }> => {
@@ -216,7 +219,7 @@ const buildDetailsFields = (
 		},
 		{ name: "Resolution", value: resolution },
 		{ name: "IDs & Metadata", value: ids },
-	];
+	].map((field) => ({ ...field, value: clampEmbedFieldValue(field.value) }));
 };
 
 export const buildMarketStatusEmbed = (
@@ -262,12 +265,13 @@ export const buildMarketEmbed = (market: MarketWithRelations): EmbedBuilder => {
 				name: isCompetitiveMultiWinner
 					? "Current Chances To Be Among Winners"
 					: "Current Probabilities",
-				value: sortedProbabilities
-					.map(
+				value: clampEmbedFieldValue(
+					sortedProbabilities.map(
 						(entry, index) =>
 							`${index + 1}. **${entry.label}** — ${formatOutcomeStatus(entry)} (${entry.shares.toFixed(2)} net shares)`,
 					)
-					.join("\n"),
+						.join("\n"),
+				),
 			},
 			...(unresolvedCount < market.outcomes.length
 				? [

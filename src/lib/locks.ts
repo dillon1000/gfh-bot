@@ -2,6 +2,13 @@ import { randomUUID } from 'node:crypto';
 
 import type { Redis } from 'ioredis';
 
+const releaseLockScript = `
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+  return redis.call("DEL", KEYS[1])
+end
+return 0
+`;
+
 export const withRedisLock = async <T>(
   client: Redis,
   key: string,
@@ -18,9 +25,6 @@ export const withRedisLock = async <T>(
   try {
     return await fn();
   } finally {
-    const current = await client.get(key);
-    if (current === token) {
-      await client.del(key);
-    }
+    await client.eval(releaseLockScript, 1, key, token);
   }
 };

@@ -26,6 +26,7 @@ import { handleMarketModal } from '@/features/markets/handlers/interactions/moda
 import { handleMarketSelect } from '@/features/markets/handlers/interactions/selects.js';
 import { handleMeowCommand } from '@/features/meta/commands/meow.js';
 import { handlePingCommand } from '@/features/meta/commands/ping.js';
+import { handleRequestDataCommand } from '@/features/meta/commands/request-data.js';
 import {
   handlePollAnalyticsCommand,
 } from '@/features/polls/handlers/analytics.js';
@@ -138,6 +139,9 @@ export const registerInteractionRouter = (client: Client): void => {
             return;
           case 'ping':
             await handlePingCommand(interaction);
+            return;
+          case 'request-data':
+            await handleRequestDataCommand(interaction);
             return;
           case 'search':
             await handleSearchCommand(client, interaction);

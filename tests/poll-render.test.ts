@@ -172,9 +172,8 @@ describe('buildPollResultsEmbed', () => {
 
     const embed = buildPollResultsEmbed(poll, computePollResults(poll)).toJSON();
     expect(embed.fields?.[0]?.value).not.toContain('Voters:');
-    expect(embed.fields?.find((field) => field.name === 'Voters')?.value).toContain('<@user_a>');
-    expect(embed.fields?.find((field) => field.name === 'Voters')?.value).toContain('<@user_b>');
-    expect(embed.description).toContain('option selections remain private');
+    expect(embed.fields?.find((field) => field.name === 'Voters')).toBeUndefined();
+    expect(embed.description).toContain('option selections stay private');
   });
 
   it('does not show final answer details when final results are hidden', () => {

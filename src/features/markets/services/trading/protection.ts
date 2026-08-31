@@ -23,6 +23,7 @@ import type {
   MarketLossProtectionQuote,
   MarketWithRelations,
 } from '@/features/markets/core/types.js';
+import { claimMarketActionExecution } from '@/features/markets/services/trading/shared.js';
 
 export const protectionCoverageOptions = [0.25, 0.5, 0.75, 1] as const;
 
@@ -196,12 +197,20 @@ export const purchaseLossProtection = async (input: {
   userId: string;
   outcomeId: string;
   targetCoverage: number;
+  executionId?: string;
 }): Promise<MarketLossProtectionPurchaseResult> =>
   runSerializableTransaction(async (tx) => {
     const market = await getMarketForUpdate(tx, input.marketId);
     if (!market) {
       throw new Error('Market not found.');
     }
+
+    await claimMarketActionExecution(tx, {
+      ...(input.executionId ? { executionId: input.executionId } : {}),
+      marketId: market.id,
+      userId: input.userId,
+      action: 'protection',
+    });
 
     const account = await ensureMarketAccountTx(tx, market.guildId, input.userId);
     const quote = buildLossProtectionQuote(market, input.userId, input.outcomeId, input.targetCoverage);

@@ -26,6 +26,7 @@ import {
 	getMarketStatus,
 } from "@/features/markets/core/shared.js";
 import type { MarketWithRelations } from "@/features/markets/core/types.js";
+import { setBoundedCacheEntry } from "@/lib/bounded-cache.js";
 
 const width = 1200;
 const height = 760;
@@ -137,6 +138,7 @@ export type MarketChartModel = {
 };
 
 const imageCache = new Map<string, Promise<LoadedImage | null>>();
+const maxCachedImages = 100;
 
 const axisDateFormatter = new Intl.DateTimeFormat("en-US", {
 	month: "short",
@@ -375,7 +377,7 @@ const loadTablerIcon = async (
 		)
 		.then((svg) => loadImage(Buffer.from(svg)));
 
-	imageCache.set(cacheKey, pending);
+	setBoundedCacheEntry(imageCache, cacheKey, pending, maxCachedImages);
 	return pending;
 };
 

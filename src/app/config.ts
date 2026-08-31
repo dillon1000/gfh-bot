@@ -58,6 +58,7 @@ const envSchema = z.object({
 		.enum(["fatal", "error", "warn", "info", "debug", "trace"])
 		.default("info"),
 	POLL_CREATION_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(10),
+	POLL_RATIONALE_SALT: optionalNonEmptyString(),
 	MEOW_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(5),
 	SEARCH_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(5),
 	MARKET_DEFAULT_TIMEZONE: z.string().min(1).default("America/Chicago"),
@@ -67,6 +68,15 @@ const envSchema = z.object({
 	R2_SECRET_ACCESS_KEY: optionalNonEmptyString(),
 	R2_BUCKET: optionalNonEmptyString(),
 	R2_PUBLIC_BASE_URL: optionalUrlString(),
+	PASSPORT_URL: optionalUrlString(),
+	PASSPORT_DATA_EXPORT_SECRET: optionalNonEmptyString(),
+}).superRefine((value, context) => {
+	if (Boolean(value.PASSPORT_URL) !== Boolean(value.PASSPORT_DATA_EXPORT_SECRET)) {
+		context.addIssue({
+			code: "custom",
+			message: "PASSPORT_URL and PASSPORT_DATA_EXPORT_SECRET must be configured together.",
+		});
+	}
 });
 
 const parsed = envSchema.safeParse(process.env);

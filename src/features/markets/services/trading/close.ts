@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma.js';
+import { runSerializableTransaction } from '@/lib/run-serializable-transaction.js';
 import {
   getMarketForUpdate,
   marketInclude,
@@ -9,7 +9,7 @@ import type { MarketWithRelations } from '@/features/markets/core/types.js';
 export const closeMarketTrading = async (
   marketId: string,
 ): Promise<{ market: MarketWithRelations | null; didClose: boolean }> =>
-  prisma.$transaction(async (tx) => {
+  runSerializableTransaction(async (tx) => {
     const market = await getMarketForUpdate(tx, marketId);
     if (!market) {
       return {

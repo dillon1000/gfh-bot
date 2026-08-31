@@ -11,6 +11,13 @@ import {
   resolveQuizQuestions,
 } from '@/features/polls/core/types.js';
 
+const getPollVoteInclude = (userId: string) => ({
+  ...pollInclude,
+  votes: {
+    where: { userId },
+  },
+});
+
 const getEffectivePollMode = (poll: { mode?: PollMode | null; singleSelect: boolean }): PollMode =>
   poll.mode ?? (poll.singleSelect ? 'single' : 'multi');
 
@@ -172,14 +179,14 @@ export const setPollResponse = async (
     allowRankedClear?: boolean;
     allowTextClear?: boolean;
   },
-): Promise<PollWithRelations> => {
+): Promise<void> => {
   const result = await withRedisLock(redis, `lock:poll-vote:${pollId}:${userId}`, 5_000, async () =>
     prisma.$transaction(async (tx) => {
       const poll = await tx.poll.findUnique({
         where: {
           id: pollId,
         },
-        include: pollInclude,
+        include: getPollVoteInclude(userId),
       });
 
       if (!poll) {
@@ -260,20 +267,13 @@ export const setPollResponse = async (
         });
       }
 
-      return tx.poll.findUniqueOrThrow({
-        where: {
-          id: pollId,
-        },
-        include: pollInclude,
-      });
     }),
   );
 
-  if (!result) {
+  if (result === null) {
     throw new Error('Another vote update is already in progress. Please try again.');
   }
 
-  return result;
 };
 
 export const setPollVotes = async (
@@ -283,7 +283,7 @@ export const setPollVotes = async (
   options?: {
     allowRankedClear?: boolean;
   },
-): Promise<PollWithRelations> =>
+): Promise<void> =>
   setPollResponse(
     pollId,
     userId,
@@ -301,7 +301,7 @@ export const setPollTextResponse = async (
     selectedOptionIds?: string[];
     allowTextClear?: boolean;
   },
-): Promise<PollWithRelations> =>
+): Promise<void> =>
   setPollResponse(
     pollId,
     userId,
@@ -319,7 +319,7 @@ export const setPollTextResponse = async (
 export const clearPollVotes = async (
   pollId: string,
   userId: string,
-): Promise<PollWithRelations> =>
+): Promise<void> =>
   setPollResponse(pollId, userId, { selectedOptionIds: [] }, { allowRankedClear: true, allowTextClear: true });
 
 export const setPollTierVote = async (
@@ -327,12 +327,12 @@ export const setPollTierVote = async (
   userId: string,
   optionId: string,
   tierRank: number | null,
-): Promise<PollWithRelations> => {
+): Promise<void> => {
   const result = await withRedisLock(redis, `lock:poll-vote:${pollId}:${userId}`, 5_000, async () =>
     prisma.$transaction(async (tx) => {
       const poll = await tx.poll.findUnique({
         where: { id: pollId },
-        include: pollInclude,
+        include: getPollVoteInclude(userId),
       });
 
       if (!poll) {
@@ -377,15 +377,11 @@ export const setPollTierVote = async (
         });
       }
 
-      const refreshedPoll = await tx.poll.findUniqueOrThrow({
-        where: { id: pollId },
-        include: pollInclude,
-      });
-
-      const nextOptionIds = refreshedPoll.votes
-        .filter((vote) => vote.userId === userId)
+      const nextOptionIds = previousVotes
+        .filter((vote) => vote.optionId !== optionId)
         .map((vote) => vote.optionId)
         .filter((value): value is string => Boolean(value))
+        .concat(tierRank === null ? [] : [optionId])
         .sort();
 
       if (previousOptionIds.join(',') !== nextOptionIds.join(',')
@@ -401,27 +397,24 @@ export const setPollTierVote = async (
           },
         });
       }
-
-      return refreshedPoll;
     }),
   );
 
-  if (!result) {
+  if (result === null) {
     throw new Error('Another vote update is already in progress. Please try again.');
   }
 
-  return result;
 };
 
 export const clearTierPollVotes = async (
   pollId: string,
   userId: string,
-): Promise<PollWithRelations> => {
+): Promise<void> => {
   const result = await withRedisLock(redis, `lock:poll-vote:${pollId}:${userId}`, 5_000, async () =>
     prisma.$transaction(async (tx) => {
       const poll = await tx.poll.findUnique({
         where: { id: pollId },
-        include: pollInclude,
+        include: getPollVoteInclude(userId),
       });
       if (!poll) {
         throw new Error('Poll not found.');
@@ -454,30 +447,25 @@ export const clearTierPollVotes = async (
         });
       }
 
-      return tx.poll.findUniqueOrThrow({
-        where: { id: pollId },
-        include: pollInclude,
-      });
     }),
   );
 
-  if (!result) {
+  if (result === null) {
     throw new Error('Another vote update is already in progress. Please try again.');
   }
 
-  return result;
 };
 
 export const setQuizAnswers = async (
   pollId: string,
   userId: string,
   answers: QuizAnswer[],
-): Promise<PollWithRelations> => {
+): Promise<void> => {
   const result = await withRedisLock(redis, `lock:poll-vote:${pollId}:${userId}`, 5_000, async () =>
     prisma.$transaction(async (tx) => {
       const poll = await tx.poll.findUnique({
         where: { id: pollId },
-        include: pollInclude,
+        include: getPollVoteInclude(userId),
       });
       if (!poll) {
         throw new Error('Poll not found.');
@@ -518,18 +506,13 @@ export const setQuizAnswers = async (
         });
       }
 
-      return tx.poll.findUniqueOrThrow({
-        where: { id: pollId },
-        include: pollInclude,
-      });
     }),
   );
 
-  if (!result) {
+  if (result === null) {
     throw new Error('Another quiz submission is already in progress. Please try again.');
   }
 
-  return result;
 };
 
 export const getPollTierAssignmentsForUser = (

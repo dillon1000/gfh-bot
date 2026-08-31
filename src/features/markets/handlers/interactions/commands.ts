@@ -1,4 +1,4 @@
-import type { InteractionReplyOptions } from "discord.js";
+import type { InteractionEditReplyOptions } from "discord.js";
 import {
 	MessageFlags,
 	PermissionFlagsBits,
@@ -719,13 +719,14 @@ export const handleMarketCommand = async (
 			return;
 		}
 		case "profile": {
+			await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 			const user = interaction.options.getUser("user") ?? interaction.user;
 			const profile = await getMarketForecastProfileDetails(
 				interaction.guildId,
 				user.id,
 			);
 			const embeds = buildMarketForecastProfileEmbeds(profile);
-			const response: InteractionReplyOptions = {
+			const response: InteractionEditReplyOptions = {
 				embeds,
 				allowedMentions: {
 					parse: [],
@@ -752,7 +753,7 @@ export const handleMarketCommand = async (
 				}
 			}
 
-			await interaction.reply({
+			await interaction.editReply({
 				...response,
 			});
 			return;

@@ -93,8 +93,12 @@ const assertPollExportAvailable = (
 };
 
 const assertPollAuditAvailable = (
-  poll: Parameters<typeof getPollResultsHiddenReason>[0],
+  poll: Parameters<typeof getPollResultsHiddenReason>[0] & { anonymous: boolean },
 ): void => {
+  if (poll.anonymous) {
+    throw new Error('Vote audit history is not available for anonymous polls.');
+  }
+
   const hiddenReason = getPollResultsHiddenReason(poll);
   if (!hiddenReason) {
     return;
@@ -113,6 +117,7 @@ export const handlePollResultsCommand = async (
     throw new Error('Poll results can only be queried inside a server.');
   }
 
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const query = interaction.options.getString('query', true);
   const snapshot = await getPollResultsSnapshotByQuery(client, query, interaction.guildId);
 
@@ -120,8 +125,7 @@ export const handlePollResultsCommand = async (
     throw new Error('Poll not found.');
   }
 
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
+  await interaction.editReply({
     ...(await buildPollResultsResponse(snapshot)),
   });
 };
@@ -136,13 +140,13 @@ export const handlePollResultsButton = async (
     throw new Error('Invalid poll identifier.');
   }
 
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const snapshot = await getPollResultsSnapshot(client, pollId);
   if (!snapshot) {
     throw new Error('Poll not found.');
   }
 
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
+  await interaction.editReply({
     ...(await buildPollResultsResponse(snapshot)),
   });
 };
@@ -155,6 +159,7 @@ export const handlePollResultsContext = async (
     throw new Error('Poll results can only be queried inside a server.');
   }
 
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const poll = await getPollByMessageId(interaction.targetMessage.id);
   if (!poll || poll.guildId !== interaction.guildId) {
     throw new Error('Poll not found.');
@@ -165,8 +170,7 @@ export const handlePollResultsContext = async (
     throw new Error('Poll not found.');
   }
 
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
+  await interaction.editReply({
     ...(await buildPollResultsResponse(snapshot)),
   });
 };

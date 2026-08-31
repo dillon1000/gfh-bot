@@ -1,4 +1,4 @@
-import type { MarketPosition } from "@/generated/prisma/client.js";
+import type { MarketPosition, Prisma } from "@/generated/prisma/client.js";
 
 export type CalculateMarketTradeQuoteInput =
 	| {
@@ -42,6 +42,29 @@ export const assertPositiveTradeAmount = (amount: number): void => {
 	if (!Number.isFinite(amount) || amount <= 0) {
 		throw new Error("Trade amount must be a finite value greater than zero.");
 	}
+};
+
+export const claimMarketActionExecution = async (
+	tx: Prisma.TransactionClient,
+	input: {
+		executionId?: string;
+		marketId: string;
+		userId: string;
+		action: "trade" | "protection";
+	},
+): Promise<void> => {
+	if (!input.executionId) {
+		return;
+	}
+
+	await tx.marketActionReceipt.create({
+		data: {
+			id: input.executionId,
+			marketId: input.marketId,
+			userId: input.userId,
+			action: input.action,
+		},
+	});
 };
 
 export const groupPositionsByUser = (

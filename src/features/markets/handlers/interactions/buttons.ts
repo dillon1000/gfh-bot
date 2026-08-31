@@ -11,8 +11,8 @@ import {
 import { buildMarketStatusEmbed } from "@/features/markets/ui/render/market.js";
 import { buildPortfolioMessage } from "@/features/markets/ui/render/portfolio.js";
 import {
+	claimMarketTradeQuoteSession,
 	deleteMarketTradeQuoteSession,
-	getMarketTradeQuoteSession,
 } from "@/features/markets/state/quote-session-store.js";
 import {
 	buildMarketViewResponse,
@@ -30,6 +30,7 @@ import {
 import {
 	buildExpiredMarketInteractionResponse,
 	buildRootMarketInteractionSessionResponse,
+	claimRootMarketInteractionSession,
 	createRootMarketInteractionSession,
 	deleteRootMarketInteractionSession,
 	getRootMarketInteractionSession,
@@ -70,8 +71,8 @@ const updateInteractionFromSessionPreview = async (
 			action: preview.quote.action,
 			amount: preview.quote.amount,
 			amountMode: preview.quote.amountMode,
+			executionId: sessionId,
 		});
-		await deleteRootMarketInteractionSession(sessionId);
 		await scheduleMarketRefresh(session.marketId);
 		const feedback = getTradeFeedback(preview.quote.action);
 		await interaction.update({
@@ -96,8 +97,8 @@ const updateInteractionFromSessionPreview = async (
 		userId: session.userId,
 		outcomeId: preview.quote.outcomeId,
 		targetCoverage: preview.quote.targetCoverage,
+		executionId: sessionId,
 	});
-	await deleteRootMarketInteractionSession(sessionId);
 	await scheduleMarketRefresh(session.marketId);
 	await interaction.update({
 		embeds: [
@@ -125,7 +126,7 @@ export const handleMarketButton = async (
 		interaction.customId,
 	);
 	if (confirmInteractionSessionId) {
-		const session = await getRootMarketInteractionSession(
+		const session = await claimRootMarketInteractionSession(
 			confirmInteractionSessionId,
 			interaction.user.id,
 		).catch(() => null);
@@ -318,7 +319,11 @@ export const handleMarketButton = async (
 		interaction.customId,
 	);
 	if (confirmSessionId) {
-		const session = await getMarketTradeQuoteSession(redis, confirmSessionId);
+		const session = await claimMarketTradeQuoteSession(
+			redis,
+			confirmSessionId,
+			interaction.user.id,
+		);
 		if (!session) {
 			await interaction.update({
 				embeds: [
@@ -333,10 +338,6 @@ export const handleMarketButton = async (
 			return;
 		}
 
-		if (session.userId !== interaction.user.id) {
-			throw new Error("That quote belongs to a different user.");
-		}
-
 		if (session.kind !== "protection") {
 			const result = await executeMarketTrade({
 				marketId: session.marketId,
@@ -345,8 +346,8 @@ export const handleMarketButton = async (
 				action: session.action,
 				amount: session.amount,
 				amountMode: session.amountMode,
+				executionId: confirmSessionId,
 			});
-			await deleteMarketTradeQuoteSession(redis, confirmSessionId);
 			await scheduleMarketRefresh(session.marketId);
 			const feedback = getTradeFeedback(session.action);
 			await interaction.update({
@@ -371,8 +372,8 @@ export const handleMarketButton = async (
 			userId: session.userId,
 			outcomeId: session.outcomeId,
 			targetCoverage: session.targetCoverage,
+			executionId: confirmSessionId,
 		});
-		await deleteMarketTradeQuoteSession(redis, confirmSessionId);
 		await scheduleMarketRefresh(session.marketId);
 		await interaction.update({
 			embeds: [
@@ -528,13 +529,13 @@ export const handleMarketButton = async (
 		interaction.customId,
 	);
 	if (detailsMarketId) {
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 		const market = await getMarketById(detailsMarketId);
 		if (!market) {
 			throw new Error("Market not found.");
 		}
 
-		await interaction.reply({
-			flags: MessageFlags.Ephemeral,
+		await interaction.editReply({
 			...(await buildMarketViewResponse(market)),
 			allowedMentions: {
 				parse: [],

@@ -62,3 +62,34 @@ export const uploadCsvToR2 = async (
     { expiresIn: 60 * 60 * 24 },
   );
 };
+
+/**
+ * Uploads a private JSON export and returns a one-day download URL.
+ * This always uses the signed R2 endpoint so a configured public base URL cannot expose personal data.
+ */
+export const uploadPrivateJsonToR2 = async (
+  key: string,
+  body: string,
+  fileName: string,
+): Promise<string> => {
+  const s3 = getClient();
+
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: env.R2_BUCKET!,
+      Key: key,
+      Body: body,
+      ContentType: 'application/json; charset=utf-8',
+      ContentDisposition: `attachment; filename="${fileName}"`,
+    }),
+  );
+
+  return getSignedUrl(
+    s3,
+    new GetObjectCommand({
+      Bucket: env.R2_BUCKET!,
+      Key: key,
+    }),
+    { expiresIn: 60 * 60 * 24 },
+  );
+};

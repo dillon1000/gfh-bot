@@ -86,7 +86,7 @@ const buildStandardPollExportCsv = (snapshot: EvaluatedPollSnapshot): string => 
       poll.passThreshold ?? '',
       escapeCsv(outcome.status),
       ...serializeGovernanceFields(snapshot),
-      escapeCsv(allVoters),
+      escapeCsv(poll.anonymous ? '' : allVoters),
       escapeCsv(poll.anonymous ? '' : (voterMentionsByOption.get(choice.id) ?? []).join(' | ')),
       escapeCsv(
         evaluatedPoll.votes
@@ -101,7 +101,7 @@ const buildStandardPollExportCsv = (snapshot: EvaluatedPollSnapshot): string => 
 };
 
 const buildRankedAnonymousExportCsv = (snapshot: EvaluatedPollSnapshot): string => {
-  const { poll, evaluatedPoll, results } = snapshot;
+  const { poll, results } = snapshot;
   if (results.kind !== 'ranked') {
     throw new Error('Expected ranked poll results.');
   }
@@ -129,10 +129,6 @@ const buildRankedAnonymousExportCsv = (snapshot: EvaluatedPollSnapshot): string 
     'all_voters',
   ].join(',');
 
-  const allVoters = [...new Set(evaluatedPoll.votes.map((vote) => vote.userId))]
-    .map((userId) => `<@${userId}>`)
-    .join(' | ');
-
   const rows = results.rounds.map((round) => [
     escapeCsv(poll.id),
     escapeCsv(poll.question),
@@ -152,7 +148,7 @@ const buildRankedAnonymousExportCsv = (snapshot: EvaluatedPollSnapshot): string 
     ),
     escapeCsv(round.tallies.map((choice) => `${choice.label}:${choice.votes}`).join(' | ')),
     ...serializeGovernanceFields(snapshot),
-    escapeCsv(allVoters),
+    escapeCsv(''),
   ].join(','));
 
   return [header, ...rows].join('\n');

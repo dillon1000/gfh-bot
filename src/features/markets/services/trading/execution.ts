@@ -40,7 +40,10 @@ import {
 	solveShortSharesForAmount,
 } from "@/features/markets/core/math.js";
 import type { MarketTradeResult } from "@/features/markets/core/types.js";
-import { assertPositiveTradeAmount } from "@/features/markets/services/trading/shared.js";
+import {
+	assertPositiveTradeAmount,
+	claimMarketActionExecution,
+} from "@/features/markets/services/trading/shared.js";
 import { syncLossProtectionForSellTx } from "@/features/markets/services/trading/protection.js";
 
 export const executeMarketTrade = async (input: {
@@ -50,6 +53,7 @@ export const executeMarketTrade = async (input: {
 	action: MarketTradeSide;
 	amount: number;
 	amountMode?: "points" | "shares";
+	executionId?: string;
 }): Promise<MarketTradeResult> =>
 	runSerializableTransaction(async (tx) => {
 		assertPositiveTradeAmount(input.amount);
@@ -59,6 +63,12 @@ export const executeMarketTrade = async (input: {
 		}
 
 		assertMarketOpen(market);
+		await claimMarketActionExecution(tx, {
+			...(input.executionId ? { executionId: input.executionId } : {}),
+			marketId: market.id,
+			userId: input.userId,
+			action: "trade",
+		});
 		const outcomeIndex = market.outcomes.findIndex(
 			(outcome) => outcome.id === input.outcomeId,
 		);

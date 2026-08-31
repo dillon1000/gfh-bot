@@ -199,6 +199,8 @@ model Poll {
   votes          PollVote[]
   voteEvents     PollVoteEvent[]
   @@index([guildId, channelId])
+  @@index([guildId, createdAt])
+  @@index([guildId, channelId, createdAt])
   @@index([closesAt, closedAt])
 }
 
@@ -404,10 +406,23 @@ model Market {
   lossProtections        MarketLossProtection[]
   forecastRecords        MarketForecastRecord[]
   liquidityEvents        MarketLiquidityEvent[]
+  actionReceipts         MarketActionReceipt[]
 
   @@index([guildId, closeAt, tradingClosedAt])
   @@index([guildId, resolvedAt, cancelledAt])
   @@index([guildId, creatorId, createdAt])
+}
+
+model MarketActionReceipt {
+  id        String   @id
+  marketId  String
+  userId    String
+  action    String
+  createdAt DateTime @default(now())
+  market    Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@index([marketId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model MarketForecastRecord {

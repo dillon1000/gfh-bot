@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { findManyReminders, findUniqueReminder, updateReminder } = vi.hoisted(() => ({
+const { findManyReminders, findUniqueReminder, updateManyReminders } = vi.hoisted(() => ({
   findManyReminders: vi.fn(),
   findUniqueReminder: vi.fn(),
-  updateReminder: vi.fn(),
+  updateManyReminders: vi.fn(),
 }));
 
 vi.mock('../src/app/logger.js', () => ({
@@ -27,7 +27,7 @@ vi.mock('../src/lib/prisma.js', () => ({
     pollReminder: {
       findMany: findManyReminders,
       findUnique: findUniqueReminder,
-      update: updateReminder,
+      updateMany: updateManyReminders,
     },
     pollVoteEvent: {
       findMany: vi.fn(),
@@ -93,7 +93,8 @@ describe('poll reminder lifecycle', () => {
   beforeEach(() => {
     findManyReminders.mockReset();
     findUniqueReminder.mockReset();
-    updateReminder.mockReset();
+    updateManyReminders.mockReset();
+    updateManyReminders.mockResolvedValue({ count: 1 });
   });
 
   it('sends the configured reminder reply and marks only that reminder as sent', async () => {
@@ -139,13 +140,43 @@ describe('poll reminder lifecycle', () => {
     });
     expect(embedJson?.description).toContain('closes <t:');
     expect(embedJson?.footer?.text).toBe('Reminder: 1h before close');
-    expect(updateReminder).toHaveBeenCalledWith({
+    expect(updateManyReminders).toHaveBeenCalledWith({
       where: {
         id: 'reminder_1',
+        sentAt: null,
       },
       data: {
         sentAt: expect.any(Date),
       },
+    });
+  });
+
+  it('releases a reminder claim when Discord delivery fails', async () => {
+    const deliveryError = new Error('Discord unavailable');
+    const client = {
+      channels: {
+        fetch: vi.fn().mockRejectedValue(deliveryError),
+      },
+    };
+    findUniqueReminder.mockResolvedValue({
+      id: 'reminder_1',
+      offsetMinutes: 60,
+      sentAt: null,
+      poll: {
+        id: 'poll_1',
+        channelId: 'channel_1',
+        messageId: 'message_1',
+        question: 'Ship it?',
+        closesAt: new Date('2026-03-24T12:00:00.000Z'),
+        reminderRoleId: null,
+        closedAt: null,
+      },
+    });
+
+    await expect(sendPollReminder(client as never, 'reminder_1')).rejects.toThrow('Discord unavailable');
+    expect(updateManyReminders).toHaveBeenNthCalledWith(2, {
+      where: { id: 'reminder_1', sentAt: expect.any(Date) },
+      data: { sentAt: null },
     });
   });
 
