@@ -68,6 +68,15 @@ const envSchema = z.object({
 	R2_SECRET_ACCESS_KEY: optionalNonEmptyString(),
 	R2_BUCKET: optionalNonEmptyString(),
 	R2_PUBLIC_BASE_URL: optionalUrlString(),
+	DATA_EXPORT_WEBHOOK_URL: optionalUrlString(),
+	DATA_EXPORT_WEBHOOK_SECRET: optionalNonEmptyString(),
+}).superRefine((value, context) => {
+	if (Boolean(value.DATA_EXPORT_WEBHOOK_URL) !== Boolean(value.DATA_EXPORT_WEBHOOK_SECRET)) {
+		context.addIssue({
+			code: "custom",
+			message: "DATA_EXPORT_WEBHOOK_URL and DATA_EXPORT_WEBHOOK_SECRET must be configured together.",
+		});
+	}
 });
 
 const parsed = envSchema.safeParse(process.env);

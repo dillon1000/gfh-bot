@@ -1,9 +1,13 @@
+import { createHmac, randomUUID } from 'node:crypto';
+
 import {
   MessageFlags,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
 } from 'discord.js';
+import { z } from 'zod';
 
+import { env } from '@/app/config.js';
 import { logger } from '@/app/logger.js';
 import type {
   CasinoTableHand,
@@ -18,6 +22,70 @@ import { redis } from '@/lib/redis.js';
 export const requestDataCommand = new SlashCommandBuilder()
   .setName('request-data')
   .setDescription('Receive a private download of the data associated with your account.');
+
+const webhookResponseSchema = z.object({
+  message: z.string().trim().min(1).max(2_000),
+});
+// Passport stores this stable source key with each connected application export.
+const dataExportSource = 'gfh-bot';
+const dataExportSourceLabel = 'GFH Bot';
+const dataExportLinkLifetimeMs = 24 * 60 * 60 * 1_000;
+
+export const signDataExportWebhookBody = (
+  secret: string,
+  timestamp: number,
+  body: string,
+): string => createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex');
+
+/**
+ * Notifies the configured identity provider after R2 upload and returns its user-facing DM message.
+ * A missing configuration returns null; transport, signature, and response errors reject so the caller can fall back.
+ */
+const notifyDataExportWebhook = async (input: {
+  userId: string;
+  fileName: string;
+  downloadUrl: string;
+  completedAt: Date;
+  expiresAt: Date;
+}): Promise<string | null> => {
+  if (!env.DATA_EXPORT_WEBHOOK_URL || !env.DATA_EXPORT_WEBHOOK_SECRET) {
+    return null;
+  }
+
+  const body = JSON.stringify({
+    id: randomUUID(),
+    type: 'data_export.completed',
+    createdAt: input.completedAt.toISOString(),
+    data: {
+      source: dataExportSource,
+      sourceLabel: dataExportSourceLabel,
+      identity: {
+        providerId: 'discord',
+        accountId: input.userId,
+      },
+      fileName: input.fileName,
+      downloadUrl: input.downloadUrl,
+      expiresAt: input.expiresAt.toISOString(),
+    },
+  });
+  const timestamp = Math.floor(Date.now() / 1_000);
+  const signature = signDataExportWebhookBody(env.DATA_EXPORT_WEBHOOK_SECRET, timestamp, body);
+  const response = await fetch(env.DATA_EXPORT_WEBHOOK_URL, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'user-agent': 'GFH-Bot-Data-Exports/1.0',
+      'x-data-export-signature': `t=${timestamp},v1=${signature}`,
+    },
+    body,
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) {
+    throw new Error(`Data export webhook responded ${response.status}.`);
+  }
+
+  return webhookResponseSchema.parse(await response.json()).message;
+};
 
 /**
  * Keeps only JSON branches that contain the requested user ID. Objects with a direct match stay intact
@@ -339,10 +407,24 @@ export const handleRequestDataCommand = async (
       JSON.stringify(data, null, 2),
       fileName,
     );
+    const completedAt = new Date();
+    const directMessage = `Your GFH Bot data export is ready: [Download ${fileName}](${url})\nThis private link expires in 24 hours.`;
+    let message = directMessage;
+    try {
+      message = await notifyDataExportWebhook({
+        userId,
+        fileName,
+        downloadUrl: url,
+        completedAt,
+        expiresAt: new Date(completedAt.getTime() + dataExportLinkLifetimeMs),
+      }) ?? directMessage;
+    } catch (error) {
+      logger.warn({ err: error, userId }, 'Data export webhook failed; using direct download link');
+    }
 
     try {
       await interaction.user.send({
-        content: `Your GFH Bot data export is ready: [Download ${fileName}](${url})\nThis private link expires in 24 hours.`,
+        content: message,
         allowedMentions: { parse: [] },
       });
     } catch (error) {

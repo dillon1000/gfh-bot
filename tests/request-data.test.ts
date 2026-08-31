@@ -4,6 +4,7 @@ import {
   filterPersonalJson,
   isPersonalRedisRecord,
   requestDataCommand,
+  signDataExportWebhookBody,
 } from '@/features/meta/commands/request-data.js';
 
 describe('requestDataCommand', () => {
@@ -30,5 +31,11 @@ describe('requestDataCommand', () => {
     expect(isPersonalRedisRecord('poll-draft:guild-1:user-1', {}, 'user-1')).toBe(true);
     expect(isPersonalRedisRecord('search-session:random', { userId: 'user-1' }, 'user-1')).toBe(true);
     expect(isPersonalRedisRecord('search-session:random', { userId: 'user-2' }, 'user-1')).toBe(false);
+  });
+
+  it('signs export webhook bodies with their timestamp', () => {
+    expect(signDataExportWebhookBody('secret', 123, '{"ok":true}')).toBe(
+      '12f14ade5e7e737164d9ae20ea4e070056a3045b2c8f42f5f216008eae4684dd',
+    );
   });
 });
