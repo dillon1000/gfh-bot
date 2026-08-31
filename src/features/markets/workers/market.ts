@@ -2,6 +2,7 @@ import { Worker } from 'bullmq';
 import type { Client } from 'discord.js';
 
 import { logger } from '@/app/logger.js';
+import { bullMQTelemetry } from '@/app/observability.js';
 import { marketCloseQueueName, marketGraceQueueName, marketLiquidityQueueName, marketRefreshQueueName } from '@/lib/queue.js';
 import { getBullConnectionOptions } from '@/lib/redis.js';
 import { closeMarketAndNotify, injectMarketLiquidityAndRefresh, refreshMarketMessage, sendMarketGraceNotice } from '@/features/markets/services/lifecycle.js';
@@ -14,6 +15,7 @@ export const startMarketCloseWorker = (client: Client): Worker<{ marketId: strin
     },
     {
       connection: getBullConnectionOptions(),
+      telemetry: bullMQTelemetry,
     },
   );
 
@@ -32,6 +34,7 @@ export const startMarketRefreshWorker = (client: Client): Worker<{ marketId: str
     },
     {
       connection: getBullConnectionOptions(),
+      telemetry: bullMQTelemetry,
     },
   );
 
@@ -50,6 +53,7 @@ export const startMarketGraceWorker = (client: Client): Worker<{ marketId: strin
     },
     {
       connection: getBullConnectionOptions(),
+      telemetry: bullMQTelemetry,
     },
   );
 
@@ -68,6 +72,7 @@ export const startMarketLiquidityWorker = (client: Client): Worker<{ marketId: s
     },
     {
       connection: getBullConnectionOptions(),
+      telemetry: bullMQTelemetry,
     },
   );
 

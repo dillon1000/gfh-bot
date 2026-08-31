@@ -2,6 +2,8 @@ import 'dotenv/config';
 
 import pino from 'pino';
 
+import { getLogTraceContext } from '@/app/observability.js';
+
 const logLevels = new Set(['fatal', 'error', 'warn', 'info', 'debug', 'trace']);
 const configuredLogLevel = process.env.LOG_LEVEL;
 const level = configuredLogLevel && logLevels.has(configuredLogLevel)
@@ -10,4 +12,5 @@ const level = configuredLogLevel && logLevels.has(configuredLogLevel)
 
 export const logger = pino({
   level,
+  mixin: getLogTraceContext,
 });

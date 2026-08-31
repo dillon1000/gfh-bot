@@ -1,7 +1,9 @@
 import { Events, GatewayIntentBits, Partials, Client } from 'discord.js';
 
 import { logger } from '@/app/logger.js';
+import { shutdownTelemetry } from '@/app/instrumentation.js';
 import { applyConfiguredPresence } from '@/app/presence.js';
+import { traceOperation } from '@/app/trace.js';
 import { env } from '@/app/config.js';
 import { registerInteractionRouter } from '@/discord/router.js';
 import { replayUndeliveredAuditLogEntries } from '@/features/audit-log/services/events/delivery.js';
@@ -48,14 +50,14 @@ const runStartupTasks = async (tasks: StartupTask[]): Promise<void> => {
   let failedTaskCount = 0;
 
   for (const task of tasks) {
-    const taskStartedAt = Date.now();
-
     try {
-      await task.run();
-      logger.info({ startupTask: task.name, durationMs: Date.now() - taskStartedAt }, 'Startup task completed');
-    } catch (error) {
+      await traceOperation(
+        `startup.${task.name}`,
+        { 'startup.task': task.name },
+        task.run,
+      );
+    } catch {
       failedTaskCount += 1;
-      logger.error({ err: error, startupTask: task.name, durationMs: Date.now() - taskStartedAt }, 'Startup task failed');
     }
   }
 
@@ -205,38 +207,58 @@ client.once(Events.ClientReady, async (readyClient) => {
 });
 
 client.on(Events.MessageReactionAdd, async (reaction, user) => {
-  try {
-    await syncStarboardForReaction(client, reaction, user);
-  } catch (error) {
-    logger.error({ err: error }, 'Failed to sync starboard on reaction add');
-  }
-  try {
-    await recordStarboardReactionAdd(reaction, user);
-  } catch (error) {
-    logger.error({ err: error }, 'Failed to record starboard reaction add');
-  }
+  await traceOperation(
+    'discord.event.message-reaction-add',
+    { 'discord.event.name': Events.MessageReactionAdd, 'discord.user.id': user.id },
+    async () => {
+      try {
+        await syncStarboardForReaction(client, reaction, user);
+      } catch (error) {
+        logger.error({ err: error }, 'Failed to sync starboard on reaction add');
+      }
+      try {
+        await recordStarboardReactionAdd(reaction, user);
+      } catch (error) {
+        logger.error({ err: error }, 'Failed to record starboard reaction add');
+      }
+    },
+  );
 });
 
 client.on(Events.MessageReactionRemove, async (reaction, user) => {
-  try {
-    await syncStarboardForReaction(client, reaction, user);
-  } catch (error) {
-    logger.error({ err: error }, 'Failed to sync starboard on reaction remove');
-  }
-  try {
-    await recordStarboardReactionRemove(reaction, user);
-  } catch (error) {
-    logger.error({ err: error }, 'Failed to record starboard reaction remove');
-  }
+  await traceOperation(
+    'discord.event.message-reaction-remove',
+    { 'discord.event.name': Events.MessageReactionRemove, 'discord.user.id': user.id },
+    async () => {
+      try {
+        await syncStarboardForReaction(client, reaction, user);
+      } catch (error) {
+        logger.error({ err: error }, 'Failed to sync starboard on reaction remove');
+      }
+      try {
+        await recordStarboardReactionRemove(reaction, user);
+      } catch (error) {
+        logger.error({ err: error }, 'Failed to record starboard reaction remove');
+      }
+    },
+  );
 });
 
 client.on(Events.MessageDelete, async (message) => {
-  try {
-    await removeStarboardEntryForSourceMessage(client, message.id);
-  } catch (error) {
-    logger.error({ err: error }, 'Failed to remove starboard entry for deleted source message');
-  }
+  await traceOperation(
+    'discord.event.message-delete',
+    { 'discord.event.name': Events.MessageDelete, 'discord.message.id': message.id },
+    async () => {
+      try {
+        await removeStarboardEntryForSourceMessage(client, message.id);
+      } catch (error) {
+        logger.error({ err: error }, 'Failed to remove starboard entry for deleted source message');
+      }
+    },
+  );
 });
+
+registerShutdownHandler(shutdownTelemetry);
 
 registerShutdownHandler(async () => {
   await Promise.allSettled([

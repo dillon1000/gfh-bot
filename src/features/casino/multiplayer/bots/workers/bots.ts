@@ -2,6 +2,7 @@ import { Worker } from 'bullmq';
 import type { Client } from 'discord.js';
 
 import { logger } from '@/app/logger.js';
+import { bullMQTelemetry } from '@/app/observability.js';
 import { casinoTableBotActionQueueName } from '@/lib/queue.js';
 import { getBullConnectionOptions } from '@/lib/redis.js';
 import { handleCasinoBotAction } from '@/features/casino/handlers/interactions/jobs.js';
@@ -14,6 +15,7 @@ export const startCasinoBotWorker = (client: Client): Worker<{ tableId: string }
     },
     {
       connection: getBullConnectionOptions(),
+      telemetry: bullMQTelemetry,
     },
   );
 

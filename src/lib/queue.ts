@@ -1,5 +1,6 @@
 import { Queue, type JobsOptions } from "bullmq";
 
+import { bullMQTelemetry } from "@/app/observability.js";
 import { createLazyProxy } from "@/lib/lazy.js";
 import { getBullConnectionOptions } from "@/lib/redis.js";
 
@@ -23,6 +24,7 @@ const createQueueState = <Data, ResultType, NameType extends string>(
 		() =>
 			new Queue<Data, ResultType, NameType>(name, {
 				connection: getBullConnectionOptions(),
+				telemetry: bullMQTelemetry,
 				defaultJobOptions: {
 					removeOnComplete: true,
 					removeOnFail: 100,

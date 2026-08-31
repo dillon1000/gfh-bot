@@ -2,6 +2,7 @@ import { Worker } from 'bullmq';
 import type { Client } from 'discord.js';
 
 import { logger } from '@/app/logger.js';
+import { bullMQTelemetry } from '@/app/observability.js';
 import {
   casinoTableIdleCloseQueueName,
   casinoTableTimeoutQueueName,
@@ -20,6 +21,7 @@ export const startCasinoTableTimeoutWorker = (client: Client): Worker<{ tableId:
     },
     {
       connection: getBullConnectionOptions(),
+      telemetry: bullMQTelemetry,
     },
   );
 
@@ -38,6 +40,7 @@ export const startCasinoTableIdleCloseWorker = (client: Client): Worker<{ tableI
     },
     {
       connection: getBullConnectionOptions(),
+      telemetry: bullMQTelemetry,
     },
   );
 

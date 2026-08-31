@@ -2,6 +2,7 @@ import { Worker } from 'bullmq';
 import type { Client } from 'discord.js';
 
 import { logger } from '@/app/logger.js';
+import { bullMQTelemetry } from '@/app/observability.js';
 import { processUserDataExport } from '@/features/meta/commands/request-data.js';
 import { dataExportQueueName } from '@/lib/queue.js';
 import { getBullConnectionOptions } from '@/lib/redis.js';
@@ -15,6 +16,7 @@ export const startDataExportWorker = (client: Client): Worker<{ userId: string }
     },
     {
       connection: getBullConnectionOptions(),
+      telemetry: bullMQTelemetry,
       concurrency: 1,
       // Start at most one export per minute so repeated requests cannot monopolize a small VPS.
       limiter: { max: 1, duration: 60_000 },
