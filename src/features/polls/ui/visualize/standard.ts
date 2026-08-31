@@ -35,9 +35,10 @@ const muted = '#a3adba';
 const quiet = '#66707d';
 const fontFamily = 'Public Sans';
 const fontStack = `'${fontFamily}', 'DejaVu Sans', 'Noto Sans', 'Liberation Sans', sans-serif`;
-const PARLIAMENT_SEAT_COUNT = 100;
-// Growing rows keep seat spacing even while forming a fixed 100-seat semicircle.
-const parliamentRowSeatCounts = [12, 16, 20, 24, 28] as const;
+const MAX_PARLIAMENT_SEATS = 100;
+const MAX_PARLIAMENT_ROWS = 5;
+// A 32-pixel arc step keeps sparse rows compact and individual seats distinct.
+const parliamentSeatSpacing = 32;
 
 const seriesPalette = schemeTableau10.concat([
   '#7cb7ff',
@@ -482,22 +483,28 @@ const buildSnapshots = (
   return snapshots;
 };
 
-/** Projects vote counts into 100 seats; tied remainders keep option order. */
-export const allocateParliamentSeats = (
-  voteCounts: readonly number[],
-): number[] => {
-  const totalVotes = voteCounts.reduce((total, count) => total + count, 0);
-  if (totalVotes === 0) {
-    return voteCounts.map(() => 0);
+/** Returns exact vote-seat rows through 100 votes, or null for share-gauge mode. */
+export const getParliamentRowSeatCounts = (
+  totalVotes: number,
+): number[] | null => {
+  if (totalVotes <= 0) {
+    return [];
   }
 
-  const quotas = voteCounts.map(
-    (count) => (count / totalVotes) * PARLIAMENT_SEAT_COUNT,
+  if (totalVotes > MAX_PARLIAMENT_SEATS) {
+    return null;
+  }
+
+  const rowCount = Math.ceil(
+    totalVotes / (MAX_PARLIAMENT_SEATS / MAX_PARLIAMENT_ROWS),
   );
+  const weights = Array.from({ length: rowCount }, (_, index) => index + 1);
+  const totalWeight = weights.reduce((total, weight) => total + weight, 0);
+  const quotas = weights.map((weight) => (weight / totalWeight) * totalVotes);
   const seats = quotas.map(Math.floor);
   const remainingSeats =
-    PARLIAMENT_SEAT_COUNT - seats.reduce((total, count) => total + count, 0);
-  const remainderOrder = voteCounts
+    totalVotes - seats.reduce((total, count) => total + count, 0);
+  const remainderOrder = weights
     .map((_, index) => index)
     .sort((left, right) => {
       const difference =
@@ -574,21 +581,28 @@ const fillCircle = (
 };
 
 // Angular seat order keeps each option in a contiguous parliamentary bloc.
-const drawParliament = (
+const drawParliamentSeats = (
   context: SKRSContext2D,
   bounds: ChartBounds,
   series: OptionSeries[],
-  allocations: number[],
+  voteCounts: number[],
+  rowSeatCounts: number[],
 ): void => {
   const centerX = bounds.x + bounds.width / 2;
-  const centerY = bounds.y + bounds.height - 8;
-  const outerSeatCount = parliamentRowSeatCounts.at(-1) ?? 1;
-  const outerRadius = Math.min(bounds.height - 16, bounds.width / 2 - 16);
-  const positions = parliamentRowSeatCounts
+  const outerSeatCount = rowSeatCounts.at(-1) ?? 1;
+  const outerRadius = Math.min(
+    bounds.height - 16,
+    bounds.width / 2 - 16,
+    ((outerSeatCount - 1) * parliamentSeatSpacing) / Math.PI,
+  );
+  const centerY = bounds.y + bounds.height / 2 + outerRadius / 2;
+  const positions = rowSeatCounts
     .flatMap((seatCount) => {
       const radius = outerRadius * (seatCount / outerSeatCount);
       return Array.from({ length: seatCount }, (_, index) => {
-        const angle = Math.PI + (Math.PI * index) / (seatCount - 1);
+        const angle = seatCount === 1
+          ? Math.PI * 1.5
+          : Math.PI + (Math.PI * index) / (seatCount - 1);
         return {
           angle,
           radius,
@@ -599,12 +613,44 @@ const drawParliament = (
     })
     .sort((left, right) => left.angle - right.angle || right.radius - left.radius);
   const seatColors = series.flatMap((entry, index) =>
-    Array.from({ length: allocations[index] ?? 0 }, () => entry.color),
+    Array.from({ length: voteCounts[index] ?? 0 }, () => entry.color),
   );
 
   positions.forEach((position, index) => {
     fillCircle(context, position.x, position.y, 8.5, seatColors[index] ?? quiet);
   });
+};
+
+const drawParliamentShareGauge = (
+  context: SKRSContext2D,
+  bounds: ChartBounds,
+  series: OptionSeries[],
+): void => {
+  const lineWidth = 44;
+  const centerX = bounds.x + bounds.width / 2;
+  const radius = Math.min(
+    bounds.height - lineWidth - 8,
+    bounds.width / 2 - lineWidth / 2 - 16,
+  );
+  const centerY = bounds.y + bounds.height / 2 + radius / 2;
+  let startAngle = Math.PI;
+
+  context.save();
+  context.lineCap = 'butt';
+  context.lineWidth = lineWidth;
+  series.forEach((entry, index) => {
+    const endAngle = index === series.length - 1
+      ? Math.PI * 2
+      : Math.min(Math.PI * 2, startAngle + entry.latestPercentage * Math.PI);
+    if (endAngle > startAngle) {
+      context.beginPath();
+      context.strokeStyle = entry.color;
+      context.arc(centerX, centerY, radius, startAngle, endAngle);
+      context.stroke();
+    }
+    startAngle = endAngle;
+  });
+  context.restore();
 };
 
 const drawSparkline = (
@@ -791,12 +837,11 @@ export const buildStandardPollPng = async (
     };
   });
 
-  const allocations = allocateParliamentSeats(
-    poll.options.map(
-      (option) =>
-        results.choices.find((choice) => choice.id === option.id)?.votes ?? 0,
-    ),
+  const voteCounts = poll.options.map(
+    (option) =>
+      results.choices.find((choice) => choice.id === option.id)?.votes ?? 0,
   );
+  const parliamentRows = getParliamentRowSeatCounts(results.totalVotes);
   const metadata = buildMetadata(poll, results, summary);
 
   context.fillStyle = background;
@@ -863,7 +908,9 @@ export const buildStandardPollPng = async (
 
   drawLabel(
     context,
-    `PROJECTED PARLIAMENT · ${PARLIAMENT_SEAT_COUNT} SEATS`,
+    parliamentRows === null
+      ? `VOTE SHARE · ${compactNumberFormatter.format(results.totalVotes)} VOTES`
+      : `VOTE PARLIAMENT · ${results.totalVotes} SEAT${results.totalVotes === 1 ? '' : 'S'}`,
     parliamentBounds.x,
     parliamentBounds.y - 18,
     {
@@ -878,8 +925,19 @@ export const buildStandardPollPng = async (
 
   if (results.totalVotes === 0) {
     drawEmptyState(context, parliamentBounds, poll);
+  } else if (parliamentRows === null) {
+    drawParliamentShareGauge(context, parliamentBounds, series);
   } else {
-    drawParliament(context, parliamentBounds, series, allocations);
+    drawParliamentSeats(
+      context,
+      parliamentBounds,
+      series,
+      voteCounts,
+      parliamentRows,
+    );
+  }
+
+  if (results.totalVotes > 0) {
     series.forEach((entry) => {
       drawSparkline(
         context,
