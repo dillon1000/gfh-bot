@@ -2,6 +2,7 @@ import { Worker } from 'bullmq';
 import type { Client } from 'discord.js';
 
 import { logger } from '@/app/logger.js';
+import { bullMQTelemetry } from '@/app/observability.js';
 import { pollCloseQueueName, pollReminderQueueName } from '@/lib/queue.js';
 import { getBullConnectionOptions } from '@/lib/redis.js';
 import { closePollAndRefresh, sendPollReminder } from '@/features/polls/services/lifecycle.js';
@@ -18,6 +19,7 @@ export const startPollWorker = (client: Client): Worker<{ pollId: string }, void
     },
     {
       connection: getBullConnectionOptions(),
+      telemetry: bullMQTelemetry,
     },
   );
 
@@ -52,6 +54,7 @@ export const startPollReminderWorker = (client: Client): Worker<PollReminderJobD
     },
     {
       connection: getBullConnectionOptions(),
+      telemetry: bullMQTelemetry,
     },
   );
 

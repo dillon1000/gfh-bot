@@ -50,4 +50,4 @@ RUN pnpm prune --prod
 
 USER app
 
-CMD ["sh", "-c", "pnpm prisma migrate deploy && node dist/src/app/index.js"]
+CMD ["sh", "-c", "pnpm prisma migrate deploy && node --import ./dist/src/app/instrumentation.js dist/src/app/index.js"]

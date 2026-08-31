@@ -1,5 +1,10 @@
 import { Events, type Client, type Interaction } from 'discord.js';
 
+import { traceOperation } from '@/app/trace.js';
+import {
+  getInteractionTraceDetails,
+  instrumentDiscordREST,
+} from '@/discord/observability.js';
 import { handleAuditLogCommand } from '@/features/audit-log/handlers/commands.js';
 import { handleCasinoInteractionError } from '@/features/casino/handlers/interaction-errors.js';
 import { handleCasinoButton } from '@/features/casino/handlers/interactions/buttons.js';
@@ -111,9 +116,8 @@ import {
 } from '@/features/search/handlers/interactions.js';
 import { handleStarboardCommand } from '@/features/starboard/handlers/commands.js';
 
-export const registerInteractionRouter = (client: Client): void => {
-  client.on(Events.InteractionCreate, async (interaction: Interaction) => {
-    try {
+const routeInteraction = async (client: Client, interaction: Interaction): Promise<void> => {
+  try {
       if (interaction.isChatInputCommand()) {
         switch (interaction.commandName) {
           case 'audit-log':
@@ -497,7 +501,7 @@ export const registerInteractionRouter = (client: Client): void => {
           return;
         }
       }
-    } catch (error) {
+  } catch (error) {
       if (
         interaction.isChatInputCommand() ||
         interaction.isMessageContextMenuCommand() ||
@@ -550,7 +554,23 @@ export const registerInteractionRouter = (client: Client): void => {
         } else {
           await handlePollInteractionError(interaction, error);
         }
-      }
+    }
+
+    throw error;
+  }
+};
+
+export const registerInteractionRouter = (client: Client): void => {
+  instrumentDiscordREST(client);
+
+  client.on(Events.InteractionCreate, async (interaction: Interaction) => {
+    const traceDetails = getInteractionTraceDetails(interaction);
+    try {
+      await traceOperation(traceDetails.name, traceDetails.attributes, () =>
+        routeInteraction(client, interaction),
+      );
+    } catch {
+      // Route-specific handlers own user notification; traceOperation owns failure logging.
     }
   });
 };

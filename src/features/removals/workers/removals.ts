@@ -2,6 +2,7 @@ import { Worker } from 'bullmq';
 import type { Client } from 'discord.js';
 
 import { logger } from '@/app/logger.js';
+import { bullMQTelemetry } from '@/app/observability.js';
 import { removalVoteStartQueueName } from '@/lib/queue.js';
 import { getBullConnectionOptions } from '@/lib/redis.js';
 import { attemptRemovalVoteStart } from '@/features/removals/services/removals/start.js';
@@ -14,6 +15,7 @@ export const startRemovalVoteWorker = (client: Client): Worker<{ requestId: stri
     },
     {
       connection: getBullConnectionOptions(),
+      telemetry: bullMQTelemetry,
     },
   );
 
