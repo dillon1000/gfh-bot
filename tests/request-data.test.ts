@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   filterPersonalJson,
+  isPersonalRedisRecord,
   requestDataCommand,
 } from '@/features/meta/commands/request-data.js';
 
@@ -23,5 +24,11 @@ describe('requestDataCommand', () => {
     }, 'user-1')).toEqual({
       messages: [{ authorId: 'user-1', content: 'mine' }],
     });
+  });
+
+  it('recognizes keyed drafts and random-ID sessions owned by the user', () => {
+    expect(isPersonalRedisRecord('poll-draft:guild-1:user-1', {}, 'user-1')).toBe(true);
+    expect(isPersonalRedisRecord('search-session:random', { userId: 'user-1' }, 'user-1')).toBe(true);
+    expect(isPersonalRedisRecord('search-session:random', { userId: 'user-2' }, 'user-1')).toBe(false);
   });
 });

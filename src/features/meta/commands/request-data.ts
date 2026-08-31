@@ -13,6 +13,7 @@ import type {
 import { hashRationaleUser } from '@/features/polls/services/rationales.js';
 import { prisma } from '@/lib/prisma.js';
 import { isR2Configured, uploadPrivateJsonToR2 } from '@/lib/r2.js';
+import { redis } from '@/lib/redis.js';
 
 export const requestDataCommand = new SlashCommandBuilder()
   .setName('request-data')
@@ -47,6 +48,81 @@ export const filterPersonalJson = (value: unknown, userId: string): unknown | nu
     .map(([key, entry]) => [key, filterPersonalJson(entry, userId)] as const)
     .filter(([, entry]) => entry !== null);
   return matches.length > 0 ? Object.fromEntries(matches) : null;
+};
+
+type TransientUserRecord = {
+  key: string;
+  expiresInSeconds: number;
+  value: unknown;
+};
+
+const parseStoredJson = (value: string): unknown => {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+};
+
+/** Returns whether a Redis draft key or session value belongs to the requested user. */
+export const isPersonalRedisRecord = (
+  key: string,
+  value: unknown,
+  userId: string,
+): boolean => key.endsWith(`:${userId}`) || Boolean(
+  value
+  && typeof value === 'object'
+  && 'userId' in value
+  && value.userId === userId,
+);
+
+/**
+ * Collects Redis drafts whose keys contain the user ID and random-ID sessions whose values identify the user.
+ * SCAN avoids blocking Redis; records that expire while the scan runs are omitted.
+ */
+const findTransientUserData = async (userId: string): Promise<TransientUserRecord[]> => {
+  const records: TransientUserRecord[] = [];
+  const seenKeys = new Set<string>();
+  const patterns = [
+    `*:${userId}`,
+    'search-session:*',
+    'market-interaction-session:*',
+    'market-quote-session:*',
+  ];
+
+  for (const pattern of patterns) {
+    let cursor = '0';
+    do {
+      const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = nextCursor;
+
+      const freshKeys = keys.filter((key) => !seenKeys.has(key));
+      for (const key of freshKeys) {
+        seenKeys.add(key);
+      }
+      const values = freshKeys.length > 0 ? await redis.mget(freshKeys) : [];
+
+      for (const [index, key] of freshKeys.entries()) {
+        const value = values[index];
+        if (value === null || value === undefined) {
+          continue;
+        }
+
+        const parsed = parseStoredJson(value);
+        if (!isPersonalRedisRecord(key, parsed, userId)) {
+          continue;
+        }
+
+        records.push({
+          key,
+          expiresInSeconds: await redis.ttl(key),
+          value: parsed,
+        });
+      }
+    } while (cursor !== '0');
+  }
+
+  return records.sort((left, right) => left.key.localeCompare(right.key));
 };
 
 const findEmbeddedUserData = async (userId: string): Promise<{
@@ -152,6 +228,7 @@ export const buildUserDataExport = async (userId: string): Promise<Record<string
     guildCoVoteEdges,
     guildMessageSnapshots,
     embedded,
+    transientRedisRecords,
   ] = await Promise.all([
     prisma.poll.findMany({ where: { authorId: userId }, orderBy: { createdAt: 'asc' } }),
     prisma.pollVote.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
@@ -195,6 +272,7 @@ export const buildUserDataExport = async (userId: string): Promise<Record<string
     }),
     prisma.guildMessageSnapshot.findMany({ where: { authorId: userId }, orderBy: { createdAt: 'asc' } }),
     findEmbeddedUserData(userId),
+    findTransientUserData(userId),
   ]);
 
   return {
@@ -233,6 +311,7 @@ export const buildUserDataExport = async (userId: string): Promise<Record<string
       casinoUserStats,
       guildMessageSnapshots,
       auditLogEntries: embedded.auditLogEntries,
+      transientRedisRecords,
     },
   };
 };
