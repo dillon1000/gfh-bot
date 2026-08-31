@@ -9,15 +9,7 @@ import {
   createCanvas,
   loadImage,
 } from '@napi-rs/canvas';
-import {
-  bin,
-  line,
-  scaleBand,
-  scaleLinear,
-  scaleOrdinal,
-  scaleTime,
-  schemeTableau10,
-} from 'd3';
+import { schemeTableau10 } from 'd3';
 
 import type {
   EvaluatedPollSnapshot,
@@ -41,12 +33,11 @@ const border = '#2b313a';
 const text = '#f4f7fb';
 const muted = '#a3adba';
 const quiet = '#66707d';
-const grid = '#2f3640';
-const gridStrong = '#404856';
-const histogramColor = '#6f8fc0';
 const fontFamily = 'Public Sans';
 const fontStack = `'${fontFamily}', 'DejaVu Sans', 'Noto Sans', 'Liberation Sans', sans-serif`;
-const VOTE_BUCKET_COUNT = 28;
+const PARLIAMENT_SEAT_COUNT = 100;
+// Growing rows keep seat spacing even while forming a fixed 100-seat semicircle.
+const parliamentRowSeatCounts = [12, 16, 20, 24, 28] as const;
 
 const seriesPalette = schemeTableau10.concat([
   '#7cb7ff',
@@ -71,7 +62,6 @@ type LoadedImage = Awaited<ReturnType<typeof loadImage>>;
 type Snapshot = {
   at: Date;
   percentages: number[];
-  totalVotes: number;
 };
 
 type ChartBounds = {
@@ -87,18 +77,10 @@ type SeriesPoint = {
 };
 
 type OptionSeries = {
-  id: string;
   label: string;
   color: string;
   latestPercentage: number;
   points: SeriesPoint[];
-};
-
-type VoteBucket = {
-  index: number;
-  startTime: number;
-  endTime: number;
-  count: number;
 };
 
 type MetadataItem = {
@@ -113,12 +95,6 @@ const imageCache = new Map<string, Promise<LoadedImage | null>>();
 const axisDateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
-});
-
-const axisDateTimeFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  hour: 'numeric',
 });
 
 const compactNumberFormatter = new Intl.NumberFormat('en-US', {
@@ -222,16 +198,6 @@ const wrapText = (
 
   return lines.slice(0, maxLines);
 };
-
-const formatAxisTime = (
-  value: number,
-  startTime: number,
-  endTime: number,
-): string =>
-  (endTime - startTime <= 36 * 60 * 60 * 1_000
-    ? axisDateTimeFormatter
-    : axisDateFormatter
-  ).format(new Date(value));
 
 const formatFooterTimestamp = (value: Date): string =>
   footerDateTimeFormatter.format(value);
@@ -478,7 +444,6 @@ const buildSnapshots = (
     {
       at: poll.createdAt,
       percentages: [...initialPercentages],
-      totalVotes: 0,
     },
   ];
 
@@ -501,7 +466,6 @@ const buildSnapshots = (
     snapshots.push({
       at: vote.createdAt,
       percentages: counts.map((count) => (total === 0 ? 0 : count / total)),
-      totalVotes: total,
     });
   }
 
@@ -513,44 +477,40 @@ const buildSnapshots = (
   snapshots.push({
     at: endTime,
     percentages: finalPercentages,
-    totalVotes: results.totalVotes,
   });
 
   return snapshots;
 };
 
-const bucketVotes = (
-  poll: PollWithRelations,
-  startTime: number,
-  endTime: number,
-  bucketCount = VOTE_BUCKET_COUNT,
-): VoteBucket[] => {
-  if (bucketCount <= 0) {
-    return [];
+/** Projects vote counts into 100 seats; tied remainders keep option order. */
+export const allocateParliamentSeats = (
+  voteCounts: readonly number[],
+): number[] => {
+  const totalVotes = voteCounts.reduce((total, count) => total + count, 0);
+  if (totalVotes === 0) {
+    return voteCounts.map(() => 0);
   }
 
-  const safeEndTime = Math.max(startTime + 1, endTime);
-  const bucketSpan = (safeEndTime - startTime) / bucketCount;
-  const thresholds = Array.from({ length: bucketCount + 1 }, (_, index) =>
-    index === bucketCount ? safeEndTime : startTime + bucketSpan * index,
+  const quotas = voteCounts.map(
+    (count) => (count / totalVotes) * PARLIAMENT_SEAT_COUNT,
   );
-  const histogram = bin<{ time: number }, number>()
-    .value((entry) => entry.time)
-    .domain([startTime, safeEndTime])
-    .thresholds(thresholds);
-  const bins = histogram(
-    poll.votes.map((vote) => ({ time: vote.createdAt.getTime() })),
-  );
+  const seats = quotas.map(Math.floor);
+  const remainingSeats =
+    PARLIAMENT_SEAT_COUNT - seats.reduce((total, count) => total + count, 0);
+  const remainderOrder = voteCounts
+    .map((_, index) => index)
+    .sort((left, right) => {
+      const difference =
+        ((quotas[right] ?? 0) - (seats[right] ?? 0)) -
+        ((quotas[left] ?? 0) - (seats[left] ?? 0));
+      return difference || left - right;
+    });
 
-  return Array.from({ length: bucketCount }, (_, index) => {
-    const bucket = bins[index];
-    return {
-      index,
-      startTime: thresholds[index] ?? startTime,
-      endTime: thresholds[index + 1] ?? safeEndTime,
-      count: bucket?.length ?? 0,
-    };
-  });
+  for (const index of remainderOrder.slice(0, remainingSeats)) {
+    seats[index] = (seats[index] ?? 0) + 1;
+  }
+
+  return seats;
 };
 
 const buildMetadata = (
@@ -613,109 +573,41 @@ const fillCircle = (
   context.fill();
 };
 
-const drawShareGrid = (
+// Angular seat order keeps each option in a contiguous parliamentary bloc.
+const drawParliament = (
   context: SKRSContext2D,
   bounds: ChartBounds,
+  series: OptionSeries[],
+  allocations: number[],
 ): void => {
-  const scale = scaleLinear()
-    .domain([0, 1])
-    .range([bounds.y + bounds.height, bounds.y]);
-  const ticks = [0, 0.25, 0.5, 0.75, 1];
-  context.lineWidth = 1;
+  const centerX = bounds.x + bounds.width / 2;
+  const centerY = bounds.y + bounds.height - 8;
+  const outerSeatCount = parliamentRowSeatCounts.at(-1) ?? 1;
+  const outerRadius = Math.min(bounds.height - 16, bounds.width / 2 - 16);
+  const positions = parliamentRowSeatCounts
+    .flatMap((seatCount) => {
+      const radius = outerRadius * (seatCount / outerSeatCount);
+      return Array.from({ length: seatCount }, (_, index) => {
+        const angle = Math.PI + (Math.PI * index) / (seatCount - 1);
+        return {
+          angle,
+          radius,
+          x: centerX + Math.cos(angle) * radius,
+          y: centerY + Math.sin(angle) * radius,
+        };
+      });
+    })
+    .sort((left, right) => left.angle - right.angle || right.radius - left.radius);
+  const seatColors = series.flatMap((entry, index) =>
+    Array.from({ length: allocations[index] ?? 0 }, () => entry.color),
+  );
 
-  for (const tick of ticks) {
-    const y = scale(tick);
-    context.strokeStyle = tick === 0 || tick === 1 ? gridStrong : grid;
-    context.beginPath();
-    context.moveTo(bounds.x, y);
-    context.lineTo(bounds.x + bounds.width, y);
-    context.stroke();
-
-    drawLabel(context, `${Math.round(tick * 100)}%`, bounds.x - 16, y, {
-      font: `13px ${fontStack}`,
-      color: muted,
-      align: 'right',
-      baseline: 'middle',
-    });
-  }
-};
-
-const drawVoteHistogramGrid = (
-  context: SKRSContext2D,
-  bounds: ChartBounds,
-  maxBucket: number,
-): void => {
-  const scale = scaleLinear()
-    .domain([0, Math.max(1, maxBucket)])
-    .range([bounds.y + bounds.height, bounds.y]);
-  const topY = scale(Math.max(1, maxBucket));
-  const bottomY = scale(0);
-
-  context.lineWidth = 1;
-  context.strokeStyle = gridStrong;
-  context.beginPath();
-  context.moveTo(bounds.x, topY);
-  context.lineTo(bounds.x + bounds.width, topY);
-  context.stroke();
-
-  context.strokeStyle = grid;
-  context.beginPath();
-  context.moveTo(bounds.x, bottomY);
-  context.lineTo(bounds.x + bounds.width, bottomY);
-  context.stroke();
-
-  drawLabel(context, compactNumberFormatter.format(Math.max(1, maxBucket)), bounds.x - 16, topY, {
-    font: `13px ${fontStack}`,
-    color: muted,
-    align: 'right',
-    baseline: 'middle',
-  });
-  drawLabel(context, '0', bounds.x - 16, bottomY, {
-    font: `13px ${fontStack}`,
-    color: muted,
-    align: 'right',
-    baseline: 'middle',
+  positions.forEach((position, index) => {
+    fillCircle(context, position.x, position.y, 8.5, seatColors[index] ?? quiet);
   });
 };
 
-const drawThresholdMarker = (
-  context: SKRSContext2D,
-  bounds: ChartBounds,
-  threshold: number,
-): void => {
-  const scale = scaleLinear()
-    .domain([0, 1])
-    .range([bounds.y + bounds.height, bounds.y]);
-  const y = scale(threshold);
-
-  context.save();
-  context.strokeStyle = 'rgba(245, 247, 250, 0.42)';
-  context.lineWidth = 1.5;
-  context.setLineDash([6, 5]);
-  context.beginPath();
-  context.moveTo(bounds.x, y);
-  context.lineTo(bounds.x + bounds.width, y);
-  context.stroke();
-  context.restore();
-
-  const labelText = `Threshold ${Math.round(threshold * 100)}%`;
-  context.font = `700 12px ${fontStack}`;
-  const measured = context.measureText(labelText).width;
-  const padding = 6;
-  const chipWidth = measured + padding * 2;
-  const chipHeight = 18;
-  const chipX = bounds.x + bounds.width - chipWidth - 4;
-  const chipY = y - chipHeight / 2;
-  context.fillStyle = 'rgba(245, 247, 250, 0.14)';
-  context.fillRect(chipX, chipY, chipWidth, chipHeight);
-  drawLabel(context, labelText, chipX + padding, y + 1, {
-    font: `700 12px ${fontStack}`,
-    color: text,
-    baseline: 'middle',
-  });
-};
-
-const drawSeries = (
+const drawSparkline = (
   context: SKRSContext2D,
   bounds: ChartBounds,
   series: OptionSeries,
@@ -726,104 +618,46 @@ const drawSeries = (
     return;
   }
 
-  const xScale = scaleTime<number, number>()
-    .domain([new Date(startTime), new Date(endTime)])
-    .range([bounds.x, bounds.x + bounds.width]);
-  const yScale = scaleLinear()
-    .domain([0, 1])
-    .range([bounds.y + bounds.height, bounds.y]);
-  const lineGenerator = line<SeriesPoint>()
-    .x((point) => xScale(new Date(point.time)))
-    .y((point) => yScale(point.percentage))
-    .context(context as never);
+  const duration = Math.max(1, endTime - startTime);
+  const getX = (point: SeriesPoint): number =>
+    bounds.x + ((point.time - startTime) / duration) * bounds.width;
+  const getY = (point: SeriesPoint): number =>
+    bounds.y + (1 - point.percentage) * bounds.height;
 
   context.save();
   context.beginPath();
   context.rect(bounds.x, bounds.y, bounds.width, bounds.height);
   context.clip();
-  context.lineWidth = 3;
+  context.lineWidth = 2.5;
   context.strokeStyle = series.color;
   context.lineCap = 'round';
   context.lineJoin = 'round';
   context.beginPath();
-  lineGenerator(series.points);
+  series.points.forEach((point, index) => {
+    const x = getX(point);
+    const y = getY(point);
+    if (index === 0) {
+      context.moveTo(x, y);
+    } else {
+      context.lineTo(x, y);
+    }
+  });
   context.stroke();
 
-  const latest = series.points[series.points.length - 1]!;
-  const lx = xScale(new Date(latest.time));
-  const ly = yScale(latest.percentage);
-  fillCircle(context, lx, ly, 5.5, series.color);
-  context.lineWidth = 2;
-  context.strokeStyle = background;
-  context.beginPath();
-  context.arc(lx, ly, 5.5, 0, Math.PI * 2);
-  context.stroke();
-  context.restore();
-};
-
-const drawHistogram = (
-  context: SKRSContext2D,
-  bounds: ChartBounds,
-  buckets: VoteBucket[],
-  maxBucket: number,
-): void => {
-  if (buckets.length === 0) {
+  const latest = series.points.at(-1);
+  if (!latest) {
+    context.restore();
     return;
   }
-
-  const xScale = scaleBand<string>()
-    .domain(buckets.map((bucket) => bucket.index.toString()))
-    .range([bounds.x, bounds.x + bounds.width])
-    .paddingInner(0.14)
-    .paddingOuter(0.04);
-  const yScale = scaleLinear()
-    .domain([0, Math.max(1, maxBucket)])
-    .range([bounds.y + bounds.height, bounds.y]);
-
-  buckets.forEach((bucket) => {
-    const x = xScale(bucket.index.toString());
-    if (x === undefined) {
-      return;
-    }
-    const y = yScale(bucket.count);
-    const barWidth = xScale.bandwidth();
-    const barHeight = Math.max(1.5, bounds.y + bounds.height - y);
-
-    context.fillStyle =
-      bucket.count > 0 ? histogramColor : 'rgba(111, 143, 192, 0.18)';
-    context.fillRect(x, y, Math.max(1, barWidth), barHeight);
-  });
-};
-
-const drawTimeAxis = (
-  context: SKRSContext2D,
-  bounds: ChartBounds,
-  startTime: number,
-  endTime: number,
-): void => {
-  const scale = scaleTime<number, number>()
-    .domain([new Date(startTime), new Date(endTime)])
-    .range([bounds.x, bounds.x + bounds.width]);
-  const ticks = scale.ticks(4);
-  ticks.forEach((tick, index) => {
-    const x = scale(tick);
-    drawLabel(
-      context,
-      formatAxisTime(tick.getTime(), startTime, endTime),
-      x,
-      bounds.y + bounds.height + 28,
-      {
-        font: `13px ${fontStack}`,
-        color: muted,
-        align:
-          index === 0
-            ? 'left'
-            : index === ticks.length - 1
-              ? 'right'
-              : 'center',
-      },
-    );
-  });
+  const latestX = getX(latest);
+  const latestY = getY(latest);
+  fillCircle(context, latestX, latestY, 4, series.color);
+  context.lineWidth = 1.5;
+  context.strokeStyle = background;
+  context.beginPath();
+  context.arc(latestX, latestY, 4, 0, Math.PI * 2);
+  context.stroke();
+  context.restore();
 };
 
 const drawMetadataItem = async (
@@ -938,9 +772,6 @@ export const buildStandardPollPng = async (
   const context = canvas.getContext('2d');
   const generatedAt = new Date();
   const summary = getStandardPollSummary(poll, results, outcome, electorate);
-  const colorScale = scaleOrdinal<string, string>()
-    .domain(poll.options.map((option) => option.id))
-    .range(seriesPalette);
 
   const endTime = resolvePollEndTime(poll, generatedAt);
   const startTime = poll.createdAt.getTime();
@@ -950,12 +781,8 @@ export const buildStandardPollPng = async (
   const series: OptionSeries[] = poll.options.map((option, index) => {
     const choice = results.choices.find((entry) => entry.id === option.id);
     return {
-      id: option.id,
       label: option.label,
-      color:
-        colorScale(option.id) ??
-        seriesPalette[index % seriesPalette.length] ??
-        seriesPalette[0]!,
+      color: seriesPalette[index % seriesPalette.length] ?? neutral,
       latestPercentage: choice ? choice.percentage / 100 : 0,
       points: snapshots.map((snapshot) => ({
         time: snapshot.at.getTime(),
@@ -964,8 +791,12 @@ export const buildStandardPollPng = async (
     };
   });
 
-  const buckets = bucketVotes(poll, startTime, safeEndTime);
-  const maxBucket = Math.max(...buckets.map((bucket) => bucket.count), 1);
+  const allocations = allocateParliamentSeats(
+    poll.options.map(
+      (option) =>
+        results.choices.find((choice) => choice.id === option.id)?.votes ?? 0,
+    ),
+  );
   const metadata = buildMetadata(poll, results, summary);
 
   context.fillStyle = background;
@@ -1017,55 +848,48 @@ export const buildStandardPollPng = async (
   const legendHeight = legendRows * 22;
   drawLegend(context, series, legendX, legendY, legendMaxWidth);
 
-  const shareBounds: ChartBounds = {
+  const parliamentBounds: ChartBounds = {
     x: 116,
-    y: legendY + legendHeight + 24,
+    y: legendY + legendHeight + 42,
     width: 1000,
-    height: 272,
+    height: 576 - (legendY + legendHeight + 42),
   };
-  const histogramBounds: ChartBounds = {
-    x: shareBounds.x,
-    y: shareBounds.y + shareBounds.height + 56,
-    width: shareBounds.width,
-    height: 86,
+  const sparklineBounds: ChartBounds = {
+    x: parliamentBounds.x,
+    y: 626,
+    width: parliamentBounds.width,
+    height: 62,
   };
 
-  drawLabel(context, 'VOTE SHARE', shareBounds.x, shareBounds.y - 18, {
+  drawLabel(
+    context,
+    `PROJECTED PARLIAMENT · ${PARLIAMENT_SEAT_COUNT} SEATS`,
+    parliamentBounds.x,
+    parliamentBounds.y - 18,
+    {
+      font: `700 12px ${fontStack}`,
+      color: quiet,
+    },
+  );
+  drawLabel(context, 'VOTE SHARE OVER TIME', sparklineBounds.x, sparklineBounds.y - 18, {
     font: `700 12px ${fontStack}`,
     color: quiet,
   });
-  drawLabel(context, 'BALLOTS CAST', histogramBounds.x, histogramBounds.y - 18, {
-    font: `700 12px ${fontStack}`,
-    color: quiet,
-  });
-
-  drawShareGrid(context, shareBounds);
-  drawVoteHistogramGrid(context, histogramBounds, maxBucket);
 
   if (results.totalVotes === 0) {
-    drawEmptyState(context, shareBounds, poll);
+    drawEmptyState(context, parliamentBounds, poll);
   } else {
-    if (poll.passThreshold != null) {
-      drawThresholdMarker(context, shareBounds, poll.passThreshold / 100);
-    }
+    drawParliament(context, parliamentBounds, series, allocations);
     series.forEach((entry) => {
-      drawSeries(context, shareBounds, entry, startTime, safeEndTime);
+      drawSparkline(
+        context,
+        sparklineBounds,
+        entry,
+        startTime,
+        safeEndTime,
+      );
     });
   }
-
-  drawHistogram(context, histogramBounds, buckets, maxBucket);
-
-  context.strokeStyle = gridStrong;
-  context.lineWidth = 1;
-  context.beginPath();
-  context.moveTo(shareBounds.x, shareBounds.y + shareBounds.height + 42);
-  context.lineTo(
-    shareBounds.x + shareBounds.width,
-    shareBounds.y + shareBounds.height + 42,
-  );
-  context.stroke();
-
-  drawTimeAxis(context, histogramBounds, startTime, safeEndTime);
 
   drawLabel(context, `Poll ID ${poll.id}`, 68, height - 12, {
     font: `13px ${fontStack}`,

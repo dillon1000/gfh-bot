@@ -24,7 +24,7 @@ export async function buildPollResultDiagram(
   const snapshot = 'poll' in snapshotOrPoll
     ? snapshotOrPoll
     : createFallbackPollSnapshot(snapshotOrPoll, providedResults);
-  const { poll, results, outcome } = snapshot;
+  const { poll, evaluatedPoll, results, outcome } = snapshot;
   const fileName = `poll-result-${poll.id}.png`;
 
   if (results.kind === 'freeform' || results.kind === 'quiz') {
@@ -35,7 +35,12 @@ export async function buildPollResultDiagram(
     ? await sharp(Buffer.from(buildRankedPollSvg(poll, results, outcome))).png().toBuffer()
     : results.kind === 'tier'
       ? await buildTierPollPng(poll, results)
-    : await buildStandardPollPng(poll, results, outcome, snapshot.electorate);
+    : await buildStandardPollPng(
+        evaluatedPoll,
+        results,
+        outcome,
+        snapshot.electorate,
+      );
 
   return {
     fileName,
