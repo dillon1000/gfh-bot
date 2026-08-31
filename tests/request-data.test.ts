@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   filterPersonalJson,
   isPersonalRedisRecord,
+  dataExportQueuePriority,
   requestDataCommand,
   signDataExportWebhookBody,
 } from '@/features/meta/commands/request-data.js';
@@ -37,5 +38,9 @@ describe('requestDataCommand', () => {
     expect(signDataExportWebhookBody('secret', 123, '{"ok":true}')).toBe(
       '12f14ade5e7e737164d9ae20ea4e070056a3045b2c8f42f5f216008eae4684dd',
     );
+  });
+
+  it('uses BullMQ lowest priority for data export jobs', () => {
+    expect(dataExportQueuePriority).toBe(2 ** 21);
   });
 });

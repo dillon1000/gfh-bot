@@ -4,6 +4,7 @@ import {
   MessageFlags,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
+  type Client,
 } from 'discord.js';
 import { z } from 'zod';
 
@@ -16,6 +17,7 @@ import type {
 } from '@/generated/prisma/client.js';
 import { hashRationaleUser } from '@/features/polls/services/rationales.js';
 import { prisma } from '@/lib/prisma.js';
+import { dataExportQueue } from '@/lib/queue.js';
 import { isR2Configured, uploadPrivateJsonToR2 } from '@/lib/r2.js';
 import { redis } from '@/lib/redis.js';
 
@@ -23,13 +25,20 @@ export const requestDataCommand = new SlashCommandBuilder()
   .setName('request-data')
   .setDescription('Receive a private download of the data associated with your account.');
 
-const webhookResponseSchema = z.object({
+const passportAccountResponseSchema = z.object({
+  linked: z.boolean(),
+  linkUrl: z.string().url().optional(),
+  message: z.string().trim().min(1).max(2_000).optional(),
+});
+const passportCompletionResponseSchema = z.object({
   message: z.string().trim().min(1).max(2_000),
 });
 // Passport stores this stable source key with each connected application export.
 const dataExportSource = 'gfh-bot';
 const dataExportSourceLabel = 'GFH Bot';
 const dataExportLinkLifetimeMs = 24 * 60 * 60 * 1_000;
+// BullMQ accepts 1 through 2^21, with larger numbers processed after smaller priorities.
+export const dataExportQueuePriority = 2_097_152;
 
 export const signDataExportWebhookBody = (
   secret: string,
@@ -38,21 +47,54 @@ export const signDataExportWebhookBody = (
 ): string => createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex');
 
 /**
- * Notifies the configured identity provider after R2 upload and returns its user-facing DM message.
- * A missing configuration returns null; transport, signature, and response errors reject so the caller can fall back.
+ * Sends a signed request to Passport. A missing configuration keeps the OSS export path self-contained.
  */
-const notifyDataExportWebhook = async (input: {
+const requestPassport = async (path: string, payload: unknown): Promise<Response | null> => {
+  if (!env.PASSPORT_URL || !env.PASSPORT_DATA_EXPORT_SECRET) {
+    return null;
+  }
+
+  const body = JSON.stringify(payload);
+  const timestamp = Math.floor(Date.now() / 1_000);
+  const signature = signDataExportWebhookBody(env.PASSPORT_DATA_EXPORT_SECRET, timestamp, body);
+  return fetch(new URL(path, env.PASSPORT_URL), {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'user-agent': 'GFH-Bot-Data-Exports/1.0',
+      'x-data-export-signature': `t=${timestamp},v1=${signature}`,
+    },
+    body,
+    signal: AbortSignal.timeout(10_000),
+  });
+};
+
+/** Checks the Discord identity before any personal data is read or uploaded. */
+const checkPassportAccount = async (userId: string) => {
+  const response = await requestPassport('/api/integrations/data-exports/check', {
+    id: randomUUID(),
+    type: 'data_export.account_check',
+    createdAt: new Date().toISOString(),
+    data: { identity: { providerId: 'discord', accountId: userId } },
+  });
+  if (!response) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(`Passport account check responded ${response.status}.`);
+  }
+  return passportAccountResponseSchema.parse(await response.json());
+};
+
+/** Notifies Passport after R2 upload and returns its user-facing DM message. */
+const notifyPassportExportComplete = async (input: {
   userId: string;
   fileName: string;
   downloadUrl: string;
   completedAt: Date;
   expiresAt: Date;
 }): Promise<string | null> => {
-  if (!env.DATA_EXPORT_WEBHOOK_URL || !env.DATA_EXPORT_WEBHOOK_SECRET) {
-    return null;
-  }
-
-  const body = JSON.stringify({
+  const response = await requestPassport('/api/integrations/data-exports/completed', {
     id: randomUUID(),
     type: 'data_export.completed',
     createdAt: input.completedAt.toISOString(),
@@ -68,23 +110,14 @@ const notifyDataExportWebhook = async (input: {
       expiresAt: input.expiresAt.toISOString(),
     },
   });
-  const timestamp = Math.floor(Date.now() / 1_000);
-  const signature = signDataExportWebhookBody(env.DATA_EXPORT_WEBHOOK_SECRET, timestamp, body);
-  const response = await fetch(env.DATA_EXPORT_WEBHOOK_URL, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'user-agent': 'GFH-Bot-Data-Exports/1.0',
-      'x-data-export-signature': `t=${timestamp},v1=${signature}`,
-    },
-    body,
-    signal: AbortSignal.timeout(10_000),
-  });
+  if (!response) {
+    return null;
+  }
   if (!response.ok) {
-    throw new Error(`Data export webhook responded ${response.status}.`);
+    throw new Error(`Passport export webhook responded ${response.status}.`);
   }
 
-  return webhookResponseSchema.parse(await response.json()).message;
+  return passportCompletionResponseSchema.parse(await response.json()).message;
 };
 
 /**
@@ -400,6 +433,32 @@ export const handleRequestDataCommand = async (
 
   try {
     const userId = interaction.user.id;
+    const passportAccount = await checkPassportAccount(userId);
+    if (passportAccount && !passportAccount.linked) {
+      const linkUrl = passportAccount.linkUrl ?? new URL('/sign-in?start=discord&callbackURL=%2Fdata-exports', env.PASSPORT_URL).toString();
+      await interaction.editReply(passportAccount.message ?? `Link your Discord account to Passport before requesting an export: ${linkUrl}`);
+      return;
+    }
+
+    await dataExportQueue.add('export', { userId }, {
+      jobId: userId,
+      priority: dataExportQueuePriority,
+      removeOnFail: true,
+    });
+    await interaction.editReply('Your export is queued. I will send you a direct message when it is ready.');
+  } catch (error) {
+    logger.error({ err: error, userId: interaction.user.id }, 'User data export request failed');
+    await interaction.editReply('I could not queue your data export. Try again later.');
+  }
+};
+
+/** Builds one queued export and sends its completion message to the Discord user. */
+export const processUserDataExport = async (client: Client, userId: string): Promise<void> => {
+  const user = await client.users.fetch(userId);
+  try {
+    if (!isR2Configured()) {
+      throw new Error('Private data export storage is not configured.');
+    }
     const fileName = `gfh-data-${userId}.json`;
     const data = await buildUserDataExport(userId);
     const url = await uploadPrivateJsonToR2(
@@ -411,7 +470,7 @@ export const handleRequestDataCommand = async (
     const directMessage = `Your GFH Bot data export is ready: [Download ${fileName}](${url})\nThis private link expires in 24 hours.`;
     let message = directMessage;
     try {
-      message = await notifyDataExportWebhook({
+      message = await notifyPassportExportComplete({
         userId,
         fileName,
         downloadUrl: url,
@@ -419,23 +478,17 @@ export const handleRequestDataCommand = async (
         expiresAt: new Date(completedAt.getTime() + dataExportLinkLifetimeMs),
       }) ?? directMessage;
     } catch (error) {
-      logger.warn({ err: error, userId }, 'Data export webhook failed; using direct download link');
+      logger.warn({ err: error, userId }, 'Passport export webhook failed; using direct download link');
     }
-
-    try {
-      await interaction.user.send({
-        content: message,
-        allowedMentions: { parse: [] },
-      });
-    } catch (error) {
-      logger.warn({ err: error, userId }, 'Could not DM user data export');
-      await interaction.editReply('I created your export, but I could not DM you. Enable direct messages and run `/request-data` again.');
-      return;
-    }
-
-    await interaction.editReply('I sent your private data export link by direct message.');
+    await user.send({ content: message, allowedMentions: { parse: [] } });
   } catch (error) {
-    logger.error({ err: error, userId: interaction.user.id }, 'User data export failed');
-    await interaction.editReply('I could not create your data export. Try again later.');
+    logger.error({ err: error, userId }, 'Queued user data export failed');
+    await user.send({
+      content: 'I could not create your GFH Bot data export. Try `/request-data` again later.',
+      allowedMentions: { parse: [] },
+    }).catch((dmError: unknown) => {
+      logger.warn({ err: dmError, userId }, 'Could not DM user after data export failure');
+    });
+    throw error;
   }
 };

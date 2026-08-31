@@ -81,6 +81,8 @@ Copy `.env.example` to `.env` and fill in:
 - `R2_SECRET_ACCESS_KEY` optional
 - `R2_BUCKET` optional
 - `R2_PUBLIC_BASE_URL` optional, but if set it must be a full URL like `https://example.com`
+- `PASSPORT_URL` optional Passport base URL; when set, users must link Discord before requesting an export
+- `PASSPORT_DATA_EXPORT_SECRET` optional shared secret; configure it with `PASSPORT_URL`
 
 For local development on your machine, use `localhost` in `DATABASE_URL` and `REDIS_URL`.
 

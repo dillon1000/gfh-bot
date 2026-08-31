@@ -7,6 +7,7 @@ import { registerInteractionRouter } from '@/discord/router.js';
 import { replayUndeliveredAuditLogEntries } from '@/features/audit-log/services/events/delivery.js';
 import { registerAuditLogEventHandlers } from '@/features/audit-log/services/events/register.js';
 import { startCasinoBotWorker } from '@/features/casino/multiplayer/bots/workers/bots.js';
+import { startDataExportWorker } from '@/features/meta/workers/data-export.js';
 import { syncOpenCasinoTableJobs } from '@/features/casino/multiplayer/services/scheduler.js';
 import { startCasinoTableIdleCloseWorker, startCasinoTableTimeoutWorker } from '@/features/casino/multiplayer/workers/tables.js';
 import { recoverExpiredMarketGraceNotices, recoverExpiredMarkets } from '@/features/markets/services/lifecycle.js';
@@ -113,6 +114,7 @@ client.once(Events.ClientReady, async (readyClient) => {
     startCasinoTableTimeoutWorker(client),
     startCasinoTableIdleCloseWorker(client),
     startCasinoBotWorker(client),
+    startDataExportWorker(client),
   ];
   await runStartupTasks([
     {

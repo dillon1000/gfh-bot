@@ -13,6 +13,7 @@ export const marketLiquidityQueueName = "market-liquidity";
 export const casinoTableTimeoutQueueName = "casino-table-timeout";
 export const casinoTableBotActionQueueName = "casino-table-bot-action";
 export const casinoTableIdleCloseQueueName = "casino-table-idle-close";
+export const dataExportQueueName = "data-export";
 
 const createQueueState = <Data, ResultType, NameType extends string>(
 	name: string,
@@ -92,6 +93,11 @@ const casinoTableIdleCloseQueueState = createQueueState<
 	void,
 	"close"
 >(casinoTableIdleCloseQueueName);
+const dataExportQueueState = createQueueState<
+	{ userId: string },
+	void,
+	"export"
+>(dataExportQueueName);
 
 export const pollCloseQueue = pollCloseQueueState.proxy;
 export const pollReminderQueue = pollReminderQueueState.proxy;
@@ -103,6 +109,7 @@ export const marketLiquidityQueue = marketLiquidityQueueState.proxy;
 export const casinoTableTimeoutQueue = casinoTableTimeoutQueueState.proxy;
 export const casinoTableBotActionQueue = casinoTableBotActionQueueState.proxy;
 export const casinoTableIdleCloseQueue = casinoTableIdleCloseQueueState.proxy;
+export const dataExportQueue = dataExportQueueState.proxy;
 
 const closeQueueIfInitialized = async <
 	Data,
@@ -137,5 +144,6 @@ export const closeAllQueues = async (): Promise<void> => {
 		closeQueueState(casinoTableTimeoutQueueState),
 		closeQueueState(casinoTableBotActionQueueState),
 		closeQueueState(casinoTableIdleCloseQueueState),
+		closeQueueState(dataExportQueueState),
 	]);
 };

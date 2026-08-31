@@ -68,13 +68,13 @@ const envSchema = z.object({
 	R2_SECRET_ACCESS_KEY: optionalNonEmptyString(),
 	R2_BUCKET: optionalNonEmptyString(),
 	R2_PUBLIC_BASE_URL: optionalUrlString(),
-	DATA_EXPORT_WEBHOOK_URL: optionalUrlString(),
-	DATA_EXPORT_WEBHOOK_SECRET: optionalNonEmptyString(),
+	PASSPORT_URL: optionalUrlString(),
+	PASSPORT_DATA_EXPORT_SECRET: optionalNonEmptyString(),
 }).superRefine((value, context) => {
-	if (Boolean(value.DATA_EXPORT_WEBHOOK_URL) !== Boolean(value.DATA_EXPORT_WEBHOOK_SECRET)) {
+	if (Boolean(value.PASSPORT_URL) !== Boolean(value.PASSPORT_DATA_EXPORT_SECRET)) {
 		context.addIssue({
 			code: "custom",
-			message: "DATA_EXPORT_WEBHOOK_URL and DATA_EXPORT_WEBHOOK_SECRET must be configured together.",
+			message: "PASSPORT_URL and PASSPORT_DATA_EXPORT_SECRET must be configured together.",
 		});
 	}
 });
