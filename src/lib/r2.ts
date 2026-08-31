@@ -1,3 +1,6 @@
+import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
+
 import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
@@ -64,21 +67,23 @@ export const uploadCsvToR2 = async (
 };
 
 /**
- * Uploads a private JSON export and returns a one-day download URL.
+ * Streams a private JSON export from disk and returns a one-day download URL.
  * This always uses the signed R2 endpoint so a configured public base URL cannot expose personal data.
  */
-export const uploadPrivateJsonToR2 = async (
+export const uploadPrivateJsonFileToR2 = async (
   key: string,
-  body: string,
+  filePath: string,
   fileName: string,
 ): Promise<string> => {
   const s3 = getClient();
+  const file = await stat(filePath);
 
   await s3.send(
     new PutObjectCommand({
       Bucket: env.R2_BUCKET!,
       Key: key,
-      Body: body,
+      Body: createReadStream(filePath),
+      ContentLength: file.size,
       ContentType: 'application/json; charset=utf-8',
       ContentDisposition: `attachment; filename="${fileName}"`,
     }),
