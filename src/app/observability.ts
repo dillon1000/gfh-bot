@@ -3,6 +3,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 import {
   context,
+  metrics,
   propagation,
   SpanStatusCode,
   trace,
@@ -13,7 +14,20 @@ import { BullMQOtel } from 'bullmq-otel';
 
 const requestIDBaggageKey = 'request.id';
 const tracer = trace.getTracer('gfh-bot');
+const meter = metrics.getMeter('gfh-bot');
 const requestIDStorage = new AsyncLocalStorage<{ requestID: string }>();
+const operationCount = meter.createCounter('gfh_bot.operation.count', {
+  description: 'Completed application operations grouped by name and status.',
+  unit: '{operation}',
+});
+const operationDuration = meter.createHistogram('gfh_bot.operation.duration', {
+  description: 'Application operation duration.',
+  unit: 'ms',
+});
+const activeOperations = meter.createUpDownCounter('gfh_bot.operation.active', {
+  description: 'Application operations currently running.',
+  unit: '{operation}',
+});
 
 export const bullMQTelemetry = new BullMQOtel({
   tracerName: 'gfh-bot',
@@ -63,12 +77,25 @@ export const runInTrace = async <Result>(
   return requestIDStorage.run({ requestID }, () =>
     context.with(telemetryContext, () =>
       tracer.startActiveSpan(name, { attributes }, async (span) => {
+        const startedAt = performance.now();
+        const metricAttributes = { 'operation.name': name };
+        activeOperations.add(1, metricAttributes);
+        span.setAttribute('request.id', requestID);
         try {
-          return await operation(span);
+          const result = await operation(span);
+          const durationMs = performance.now() - startedAt;
+          span.setStatus({ code: SpanStatusCode.OK });
+          operationCount.add(1, { ...metricAttributes, 'operation.status': 'ok' });
+          operationDuration.record(durationMs, { ...metricAttributes, 'operation.status': 'ok' });
+          return result;
         } catch (error) {
+          const durationMs = performance.now() - startedAt;
+          operationCount.add(1, { ...metricAttributes, 'operation.status': 'error' });
+          operationDuration.record(durationMs, { ...metricAttributes, 'operation.status': 'error' });
           recordTraceError(error);
           throw error;
         } finally {
+          activeOperations.add(-1, metricAttributes);
           span.end();
         }
       }),
