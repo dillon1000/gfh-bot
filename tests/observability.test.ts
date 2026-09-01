@@ -3,14 +3,32 @@ import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { promisify } from 'node:util';
 
+import { context } from '@opentelemetry/api';
+import { SpanKind } from 'bullmq';
 import { describe, expect, it } from 'vitest';
 
-import { getRequestID, runInTrace } from '@/app/observability.js';
+import { bullMQTelemetry, getRequestID, runInTrace } from '@/app/observability.js';
 import { addRequestIDToEmbeds, redactDiscordRoute } from '@/discord/observability.js';
 
 const execFileAsync = promisify(execFile);
 
 describe('observability', () => {
+  it('omits BullMQ maintenance spans without breaking active context', () => {
+    const activeContext = context.active();
+    const maintenanceSpan = bullMQTelemetry.tracer.startSpan(
+      'moveStalledJobsToWait market-refresh',
+      { kind: SpanKind.INTERNAL },
+    );
+    const jobSpan = bullMQTelemetry.tracer.startSpan(
+      'process market-refresh',
+      { kind: SpanKind.CONSUMER },
+    );
+
+    expect(maintenanceSpan.setSpanOnContext(activeContext)).toBe(activeContext);
+    expect(jobSpan.setSpanOnContext(activeContext)).not.toBe(activeContext);
+    jobSpan.end();
+  });
+
   it('keeps one request ID through nested asynchronous work', async () => {
     await runInTrace('test.operation', {}, async () => {
       const requestID = getRequestID();
@@ -19,6 +37,9 @@ describe('observability', () => {
 
       expect(requestID).toMatch(/^[0-9a-f-]{36}$/u);
       expect(getRequestID()).toBe(requestID);
+      await runInTrace('test.nested-operation', {}, async () => {
+        expect(getRequestID()).toBe(requestID);
+      });
     });
   });
 
