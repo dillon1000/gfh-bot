@@ -59,14 +59,20 @@ describe('observability', () => {
     );
   });
 
-  it('streams Pino records to the configured OTLP logs endpoint', async () => {
+  it('streams correlated logs, traces, and metrics through OTLP', async () => {
     let logRequest: Buffer | undefined;
+    let traceRequest: Buffer | undefined;
+    let metricRequest: Buffer | undefined;
     const server = createServer((request, response) => {
       const chunks: Buffer[] = [];
       request.on('data', (chunk: Buffer) => chunks.push(chunk));
       request.on('end', () => {
         if (request.url === '/v1/logs') {
           logRequest = Buffer.concat(chunks);
+        } else if (request.url === '/v1/traces') {
+          traceRequest = Buffer.concat(chunks);
+        } else if (request.url === '/v1/metrics') {
+          metricRequest = Buffer.concat(chunks);
         }
         response.end();
       });
@@ -84,7 +90,15 @@ describe('observability', () => {
       const script = `
         const { logger } = await import('./src/app/logger.ts');
         const { shutdownTelemetry } = await import('./src/app/instrumentation.ts');
-        logger.info({ requestID: 'otel-log-test' }, 'OTLP log stream test');
+        const { traceOperation } = await import('./src/app/trace.ts');
+        await traceOperation('test.otel-stream', { 'test.kind': 'integration' }, async () => {
+          logger.info('OTLP correlated stream test');
+        });
+        try {
+          await traceOperation('test.otel-failure', {}, async () => {
+            throw new Error('expected test failure');
+          });
+        } catch {}
         await new Promise((resolve) => logger.flush(resolve));
         await shutdownTelemetry();
       `;
@@ -105,11 +119,18 @@ describe('observability', () => {
           OTEL_EXPORTER_OTLP_ENDPOINT: `http://127.0.0.1:${address.port}`,
           OTEL_EXPORTER_OTLP_PROTOCOL: 'http/protobuf',
           OTEL_LOGS_EXPORTER: 'otlp',
-          OTEL_TRACES_EXPORTER: 'none',
+          OTEL_METRICS_EXPORTER: 'otlp',
+          OTEL_TRACES_EXPORTER: 'otlp',
         },
       });
 
-      expect(logRequest?.includes(Buffer.from('OTLP log stream test'))).toBe(true);
+      expect(logRequest?.includes(Buffer.from('OTLP correlated stream test'))).toBe(true);
+      expect(traceRequest?.includes(Buffer.from('test.otel-stream'))).toBe(true);
+      expect(traceRequest?.includes(Buffer.from('request.id'))).toBe(true);
+      expect(traceRequest?.includes(Buffer.from('operation.completed'))).toBe(true);
+      expect(traceRequest?.includes(Buffer.from('operation.failed'))).toBe(true);
+      expect(metricRequest?.includes(Buffer.from('gfh_bot.operation.count'))).toBe(true);
+      expect(metricRequest?.includes(Buffer.from('gfh_bot.operation.duration'))).toBe(true);
     } finally {
       server.close();
       await once(server, 'close');

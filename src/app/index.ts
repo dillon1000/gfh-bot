@@ -45,27 +45,28 @@ type ClosableWorker = {
   close: () => Promise<void>;
 };
 
-const runStartupTasks = async (tasks: StartupTask[]): Promise<void> => {
-  const startedAt = Date.now();
-  let failedTaskCount = 0;
+const runStartupTasks = async (tasks: StartupTask[]): Promise<void> =>
+  traceOperation('startup.run', { 'startup.task_count': tasks.length }, async () => {
+    const startedAt = Date.now();
+    let failedTaskCount = 0;
 
-  for (const task of tasks) {
-    try {
-      await traceOperation(
-        `startup.${task.name}`,
-        { 'startup.task': task.name },
-        task.run,
-      );
-    } catch {
-      failedTaskCount += 1;
+    for (const task of tasks) {
+      try {
+        await traceOperation(
+          `startup.${task.name}`,
+          { 'startup.task': task.name },
+          task.run,
+        );
+      } catch {
+        failedTaskCount += 1;
+      }
     }
-  }
 
-  logger.info(
-    { startupTaskCount: tasks.length, failedTaskCount, durationMs: Date.now() - startedAt },
-    'Startup task run finished',
-  );
-};
+    logger.info(
+      { startupTaskCount: tasks.length, failedTaskCount, durationMs: Date.now() - startedAt },
+      'Startup task run finished',
+    );
+  });
 
 const client = new Client({
   intents: [
@@ -212,12 +213,14 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
     { 'discord.event.name': Events.MessageReactionAdd, 'discord.user.id': user.id },
     async () => {
       try {
-        await syncStarboardForReaction(client, reaction, user);
+        await traceOperation('starboard.sync-reaction', {}, () =>
+          syncStarboardForReaction(client, reaction, user));
       } catch (error) {
         logger.error({ err: error }, 'Failed to sync starboard on reaction add');
       }
       try {
-        await recordStarboardReactionAdd(reaction, user);
+        await traceOperation('starboard.record-reaction-add', {}, () =>
+          recordStarboardReactionAdd(reaction, user));
       } catch (error) {
         logger.error({ err: error }, 'Failed to record starboard reaction add');
       }
@@ -231,12 +234,14 @@ client.on(Events.MessageReactionRemove, async (reaction, user) => {
     { 'discord.event.name': Events.MessageReactionRemove, 'discord.user.id': user.id },
     async () => {
       try {
-        await syncStarboardForReaction(client, reaction, user);
+        await traceOperation('starboard.sync-reaction', {}, () =>
+          syncStarboardForReaction(client, reaction, user));
       } catch (error) {
         logger.error({ err: error }, 'Failed to sync starboard on reaction remove');
       }
       try {
-        await recordStarboardReactionRemove(reaction, user);
+        await traceOperation('starboard.record-reaction-remove', {}, () =>
+          recordStarboardReactionRemove(reaction, user));
       } catch (error) {
         logger.error({ err: error }, 'Failed to record starboard reaction remove');
       }
@@ -250,7 +255,8 @@ client.on(Events.MessageDelete, async (message) => {
     { 'discord.event.name': Events.MessageDelete, 'discord.message.id': message.id },
     async () => {
       try {
-        await removeStarboardEntryForSourceMessage(client, message.id);
+        await traceOperation('starboard.remove-source-message', {}, () =>
+          removeStarboardEntryForSourceMessage(client, message.id));
       } catch (error) {
         logger.error({ err: error }, 'Failed to remove starboard entry for deleted source message');
       }
