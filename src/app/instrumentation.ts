@@ -33,9 +33,11 @@ const telemetrySDK = new NodeSDK({
   instrumentations: [
     getNodeAutoInstrumentations({
       '@opentelemetry/instrumentation-fs': { enabled: false },
+      '@opentelemetry/instrumentation-ioredis': { enabled: false },
       '@opentelemetry/instrumentation-pino': {
         logKeys: { traceId: 'traceID', spanId: 'spanID', traceFlags: 'traceFlags' },
       },
+      '@opentelemetry/instrumentation-redis': { enabled: false },
     }),
     new PrismaInstrumentation(),
   ],

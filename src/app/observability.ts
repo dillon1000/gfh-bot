@@ -2,14 +2,17 @@ import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 import {
+  type Context,
   context,
   metrics,
   propagation,
+  ROOT_CONTEXT,
   SpanStatusCode,
   trace,
   type Attributes,
   type Span,
 } from '@opentelemetry/api';
+import type { Span as BullMQSpan, Telemetry as BullMQTelemetry } from 'bullmq';
 import { BullMQOtel } from 'bullmq-otel';
 
 const requestIDBaggageKey = 'request.id';
@@ -29,10 +32,37 @@ const activeOperations = meter.createUpDownCounter('gfh_bot.operation.active', {
   unit: '{operation}',
 });
 
-export const bullMQTelemetry = new BullMQOtel({
+const ignoredBullMQOperationPrefixes = [
+  'extendLocks',
+  'getNextJob',
+  'moveStalledJobsToWait',
+  'startStalledCheckTimer',
+] as const;
+const ignoredBullMQSpan: BullMQSpan<Context> = {
+  setSpanOnContext: (spanContext) => spanContext,
+  setAttribute: () => undefined,
+  setAttributes: () => undefined,
+  addEvent: () => undefined,
+  recordException: () => undefined,
+  end: () => undefined,
+};
+const bullMQOtel = new BullMQOtel({
   tracerName: 'gfh-bot',
   meterName: 'gfh-bot',
 });
+
+/** Keeps semantic job spans while omitting BullMQ's frequent maintenance loops. */
+export const bullMQTelemetry: BullMQTelemetry<Context> = {
+  contextManager: bullMQOtel.contextManager,
+  tracer: {
+    startSpan: (name, options, spanContext) =>
+      ignoredBullMQOperationPrefixes.some(
+        (operation) => name === operation || name.startsWith(`${operation} `),
+      )
+        ? ignoredBullMQSpan
+        : bullMQOtel.tracer.startSpan(name, options, spanContext),
+  },
+};
 
 export const getRequestID = (): string | undefined =>
   requestIDStorage.getStore()?.requestID
@@ -68,8 +98,10 @@ export const runInTrace = async <Result>(
   attributes: Attributes,
   operation: (span: Span) => Promise<Result>,
 ): Promise<Result> => {
-  const activeContext = context.active();
-  const requestID = getRequestID() ?? randomUUID();
+  const currentRequestID = getRequestID();
+  // A fresh application request starts outside long-lived transport and worker-loop spans.
+  const activeContext = currentRequestID ? context.active() : ROOT_CONTEXT;
+  const requestID = currentRequestID ?? randomUUID();
   const baggage = (propagation.getBaggage(activeContext) ?? propagation.createBaggage())
     .setEntry(requestIDBaggageKey, { value: requestID });
   const telemetryContext = propagation.setBaggage(activeContext, baggage);
