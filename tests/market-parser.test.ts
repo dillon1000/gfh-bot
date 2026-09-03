@@ -4,6 +4,7 @@ import { parseMarketCloseAt, parseMarketCloseDuration } from '@/features/markets
 import {
   parseAdditionalMarketOutcomes,
   parseFlexibleTradeAmount,
+  parseMarketOutcomes,
   parseTradeAmount,
 } from '@/features/markets/parsing/market.js';
 
@@ -94,6 +95,18 @@ describe('market parser', () => {
 
   it('rejects empty appended market outcome input', () => {
     expect(() => parseAdditionalMarketOutcomes(' , , ')).toThrow('Add at least one outcome.');
+  });
+
+  it('allows up to 25 market outcomes', () => {
+    const outcomes = Array.from({ length: 25 }, (_, index) => `Outcome ${index + 1}`).join(',');
+
+    expect(parseMarketOutcomes(outcomes)).toHaveLength(25);
+  });
+
+  it('rejects more than 25 market outcomes', () => {
+    const outcomes = Array.from({ length: 26 }, (_, index) => `Outcome ${index + 1}`).join(',');
+
+    expect(() => parseMarketOutcomes(outcomes)).toThrow('Markets can have at most 25 outcomes.');
   });
 
   it('parses flexible trade amounts expressed in shares', () => {

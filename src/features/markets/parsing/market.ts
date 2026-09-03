@@ -3,7 +3,8 @@ import {
 	type DiscordEntityLookup,
 } from "@/lib/discord-message-links.js";
 
-const maxOutcomes = 5;
+// Discord string select menus support at most 25 options, so market creation and trading use the same limit.
+export const maxMarketOutcomes = 25;
 const minOutcomes = 2;
 const maxTitleLength = 120;
 const maxDescriptionLength = 1_000;
@@ -258,8 +259,10 @@ const parseOutcomeList = (value: string): string[] => {
 		),
 	];
 
-	if (outcomes.length > maxOutcomes) {
-		throw new Error(`Markets can have at most ${maxOutcomes} outcomes.`);
+	if (outcomes.length > maxMarketOutcomes) {
+		throw new Error(
+			`Markets can have at most ${maxMarketOutcomes} outcomes.`,
+		);
 	}
 
 	for (const outcome of outcomes) {

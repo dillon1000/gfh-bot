@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma.js";
-import { parseMarketLookup } from "@/features/markets/parsing/market.js";
+import {
+	maxMarketOutcomes,
+	parseMarketLookup,
+} from "@/features/markets/parsing/market.js";
 import { computeCombinationCount } from "@/features/markets/core/math.js";
 import {
 	assertMarketCanAddOutcomes,
@@ -362,8 +365,10 @@ export const appendMarketOutcomes = async (
 			nextOutcomes.push(label);
 		}
 
-		if (market.outcomes.length + nextOutcomes.length > 5) {
-			throw new Error("Markets can have at most 5 outcomes.");
+		if (market.outcomes.length + nextOutcomes.length > maxMarketOutcomes) {
+			throw new Error(
+				`Markets can have at most ${maxMarketOutcomes} outcomes.`,
+			);
 		}
 
 		if (isCompetitiveMultiWinnerMarketMode(market)) {
