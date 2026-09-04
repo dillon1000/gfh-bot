@@ -354,7 +354,6 @@ export const appendMarketOutcomes = async (
 			normalizedLabels.add(outcome.label.trim().toLowerCase());
 		}
 
-		const nextOutcomes: string[] = [];
 		for (const label of outcomes) {
 			const normalized = label.trim().toLowerCase();
 			if (normalizedLabels.has(normalized)) {
@@ -362,10 +361,9 @@ export const appendMarketOutcomes = async (
 			}
 
 			normalizedLabels.add(normalized);
-			nextOutcomes.push(label);
 		}
 
-		if (market.outcomes.length + nextOutcomes.length > maxMarketOutcomes) {
+		if (market.outcomes.length + outcomes.length > maxMarketOutcomes) {
 			throw new Error(
 				`Markets can have at most ${maxMarketOutcomes} outcomes.`,
 			);
@@ -374,7 +372,7 @@ export const appendMarketOutcomes = async (
 		if (isCompetitiveMultiWinnerMarketMode(market)) {
 			validateCompetitiveWinnerCount({
 				winnerCount: market.winnerCount ?? 1,
-				outcomeCount: market.outcomes.length + nextOutcomes.length,
+				outcomeCount: market.outcomes.length + outcomes.length,
 			});
 		}
 
@@ -384,7 +382,7 @@ export const appendMarketOutcomes = async (
 			},
 			data: {
 				outcomes: {
-					create: nextOutcomes.map((label, index) => ({
+					create: outcomes.map((label, index) => ({
 						label,
 						sortOrder: market.outcomes.length + index,
 						pricingShares: 0,
