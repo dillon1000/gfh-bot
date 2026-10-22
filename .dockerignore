@@ -4,3 +4,9 @@ dist
 .env.local
 coverage
 README.md
+.git
+tmp
+output
+.fallow
+.VSCodeCounter
+.DS_Store

@@ -1,11 +1,15 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:24.15.0-bookworm-slim AS base
+FROM node:24.22.1-bookworm-slim AS base
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 
-RUN corepack enable && corepack prepare pnpm@11.1.1 --activate
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable && corepack prepare pnpm@11.28.6 --activate
 
 WORKDIR /app
 
@@ -18,6 +22,14 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 COPY prisma ./prisma
 COPY prisma.config.ts ./
 RUN pnpm prisma generate
+
+FROM base AS prod-deps
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+  pnpm install --frozen-lockfile --prod
+# Fetch the schema engine for this image's OpenSSL now; the runtime user cannot write here.
+RUN ./node_modules/.bin/prisma version
 
 FROM deps AS build
 
@@ -39,15 +51,13 @@ RUN apt-get update \
 
 RUN groupadd --system app && useradd --system --gid app --create-home app
 
-COPY --from=deps /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml /app/.npmrc ./
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/prisma ./prisma
-COPY --from=deps /app/prisma.config.ts ./
+COPY package.json ./
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY prisma ./prisma
+COPY prisma.config.ts ./
 COPY --from=build /app/assets ./assets
 COPY --from=build /app/dist ./dist
 
-RUN pnpm prune --prod
-
 USER app
 
-CMD ["sh", "-c", "pnpm prisma migrate deploy && node --experimental-loader=@opentelemetry/instrumentation/hook.mjs --import ./dist/src/app/instrumentation.js dist/src/app/index.js"]
+CMD ["sh", "-c", "./node_modules/.bin/prisma migrate deploy && node --experimental-loader=@opentelemetry/instrumentation/hook.mjs --import ./dist/src/app/instrumentation.js dist/src/app/index.js"]
