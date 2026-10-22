@@ -254,12 +254,12 @@ const resolveTablerIconPath = (
   iconName: string,
   moduleUrl: string = import.meta.url,
 ): string | null => {
-  const relativePath = `icons/outline/${iconName}.svg`;
+  const relativePath = `${iconName}.svg`;
   const candidates = [
-    resolve(process.cwd(), 'node_modules', '@tabler', 'icons', relativePath),
+    resolve(process.cwd(), 'assets', 'icons', 'tabler', relativePath),
     fileURLToPath(
       new URL(
-        `../../../../../node_modules/@tabler/icons/${relativePath}`,
+        `../../../../../assets/icons/tabler/${relativePath}`,
         moduleUrl,
       ),
     ),

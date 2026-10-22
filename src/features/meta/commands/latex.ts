@@ -6,20 +6,88 @@ import {
   type ChatInputCommandInteraction,
 } from 'discord.js';
 import sharp from 'sharp';
-import { mathjax } from 'mathjax-full/js/mathjax.js';
-import { TeX } from 'mathjax-full/js/input/tex.js';
-import { SVG } from 'mathjax-full/js/output/svg.js';
-import { liteAdaptor } from 'mathjax-full/js/adaptors/liteAdaptor.js';
-import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html.js';
-import { AllPackages } from 'mathjax-full/js/input/tex/AllPackages.js';
+import { mathjax } from '@mathjax/src/js/mathjax.js';
+import { TeX } from '@mathjax/src/js/input/tex.js';
+import { SVG } from '@mathjax/src/js/output/svg.js';
+import { liteAdaptor } from '@mathjax/src/js/adaptors/liteAdaptor.js';
+import { RegisterHTMLHandler } from '@mathjax/src/js/handlers/html.js';
+// Lets MathJax load font ranges on demand.
+import '@mathjax/src/js/util/asyncLoad/esm.js';
+// Each import registers its TeX package; texPackages lists them by name.
+import '@mathjax/src/js/input/tex/base/BaseConfiguration.js';
+import '@mathjax/src/js/input/tex/action/ActionConfiguration.js';
+import '@mathjax/src/js/input/tex/ams/AmsConfiguration.js';
+import '@mathjax/src/js/input/tex/amscd/AmsCdConfiguration.js';
+import '@mathjax/src/js/input/tex/bbox/BboxConfiguration.js';
+import '@mathjax/src/js/input/tex/boldsymbol/BoldsymbolConfiguration.js';
+import '@mathjax/src/js/input/tex/braket/BraketConfiguration.js';
+import '@mathjax/src/js/input/tex/bussproofs/BussproofsConfiguration.js';
+import '@mathjax/src/js/input/tex/cancel/CancelConfiguration.js';
+import '@mathjax/src/js/input/tex/cases/CasesConfiguration.js';
+import '@mathjax/src/js/input/tex/centernot/CenternotConfiguration.js';
+import '@mathjax/src/js/input/tex/color/ColorConfiguration.js';
+import '@mathjax/src/js/input/tex/colortbl/ColortblConfiguration.js';
+import '@mathjax/src/js/input/tex/empheq/EmpheqConfiguration.js';
+import '@mathjax/src/js/input/tex/enclose/EncloseConfiguration.js';
+import '@mathjax/src/js/input/tex/extpfeil/ExtpfeilConfiguration.js';
+import '@mathjax/src/js/input/tex/gensymb/GensymbConfiguration.js';
+import '@mathjax/src/js/input/tex/html/HtmlConfiguration.js';
+import '@mathjax/src/js/input/tex/mathtools/MathtoolsConfiguration.js';
+import '@mathjax/src/js/input/tex/mhchem/MhchemConfiguration.js';
+import '@mathjax/src/js/input/tex/newcommand/NewcommandConfiguration.js';
+import '@mathjax/src/js/input/tex/noerrors/NoErrorsConfiguration.js';
+import '@mathjax/src/js/input/tex/noundefined/NoUndefinedConfiguration.js';
+import '@mathjax/src/js/input/tex/upgreek/UpgreekConfiguration.js';
+import '@mathjax/src/js/input/tex/unicode/UnicodeConfiguration.js';
+import '@mathjax/src/js/input/tex/verb/VerbConfiguration.js';
+import '@mathjax/src/js/input/tex/configmacros/ConfigMacrosConfiguration.js';
+import '@mathjax/src/js/input/tex/tagformat/TagFormatConfiguration.js';
+import '@mathjax/src/js/input/tex/textcomp/TextcompConfiguration.js';
+import '@mathjax/src/js/input/tex/textmacros/TextMacrosConfiguration.js';
+import '@mathjax/src/js/input/tex/physics/PhysicsConfiguration.js';
+import { MathJaxMhchemFontExtension } from '@mathjax/mathjax-mhchem-font-extension/js/svg.js';
 
 import { buildFeedbackEmbed } from '@/lib/feedback-embeds.js';
+
+const texPackages = [
+  'base',
+  'action',
+  'ams',
+  'amscd',
+  'bbox',
+  'boldsymbol',
+  'braket',
+  'bussproofs',
+  'cancel',
+  'cases',
+  'centernot',
+  'color',
+  'colortbl',
+  'empheq',
+  'enclose',
+  'extpfeil',
+  'gensymb',
+  'html',
+  'mathtools',
+  'mhchem',
+  'newcommand',
+  'noerrors',
+  'noundefined',
+  'upgreek',
+  'unicode',
+  'verb',
+  'configmacros',
+  'tagformat',
+  'textcomp',
+  'textmacros',
+  'physics',
+];
 
 const adaptor = liteAdaptor();
 RegisterHTMLHandler(adaptor);
 
 const tex = new TeX({
-  packages: AllPackages,
+  packages: texPackages,
   inlineMath: [
     ['$', '$'],
     ['\\(', '\\)'],
@@ -32,7 +100,10 @@ const tex = new TeX({
 
 const svg = new SVG({
   fontCache: 'none',
+  // Keep inline math in one SVG instead of splitting it at break points.
+  linebreaks: { inline: false },
 });
+svg.addExtension(MathJaxMhchemFontExtension);
 
 const html = mathjax.document('', {
   InputJax: tex,
@@ -85,15 +156,16 @@ const convertSvgLengthToPixels = (value: string): string => {
   }
 };
 
-const renderLatexSvg = (expression: string, displayMode: boolean): string => {
-  const node = html.convert(expression, {
+const renderLatexSvg = async (expression: string, displayMode: boolean): Promise<string> => {
+  const node = await html.convertPromise(expression, {
     display: displayMode,
     em: emPx,
     ex: exPx,
     containerWidth: 1_200,
   });
 
-  const outer = adaptor.outerHTML(node);
+  // XML serialization escapes characters like < inside attributes, which sharp requires.
+  const outer = adaptor.serializeXML(node);
   const svgMarkupMatch = outer.match(/<svg[\s\S]*<\/svg>/);
 
   if (!svgMarkupMatch) {
@@ -118,7 +190,7 @@ export const renderLatexToPng = async (
   displayMode: boolean,
 ): Promise<Buffer> => {
   const normalized = normalizeLatexInput(expression);
-  const mathSvg = renderLatexSvg(normalized, displayMode);
+  const mathSvg = await renderLatexSvg(normalized, displayMode);
 
   return sharp(Buffer.from(mathSvg), {
     density: 288,

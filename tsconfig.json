@@ -5,11 +5,9 @@
     "moduleResolution": "NodeNext",
     "outDir": "dist",
     "rootDir": ".",
-    "baseUrl": ".",
-    "ignoreDeprecations": "6.0",
     "paths": {
       "@/*": [
-        "src/*"
+        "./src/*"
       ]
     },
     "strict": true,
