@@ -2,6 +2,7 @@ generator client {
   provider            = "prisma-client"
   output              = "../src/generated/prisma"
   runtime             = "nodejs"
+  previewFeatures     = ["partialIndexes"]
   moduleFormat        = "esm"
   importFileExtension = "js"
 }
@@ -701,9 +702,7 @@ model GuildEventLogEntry {
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 
-  @@index([guildId, occurredAt])
-  @@index([deliveryStatus, occurredAt])
-  @@index([deliveryStatus, occurredAt, id])
+  @@index([occurredAt, id], where: raw("\"deliveryStatus\" IN ('pending', 'failed')"))
 }
 
 model PollRationale {
@@ -799,7 +798,4 @@ model GuildMessageSnapshot {
   lastSeenAt        DateTime @default(now())
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
-
-  @@index([guildId, channelId])
-  @@index([guildId, updatedAt])
 }
